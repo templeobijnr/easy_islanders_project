@@ -1,0 +1,24 @@
+# .gitignore
+
+# Environment variables
+.env
+
+# Python virtual environment
+.venv/
+venv/
+easy_islanders_venv/
+
+# Database file
+db.sqlite3
+db.sqlite3-journal
+
+# Django stuff
+__pycache__/
+*.pyc
+
+# IDE files
+.vscode/
+.idea/
+
+# Mac files
+.DS_Store

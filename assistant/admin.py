@@ -1,5 +1,6 @@
+from locale import currency
 from django.contrib import admin
-from .models import UserRequest, ServiceProvider, ServiceFeature, Booking, KnowledgeBase, LinkSource
+from .models import DemandLead, UserRequest, ServiceProvider, ServiceFeature, Booking, KnowledgeBase, LinkSource, Listing
 # Register your models here.
 class ServiceFeatureInline(admin.TabularInline):
   """
@@ -36,26 +37,26 @@ class ServiceProviderAdmin(admin.ModelAdmin):
 
 @admin.register(Booking)
 class BookingAdmin(admin.ModelAdmin):
-  list_display = ['booking_reference', 'service_provider', 'customer_name', 'customer_phone', 'booking_date', 'status']
-  list_filter = ['status','booking_date', 'service_provider__category']
-  search_fields = ['booking_reference', 'customer_name', 'customer_phone']
-  readonly_fields = ['booking_reference', 'created_at', 'updated_at']
+  list_display = ['id', 'listing', 'user', 'preferred_date', 'preferred_time', 'status', 'created_at']
+  list_filter = ['status', 'preferred_date', 'listing__listing_type']
+  search_fields = ['id', 'user__username', 'listing__title', 'contact_phone']
+  readonly_fields = ['id', 'created_at', 'updated_at', 'confirmed_at']
 
   fieldsets = (
         ('Booking Details', {
-            'fields': ('booking_reference', 'service_provider', 'status')
+            'fields': ('id', 'listing', 'user', 'status')
         }),
-        ('Customer Information', {
-            'fields': ('customer_name', 'customer_phone', 'customer_email')
+        ('Viewing Information', {
+            'fields': ('preferred_date', 'preferred_time', 'message')
         }),
-        ('Booking Information', {
-            'fields': ('booking_date', 'booking_time', 'number_of_people', 'duration_days', 'total_price')
+        ('Contact Information', {
+            'fields': ('contact_phone', 'contact_email')
         }),
-        ('Additional', {
-            'fields': ('special_requests',)
+        ('Agent Response', {
+            'fields': ('agent_response', 'agent_available_times', 'agent_notes')
         }),
         ('Timestamps', {
-            'fields': ('created_at', 'updated_at')
+            'fields': ('created_at', 'updated_at', 'confirmed_at')
         }),
     )
 
@@ -77,6 +78,78 @@ class LinkSourceAdmin(admin.ModelAdmin):
     list_display = ['url', 'category', 'language', 'is_active', 'last_ingested']
     list_filter = ['category', 'language', 'is_active']
     search_fields = ['url']
+
+
+@admin.register(DemandLead)
+class DemandLeadAdmin(admin.ModelAdmin):
+    list_display = ('author_name', 'source_provider', 'status', 'posted_at', 'is_processed')
+    list_filter = ('source_provider', 'status', 'is_processed', 'posted_at')
+    search_fields = ('author_name', 'raw_content', 'structured_lead')
+    readonly_fields = ('created_at', 'updated_at', 'posted_at', 'source_id', 'source_url', 'author_profile_url')
+
+    # Reordering fields for better workflow in the admin panel
+    fieldsets = (
+        ('Lead Status & Management', {
+            'fields':('status','is_processed')
+        }),
+        ('Structured Data (AI Processed)', {
+            'description': 'This is the clean, structured data extracted by the AI from the raw post.', 'fields':('structured_lead',)
+        }),
+        ('Source Information (from Webhook)', {
+            'description': 'This is the original, raw data received from the external source',
+            'fields': ('source_provider', 'author_name', 'raw_content', 'keywords_detected', 'posted_at', 'source_url', 'source_id'),
+            'classes': ('collapse',) # This section will be collapsed by default to keep the view clean
+
+        })
+    )
+
+@admin.register(Listing)
+class ListingAdmin(admin.ModelAdmin):
+    list_display = ('get_title', 'listing_type', 'location', 'price_with_currency', 'source_name', 'last_seen_at', 'is_active')
+    list_filter = ('source_name', 'listing_type', 'location', 'is_active','currency')
+    search_fields = ('raw_text', 'structured_data__title', 'structured_data__location') # Allows searching inside the JSON field
+    readonly_fields = ('created_at', 'last_seen_at', 'source_id', 'source_url')
+
+    fieldsets = (
+        ('Listing Status', {
+            'fields': ('is_active',)
+        }),
+        ('Key Information (Extracted by AI)',{
+        'description': "These are the most important fields, promoted from the structured JSON data for fast searching. ",
+        'fields': ('listing_type', 'location', 'price', 'currency')
+        }),
+        ('Structured Data (Full JSON)', {
+            'description': "This is the complete, clean JSON object created by the AI from the raw post.",
+            'fields':('structured_data',)
+        }),
+        ('Source Information', {
+            'description': "Original, raw data from the scraper.",
+            'fields': ('source_name', 'raw_text', 'source_url', 'source_id'),
+            'classes': ('collapse',) # Collapse this section by default
+        }),
+    )
+
+    @admin.display(description='Title')
+    def get_title(self, obj):
+        """
+        A helper function to safely get the title from the structured_data JSON field for display.
+        """
+        if obj.structured_data and 'title' in obj.structured_data:
+            return obj.structured_data['title']
+        return "Untitled Listing"
+
+    @admin.display(description='Price')
+    def price_with_currency(self, obj):
+        """
+        Formats the price and currency for a cleaner display in the list views
+        """
+        if obj.price and obj.currency:
+            return f"{obj.price} {obj.currency}"
+        elif obj.price:
+            return obj.price
+        return "N/A"
+
+        
 
 
 

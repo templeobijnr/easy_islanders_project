@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+from decouple import config
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -20,12 +21,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-^8j$q^-8r2s=1)&etjdrk%441b*r0f@urp(_9@&14409_1=luy'
+SECRET_KEY = config('SECRET_KEY', default='django-insecure-^8j$q^-8r2s=1)&etjdrk%441b*r0f@urp(_9@&14409_1=luy')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = config('DEBUG', default=True, cast=bool)
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='*').split(',')
 
 
 # Application definition
@@ -55,7 +56,6 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'corsheaders.middleware.CorsMiddleware',
-    'django.middleware.security.SecurityMiddleware', 
 ]
 
 ROOT_URLCONF = 'easy_islanders.urls'
@@ -126,6 +126,10 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+# Media (for uploaded/listing images)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
@@ -141,4 +145,47 @@ from decouple import config
 # AI ASSISTANT CONFIGURATION
 # The config() function reads the value from your .env file
 OPENAI_API_KEY = config('OPENAI_API_KEY', default='')
+
+# Enhanced Agent Context - Feature Flag (default: disabled for safety)
+ENABLE_AGENT_CONTEXT = config('ENABLE_AGENT_CONTEXT', default='false').lower() == 'true'
+
+# Redis Configuration
+REDIS_URL = config('REDIS_URL', default='redis://127.0.0.1:6379/0')
+
+# Cache configuration with optional Redis
+USE_REDIS_CACHE = config('USE_REDIS_CACHE', default=False, cast=bool)
+
+if USE_REDIS_CACHE:
+    CACHES = {
+        "default": {
+            "BACKEND": "django_redis.cache.RedisCache",
+            "LOCATION": REDIS_URL,
+            "OPTIONS": {
+                "CLIENT_CLASS": "django_redis.client.DefaultClient",
+                # Swallow redis errors as cache misses instead of crashing requests
+                "IGNORE_EXCEPTIONS": True,
+            },
+            "TIMEOUT": 300,
+        }
+    }
+else:
+    # Development-friendly in-memory cache
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "easy_islanders_local_cache",
+            "TIMEOUT": 300,
+        }
+    }
+
+# Celery Configuration
+CELERY_BROKER_URL = config('CELERY_BROKER_URL', default=REDIS_URL)
+CELERY_RESULT_BACKEND = config('CELERY_RESULT_BACKEND', default=REDIS_URL)
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_TASK_TIME_LIMIT = 60
+CELERY_TASK_ACKS_LATE = True
+CELERY_TASK_REJECT_ON_WORKER_LOST = True
 OPENAI_MODEL = config('OPENAI_MODEL', default='gpt-4-turbo-preview')

@@ -185,8 +185,9 @@ def _resolve_listing_reference(text: str, conversation_id: Optional[str]) -> Opt
     import re
     t = (text or "").lower()
     
-    # Strategy 1: Direct listing ID reference (e.g., "listing 3", "listing 2")
-    m = re.search(r"\blisting\s*(\d+)\b", t)
+    # Strategy 1: Direct listing ID reference
+    # Support variants like: "listing 3", "listing id 3", "listing #3"
+    m = re.search(r"\blisting(?:\s*id|\s*#)?\s*(\d+)\b", t)
     if m:
         try:
             listing_id = int(m.group(1))

@@ -1,6 +1,6 @@
 // frontend/src/components/chat/EasyIslanders.jsx
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Send,
   Phone,
@@ -21,6 +21,8 @@ import axios from 'axios';
 import config from '../../config';
 import ImageGallery from '../common/ImageGallery';
 import ChatImageBubble from './ChatImageBubble';
+import api from '../../api'; // Import the centralized API functions
+import ListingCard from './ListingCard'; // The new UI component
 
 const EasyIslanders = () => {
   const [messages, setMessages] = useState([
@@ -53,6 +55,60 @@ const EasyIslanders = () => {
   const [conversationId, setConversationId] = useState(() => {
     return localStorage.getItem('conversationId') || null;
   });
+
+  const [listingsState, setListingsState] = useState({}); // State for all listings data
+  const [pollingIntervals, setPollingIntervals] = useState({});
+
+  // Function to update a single listing in the state
+  const updateListingState = (listingId, data) => {
+    setListingsState(prevState => ({ ...prevState, [listingId]: data }));
+  };
+
+  const handleRequestPhotos = async (listingId) => {
+    try {
+      // Immediately update UI to "Waiting..."
+      const updatedListing = await api.requestPhotos(listingId);
+      updateListingState(listingId, updatedListing);
+
+      // Start polling for this listing
+      const intervalId = setInterval(async () => {
+        const freshListingData = await api.getListing(listingId);
+        if (freshListingData.image_urls && freshListingData.image_urls.length > 0) {
+          // Photos have arrived! Update the state and stop polling.
+          updateListingState(listingId, freshListingData);
+          clearInterval(pollingIntervals[listingId]);
+        }
+      }, config.POLLING.INTERVAL || 5000);
+
+      setPollingIntervals(prev => ({ ...prev, [listingId]: intervalId }));
+
+    } catch (error) {
+      console.error("Error requesting photos:", error);
+      // Optionally revert the UI state on error
+    }
+  };
+  
+  const handleViewPhotos = async (listingId) => {
+    try {
+      const res = await axios.get(config.getApiUrl(`${config.ENDPOINTS.LISTINGS.IMAGES}${listingId}/images/`));
+      const imgs = (res.data?.image_urls || []).map(u => u?.startsWith('http') ? u : `${config.API_BASE_URL}${u.startsWith('/') ? u : '/' + u}`);
+      setGalleryImages(imgs);
+      setGalleryListingId(listingId);
+      setGalleryVerified(!!res.data?.verified_with_photos);
+      setGalleryOpen(true);
+    } catch (e) {
+      console.error('Failed to open gallery', e);
+    }
+  };
+
+  // Fetch initial listing data when a card appears
+  useEffect(() => {
+    messages.forEach(msg => {
+      if (msg.type === 'listing_card' && !listingsState[msg.listing_id]) {
+        api.getListing(msg.listing_id).then(data => updateListingState(msg.listing_id, data));
+      }
+    });
+  }, [messages, listingsState]);
 
   const messagesEndRef = useRef(null);
 
@@ -98,36 +154,56 @@ const EasyIslanders = () => {
           if (notifications.length > 0) {
             console.log('Received notifications:', notifications);
             
-            // Process each notification
-            notifications.forEach(notification => {
-              if (notification.type === 'new_images' || notification.type === 'card_update') {
-                const data = notification.data || {};
-                const galleryMsg = {
-                  type: 'image_gallery',
-                  listing_id: data.listing_id,
-                  image_urls: data.image_urls || [],
-                  verified_with_photos: !!data.verified_with_photos,
-                  message: data.message || `New images received! ${data.image_count || 0} image(s) added to the listing.`,
-                  timestamp: notification.timestamp
-                };
-                setMessages(prev => {
-                  const exists = prev.some(m => m.type === 'image_gallery' && m.listing_id === galleryMsg.listing_id && m.timestamp === galleryMsg.timestamp);
-                  if (!exists) return [...prev, galleryMsg];
-                   return prev;
-                });
-              }
-              if (notification.type === 'availability_update') {
-                const data = notification.data || notification; // support both shapes
-                const text = data.message || `Agent confirmed listing ${data.listing_id} is ${data.availability}.`;
-                const msg = {
-                  type: 'assistant',
-                  content: text,
-                  language: selectedLanguage,
-                  recommendations: [],
-                  timestamp: notification.timestamp
-                };
-                setMessages(prev => [...prev, msg]);
-              }
+            setMessages(prevMessages => {
+              let messagesChanged = false;
+              const updatedMessages = [...prevMessages]; // Create a mutable copy
+
+              notifications.forEach(notification => {
+                if (notification.type === 'new_images') {
+                  const data = notification.data || {};
+                  const listingId = data.listing_id;
+                  
+                  // Find and update the recommendation in the existing messages
+                  for (let i = 0; i < updatedMessages.length; i++) {
+                    const msg = updatedMessages[i];
+                    if (msg.recommendations && msg.recommendations.length > 0) {
+                      const recIndex = msg.recommendations.findIndex(rec => String(rec.id) === String(listingId));
+                      if (recIndex !== -1) {
+                        // Update the specific recommendation with new image data
+                        msg.recommendations[recIndex].images = data.image_urls || [];
+                        msg.recommendations[recIndex].verified_with_photos = !!data.verified_with_photos;
+                        messagesChanged = true;
+                        console.log(`Updated recommendation card for listing ${listingId} with ${data.image_urls?.length || 0} images`);
+                        break; // Stop searching once updated
+                      }
+                    }
+                  }
+                  
+                  // ALSO update listingsState for ListingCard components
+                  setListingsState(prev => ({
+                    ...prev,
+                    [listingId]: {
+                      ...prev[listingId],
+                      image_urls: data.image_urls || [],
+                      verified_with_photos: !!data.verified_with_photos
+                    }
+                  }));
+                  console.log(`Updated listingsState for listing ${listingId} with ${data.image_urls?.length || 0} images`);
+                } else if (notification.type === 'availability_update') {
+                  const data = notification.data || notification;
+                  const text = data.message || `Agent confirmed listing ${data.listing_id} is ${data.availability}.`;
+                  updatedMessages.push({
+                    type: 'assistant',
+                    content: text,
+                    language: selectedLanguage,
+                    recommendations: [],
+                    timestamp: notification.timestamp
+                  });
+                  messagesChanged = true;
+                }
+              });
+
+              return messagesChanged ? updatedMessages : prevMessages;
             });
             
             // Clear notifications after processing
@@ -189,6 +265,23 @@ const EasyIslanders = () => {
 
       if (apiData.requires_phone) {
         setShowPhoneInput(true);
+      }
+
+      // NEW: On notif, re-fetch listings
+      if (apiData.notifications && apiData.notifications.length > 0) {
+        apiData.notifications.forEach(notif => {
+          if (notif.type === 'new_images') {
+            const listingId = notif.data.listing_id;  // From notif
+            // Re-fetch single listing
+            axios.get(`${config.API_BASE_URL}/listings/${listingId}/`)
+              .then(res => {
+                setListingsState(prev => ({...prev, [listingId]: res.data}));
+                setMessages(prev => [...prev, { type: 'assistant', content: 'Photos received!', recommendations: [res.data] }]);
+              });
+          }
+        });
+        // Clear after process (your existing)
+        axios.post(`${config.API_BASE_URL}/clear-notifications/`, { conversation_id: conversationId });
       }
     } catch (error) {
       console.error('Error fetching AI response:', error);
@@ -297,8 +390,28 @@ const EasyIslanders = () => {
     const [currentImage, setCurrentImage] = useState(
       (item.images && item.images.length > 0) ? item.images[0] : ''
     );
-    const [verified, setVerified] = useState(false);
+    const [verified, setVerified] = useState(!!item.verified_with_photos);
+    const [imageCount, setImageCount] = useState(item.images?.length || 0);
     const [isPolling, setIsPolling] = useState(false);
+
+    // Update local state when item prop changes (reactive to new images)
+    useEffect(() => {
+      console.log(`RecommendationCard for listing ${item.id}:`, {
+        hasImages: !!(item.images && item.images.length > 0),
+        imageCount: item.images?.length || 0,
+        verified: !!item.verified_with_photos,
+        currentImage: currentImage,
+        verifiedState: verified
+      });
+      
+      if (item.images && item.images.length > 0) {
+        setCurrentImage(item.images[0]);
+        setVerified(!!item.verified_with_photos);
+        setImageCount(item.images.length);
+        setIsPolling(false); // Stop polling if images arrived
+        console.log(`Updated RecommendationCard for listing ${item.id} with ${item.images.length} images`);
+      }
+    }, [item.images, item.verified_with_photos, item.id]);
 
     const resolvedImageUrl = currentImage
       ? (currentImage.startsWith('http') ? currentImage : `${config.API_BASE_URL}${currentImage}`)
@@ -360,7 +473,8 @@ const EasyIslanders = () => {
     const openGallery = async (listingId) => {
       try {
         const res = await axios.get(config.getApiUrl(`${config.ENDPOINTS.LISTINGS.IMAGES}${listingId}/images/`));
-        const imgs = (res.data?.image_urls || []).map(u => u?.startsWith('http') ? u : `${config.API_BASE_URL}${u.startsWith('/') ? u : '/' + u}`);
+        const raw = Array.isArray(res.data?.image_urls) ? res.data.image_urls : (res.data?.images || []);
+        const imgs = raw.map(u => u?.startsWith('http') ? u : `${config.API_BASE_URL}${u.startsWith('/') ? u : '/' + u}`);
         setGalleryImages(imgs);
         setGalleryListingId(listingId);
         setGalleryVerified(!!res.data?.verified_with_photos);
@@ -438,13 +552,32 @@ const EasyIslanders = () => {
           )}
 
           <div className="flex gap-2">
-            {/* View Photos (if any) */}
-            {(item.images && item.images.length > 0) && (
+            {/* Dynamic Photo Button - show View Photos if any images exist */}
+            {imageCount > 0 ? (
               <button
                 onClick={() => openGallery(item.id)}
-                className="flex-1 bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors duration-200 flex items-center justify-center gap-2"
+                className="flex-1 bg-indigo-600 text-white py-2.5 px-2 rounded-xl hover:bg-indigo-700 transition-all duration-200 flex items-center justify-center gap-2 text-sm font-medium shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1"
               >
-                View Photos
+                <Camera className="w-4 h-4" />
+                View Photos ({imageCount})
+              </button>
+            ) : (
+              <button
+                onClick={async () => {
+                  try {
+                    const result = await api.sendChatEvent(conversationId, 'request_photos', { listing_id: item.id });
+                    // Optionally add the agent's response to the chat
+                    setMessages(prev => [...prev, { type: 'assistant', content: result.response, recommendations: result.recommendations || [] }]);
+                    startPhotoPolling(item.id); // Keep polling for visual updates
+                  } catch (error) {
+                    console.error("Error requesting photos:", error);
+                    alert("Sorry, we couldn't request photos right now.");
+                  }
+                }}
+                className="flex-1 bg-orange-600 text-white py-2.5 px-2 rounded-xl hover:bg-orange-700 transition-all duration-200 flex items-center justify-center gap-2 text-sm font-medium shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-1"
+              >
+                <Camera className="w-4 h-4" />
+                Request Photos
               </button>
             )}
             <button
@@ -454,7 +587,7 @@ const EasyIslanders = () => {
                   '_blank'
                 )
               }
-              className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors duration-200 flex items-center justify-center gap-2"
+              className="flex-1 bg-blue-600 text-white py-2.5 px-2 rounded-xl hover:bg-blue-700 transition-all duration-200 flex items-center justify-center gap-2 text-sm font-medium shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
             >
               <ExternalLink className="w-4 h-4" />
               {t.book}
@@ -462,19 +595,15 @@ const EasyIslanders = () => {
             <button
             onClick={async () => {
               try {
-                await axios.post(config.getApiUrl(config.ENDPOINTS.LISTINGS.OUTREACH), {
-                  listing_id: item.id,
-                  channel: "whatsapp"
-                });
-                // Begin polling for photos and update the card when available
-                startPhotoPolling(item.id);
-                alert("We’ve contacted the agent. I’ll update the photos here as soon as they arrive.");
+                const result = await api.sendChatEvent(conversationId, 'contact_agent', { listing_id: item.id });
+                // Optionally add the agent's response to the chat
+                setMessages(prev => [...prev, { type: 'assistant', content: result.response, recommendations: result.recommendations || [] }]);
               } catch (error) {
                 console.error("Error contacting agent:", error);
-                alert("Sorry, we couldn’t reach the agent right now.");
+                alert("Sorry, we couldn't reach the agent right now.");
               }
             }}
-            className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors duration-200 flex items-center justify-center gap-2"
+            className="flex-1 bg-green-600 text-white py-2.5 px-2 rounded-xl hover:bg-green-700 transition-all duration-200 flex items-center justify-center gap-2 text-sm font-medium shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-1"
           >
             <Phone className="w-4 h-4" />
             Contact Agent
@@ -549,46 +678,70 @@ const EasyIslanders = () => {
       <div className="max-w-6xl mx-auto px-4 py-6">
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
           <div className="h-[32rem] overflow-y-auto p-6 bg-gray-50">
-            {messages.map((message, index) => (
-              <div key={index} className="mb-6">
-                <div
-                  className={`flex ${
-                    message.type === 'user' ? 'justify-end' : 'justify-start'
-                  }`}
-                >
-                  {message.type === 'image_gallery' ? (
-                    <ChatImageBubble message={message} />
-                  ) : (
-                    <div
-                      className={`max-w-2xl ${
-                        message.type === 'user'
-                          ? 'bg-blue-600 text-white rounded-l-xl rounded-tr-xl'
-                          : 'bg-white border rounded-r-xl rounded-tl-xl shadow-sm'
-                      } px-4 py-3`}
-                    >
-                      <div className="text-sm whitespace-pre-wrap">
-                        {message.content}
+            {messages.map((message, index) => {
+              if (message.type === 'listing_card') {
+                return (
+                  <ListingCard
+                    key={index}
+                    listing={listingsState[message.listing_id]}
+                    conversationId={conversationId}
+                    onAgentResponse={(result) => {
+                      setMessages(prev => [...prev, { type: 'assistant', content: result.response, recommendations: result.recommendations || [] }]);
+                    }}
+                    onRequestPhotos={() => handleRequestPhotos(message.listing_id)}
+                    onViewPhotos={(images, listingId, verified) => {
+                      setGalleryImages(images.map(u => u?.startsWith('http') ? u : `${config.API_BASE_URL}${u.startsWith('/') ? u : '/' + u}`));
+                      setGalleryListingId(listingId);
+                      setGalleryVerified(verified);
+                      setGalleryOpen(true);
+                    }}
+                  />
+                );
+              }
+              return (
+                <div key={index} className="mb-6">
+                  <div
+                    className={`flex ${
+                      message.type === 'user' ? 'justify-end' : 'justify-start'
+                    }`}
+                  >
+                    {message.type === 'image_gallery' ? (
+                      <ChatImageBubble 
+                        message={message} 
+                        onRequestPhotos={() => handleRequestPhotos(message.listing_id)} 
+                      />
+                    ) : (
+                      <div
+                        className={`max-w-2xl ${
+                          message.type === 'user'
+                            ? 'bg-blue-600 text-white rounded-l-xl rounded-tr-xl'
+                            : 'bg-white border rounded-r-xl rounded-tl-xl shadow-sm'
+                        } px-4 py-3`}
+                      >
+                        <div className="text-sm whitespace-pre-wrap">
+                          {message.content}
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
 
-                {message.recommendations &&
-                  message.recommendations.length > 0 && (
-                    <div className="mt-4">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                        <Star className="w-5 h-5 text-yellow-500" />
-                        {t.recommendations}
-                      </h3>
-                      <div className="flex gap-4 overflow-x-auto pb-4 -mx-6 px-6">
-                        {message.recommendations.map((item, idx) => (
-                          <RecommendationCard key={item.id || idx} item={item} />
-                        ))}
+                  {message.recommendations &&
+                    message.recommendations.length > 0 && (
+                      <div className="mt-4">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                          <Star className="w-5 h-5 text-yellow-500" />
+                          {t.recommendations}
+                        </h3>
+                        <div className="flex gap-4 overflow-x-auto pb-4 -mx-6 px-6">
+                          {message.recommendations.map((item, idx) => (
+                            <RecommendationCard key={item.id || idx} item={item} />
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
-              </div>
-            ))}
+                    )}
+                </div>
+              );
+            })}
 
             {isLoading && (
               <div className="flex justify-start">

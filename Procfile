@@ -3,3 +3,4 @@ worker: celery -A easy_islanders worker --loglevel=info
 beat: celery -A easy_islanders beat --loglevel=info
 
 
+

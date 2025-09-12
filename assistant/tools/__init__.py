@@ -365,6 +365,20 @@ def search_internal_listings(
                 | Q(raw_text__icontains="kiralik")
             )
 
+        # Text query filter (broad, keyword-based)
+        if text_query:
+            keywords = text_query.split()
+            q_objects = Q()
+            for keyword in keywords:
+                q_objects |= (
+                    Q(raw_text__icontains=keyword)
+                    | Q(location__icontains=keyword)
+                    | Q(structured_data__title__icontains=keyword)
+                    | Q(structured_data__description__icontains=keyword)
+                    | Q(structured_data__features__icontains=keyword)
+                )
+            qs = qs.filter(q_objects)
+
         # If “similar to previous listing” requested
         base_beds = None
         base_loc = None
@@ -856,12 +870,19 @@ def initiate_contact_with_seller(
                         except Conversation.DoesNotExist:
                             logger.warning(f"Conversation {conversation_id} not found for ContactIndex")
                     
-                    ContactIndex.objects.get_or_create(
+                    # Create or update ContactIndex with conversation context
+                    contact_index, created = ContactIndex.objects.get_or_create(
                         normalized_contact=norm, 
                         listing=lst,
                         defaults={'conversation': conversation}
                     )
-                    logger.info(f"Created ContactIndex: {norm} → listing {listing_id}, conversation {conversation_id}")
+                    
+                    # Always update conversation if provided (for better context resolution)
+                    if conversation and contact_index.conversation != conversation:
+                        contact_index.conversation = conversation
+                        contact_index.save()
+                    
+                    logger.info(f"ContactIndex {'created' if created else 'updated'}: {norm} → listing {listing_id}, conversation {conversation_id}")
                 except Exception:
                     logger.exception("Failed to index contact→listing")
             if not candidate:
@@ -906,6 +927,11 @@ def initiate_contact_with_seller(
             }
             if message_sid:
                 outreach_entry["message_sid"] = message_sid
+            
+            # NEW: Add follow_up_at for monitoring (24 hours from now)
+            from datetime import timedelta
+            outreach_entry["follow_up_at"] = (datetime.now(dt_timezone.utc) + timedelta(hours=24)).isoformat()
+            
             existing = sd.get("outreach") or []
             if not isinstance(existing, list):
                 existing = [existing]
@@ -920,3 +946,83 @@ def initiate_contact_with_seller(
     except Exception as e:
         logger.exception("initiate_contact_with_seller failed")
         return {"ok": False, "reason": "error", "error": str(e), "data": []}
+
+
+def check_for_new_images(
+    listing_id: int,
+    outreach_timestamp: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Check if new images have been received for a listing since the outreach timestamp.
+    
+    Parameters
+    ----------
+    listing_id : int
+        The ID of the listing to check.
+    outreach_timestamp : str, optional
+        ISO-formatted timestamp of when the outreach was sent.
+        If not provided, returns current image status without time comparison.
+    
+    Returns
+    -------
+    dict:
+        {"success": bool, "has_new_images": bool, "image_count": int, "new_images": list[str], "error"?: str}
+    """
+    try:
+        lst = Listing.objects.get(id=listing_id)
+        sd = lst.structured_data or {}
+        
+        # Get images (always available)
+        images = sd.get('image_urls', [])
+        current_count = len(images)
+        
+        # If no timestamp provided, return current status
+        if not outreach_timestamp:
+            return {
+                "success": True,
+                "has_new_images": current_count > 0,
+                "image_count": current_count,
+                "new_images": images
+            }
+        
+        # Parse the outreach timestamp
+        try:
+            outreach_dt = datetime.fromisoformat(outreach_timestamp).replace(tzinfo=dt_timezone.utc)
+        except ValueError:
+            return {"success": False, "error": "Invalid timestamp format"}
+        
+        # Get last photo update time
+        last_update_str = sd.get('last_photo_update')
+        if not last_update_str:
+            return {"success": True, "has_new_images": False, "image_count": current_count, "new_images": []}
+        
+        try:
+            last_update_dt = datetime.fromisoformat(last_update_str).replace(tzinfo=dt_timezone.utc)
+        except ValueError:
+            return {"success": False, "error": "Invalid last_photo_update format"}
+        
+        # Check if update happened after outreach
+        has_new = last_update_dt > outreach_dt
+        
+        return {
+            "success": True,
+            "has_new_images": has_new,
+            "image_count": len(images) if has_new else 0,
+            "new_images": images if has_new else []
+        }
+    except Listing.DoesNotExist:
+        return {"success": False, "error": "Listing not found"}
+    except Exception as e:
+        logger.exception("check_for_new_images failed")
+        return {"success": False, "error": str(e)}
+
+__all__ = [
+    "search_internal_listings",
+    "search_services",
+    "get_knowledge",
+    "find_rental_property",
+    "find_used_car",
+    "perform_google_search",
+    "initiate_contact_with_seller",
+    "check_for_new_images",  # NEW: Add to exports
+]

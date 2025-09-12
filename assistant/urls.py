@@ -2,6 +2,7 @@
 
 from django.urls import path
 from . import views  # Corrected from .import
+from .views import ListingDetailView, request_listing_photos, twilio_webhook
 
 urlpatterns = [
     # Authentication endpoints
@@ -14,6 +15,7 @@ urlpatterns = [
     
     # The main AI chat endpoint
     path('chat/', views.chat_with_assistant, name='chat-with-assistant'),
+    path('chat/events/', views.handle_chat_event, name='chat-event'),
 
     # Agent outreach endpoints
     path('listings/outreach/', views.agent_outreach, name='agent-outreach'),
@@ -21,12 +23,14 @@ urlpatterns = [
     
     # Listing details
     path('listings/<int:listing_id>/', views.listing_details, name='listing-details'),
+    path('listings/<int:id>/', ListingDetailView.as_view(), name='listing-detail'),
+    path('listings/<int:listing_id>/request-photos/', request_listing_photos, name='request-listing-photos'),
     
     # Media serving for listing images
     path('listings/<int:listing_id>/media/<str:filename>', views.serve_listing_media, name='serve-listing-media'),
     
     # Twilio webhook for WhatsApp replies and media
-    path('webhooks/twilio/', views.twilio_webhook, name='twilio-webhook'),
+    path('webhooks/twilio/', twilio_webhook, name='twilio-webhook'),
     
     # Notification and image checking endpoints
     path('notifications/', views.get_conversation_notifications, name='get-notifications-by-conversation'),

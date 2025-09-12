@@ -38,11 +38,16 @@ from .heuristics import (
 from .agent_utils import (
     resolve_listing_reference,
     get_last_contacted_listing,
-    check_for_new_images,
     build_recommendation_card,
     parse_and_correct_intent,
 )
-from ..tools import search_internal_listings, initiate_contact_with_seller, search_services, get_knowledge
+from ..tools import (
+    search_internal_listings,
+    initiate_contact_with_seller,
+    search_services,
+    get_knowledge,
+    check_for_new_images,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -279,9 +284,11 @@ def _do_outreach(user_text: str, language: str, conversation_id: str) -> Dict[st
 
 def _do_status_update(user_text: str, language: str, conversation_id: str) -> Dict[str, Any]:
     last_contact = get_last_contacted_listing(conversation_id)
+    logger.critical(f"DEBUG _do_status_update: last_contact={last_contact}")
     if last_contact:
         listing_id = last_contact["listing_id"]
         outreach_ts = last_contact.get("contacted_at")
+        logger.critical(f"DEBUG _do_status_update: Using listing_id={listing_id}, outreach_ts={outreach_ts}")
         if not outreach_ts:
             try:
                 state = _load_state(conversation_id)
@@ -293,8 +300,22 @@ def _do_status_update(user_text: str, language: str, conversation_id: str) -> Di
             except Exception:
                 pass
         logger.debug(f"status_update {conversation_id}: listing={listing_id}, outreach_ts={outreach_ts}")
+
+        # Ensure outreach_ts is not None before calling the tool
+        if not outreach_ts:
+            response_msg = "I'm having trouble recalling when we contacted the agent. Could you please try asking to contact them again?"
+            mem_save_assistant_turn(conversation_id, user_text, response_msg, message_context={"intent_type": "status_update", "error": "missing_timestamp"})
+            return {"message": response_msg, "language": language, "recommendations": []}
+
         image_status = check_for_new_images(listing_id, outreach_timestamp=outreach_ts)
         logger.debug(f"status_update {conversation_id}: image_status={image_status}")
+
+        # Check for success in the tool result
+        if not image_status.get("success"):
+            response_msg = "I'm having a bit of trouble checking for updates right now, but I'll keep monitoring the situation."
+            mem_save_assistant_turn(conversation_id, user_text, response_msg, message_context={"intent_type": "status_update", "error": "tool_failure"})
+            return {"message": response_msg, "language": language, "recommendations": []}
+
         current_count = int(image_status.get("image_count") or 0)
         # Try to get baseline from last outreach message context
         try:
@@ -306,7 +327,10 @@ def _do_status_update(user_text: str, language: str, conversation_id: str) -> Di
         except Exception:
             baseline = 0
         logger.info(f"Status update check for {conversation_id}: listing={listing_id}, baseline={baseline}, current_count={current_count}, image_status={image_status}, last_ctx={last_ctx}")
-        if current_count > max(baseline, 0) and image_status.get("verified_with_photos", False):
+
+        has_new_images = image_status.get("has_new_images", False)
+
+        if has_new_images:
             # Build normalized recommendation card
             recs = build_recommendation_card(listing_id)
             delta = current_count - baseline
@@ -314,7 +338,7 @@ def _do_status_update(user_text: str, language: str, conversation_id: str) -> Di
             mem_save_assistant_turn(conversation_id, user_text, response_msg, message_context={"intent_type": "status_update", "images_received": True, "listing_id": listing_id})
             return {"message": response_msg, "language": language, "recommendations": recs}
         else:
-            response_msg = f"I'm still waiting for the agent's response for listing {listing_id}. I'll update you as soon as they reply with the pictures."
+            response_msg = f"I haven't received a response yet, but I'll keep an eye out and let you know as soon as I hear back!"
             mem_save_assistant_turn(conversation_id, user_text, response_msg, message_context={"intent_type": "status_update", "images_received": False, "listing_id": listing_id})
             return {"message": response_msg, "language": language, "recommendations": []}
     else:
@@ -415,7 +439,7 @@ def _do_service_search(user_text: str, conversation_id: str, language: str) -> D
         res = search_services(category=category, language=language)
         cards = res.get("data") if isinstance(res, dict) else []
         if cards:
-            msg = f"I found {len(cards)} providers." 
+            msg = f"I found {len(cards)} providers."
         else:
             msg = "I couldn't find providers that match right now."
     except Exception:

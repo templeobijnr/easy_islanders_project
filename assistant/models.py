@@ -139,42 +139,6 @@ class ServiceFeature(models.Model):
         return getattr(self, f"feature_name_{language}", None) or self.feature_name
 
 
-class Booking(models.Model):
-    STATUS_CHOICES = [
-        ("pending", "Pending Confirmation"),
-        ("confirmed", "Confirmed"),
-        ("cancelled", "Cancelled"),
-        ("completed", "Completed"),
-    ]
-
-    service_provider = models.ForeignKey(ServiceProvider, on_delete=models.CASCADE)
-    customer_name = models.CharField(max_length=100)
-    customer_phone = models.CharField(max_length=20)
-    customer_email = models.EmailField(blank=True)
-
-    booking_date = models.DateField()
-    booking_time = models.TimeField(blank=True, null=True)
-    number_of_people = models.IntegerField(default=1)
-    duration_days = models.IntegerField(default=1)
-
-    special_requests = models.TextField(blank=True)
-    total_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
-    booking_reference = models.CharField(max_length=20, unique=True, editable=False)
-
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    def save(self, *args, **kwargs):
-        if not self.booking_reference:
-            self.booking_reference = str(uuid.uuid4())[:8].upper()
-        super().save(*args, **kwargs)
-
-    def __str__(self):
-        return f"Booking {self.booking_reference} - {self.service_provider.name}"
-
-
 class LinkSource(models.Model):
     url = models.URLField(unique=True)
     category = models.CharField(max_length=50, help_text="e.g., Residency, Banking, Car Imports")
@@ -292,6 +256,9 @@ class Listing(models.Model):
         help_text="Permanent CDN/S3 URLs for photos"
     )
     has_image = models.BooleanField(default=False)
+
+    # This is the crucial field to track the "pending" state.
+    photos_requested = models.BooleanField(default=False, help_text="True when we have asked the agent for photos but not yet received them.")
 
     # --- Minimal contact hints (never shown to user) ---
     contact_channel = models.CharField(
@@ -562,3 +529,14 @@ class Booking(models.Model):
         except Exception:
             title = f"Listing #{self.listing_id}"
         return f"Booking {self.id} - {title} - {self.get_status_display()}"
+
+
+# A new model to store the images for each listing.
+class Image(models.Model):
+    listing = models.ForeignKey(Listing, related_name='images', on_delete=models.CASCADE)
+    # The 'upload_to' path will automatically create folders per listing ID.
+    image = models.ImageField(upload_to='listings/%Y/%m/%d/')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Image for {self.listing.title} uploaded at {self.uploaded_at.strftime('%Y-%m-%d')}"

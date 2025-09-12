@@ -42,6 +42,31 @@ def get_last_contacted_listing(conversation_id: Optional[str]) -> Optional[Dict[
             Message.objects.filter(conversation__conversation_id=conversation_id, role="assistant")
             .order_by("-created_at")
         )
+        
+        # DEBUG: Log all messages to see what's in the conversation
+        logger.critical(f"DEBUG get_last_contacted_listing for conversation {conversation_id}:")
+        logger.critical(f"Found {messages.count()} assistant messages")
+        
+        outreach_messages = []
+        for i, msg in enumerate(messages):
+            logger.critical(f"  Message {i+1}: created_at={msg.created_at}, content='{msg.content[:100]}...'")
+            if msg.message_context:
+                intent_type = msg.message_context.get("intent_type")
+                contacted_listing = msg.message_context.get("contacted_listing")
+                logger.critical(f"    message_context: intent_type={intent_type}, contacted_listing={contacted_listing}")
+                
+                if (intent_type == "agent_outreach" and contacted_listing):
+                    outreach_messages.append({
+                        "message": msg,
+                        "listing_id": contacted_listing,
+                        "created_at": msg.created_at
+                    })
+        
+        logger.critical(f"Found {len(outreach_messages)} agent_outreach messages")
+        for i, om in enumerate(outreach_messages):
+            logger.critical(f"  Outreach {i+1}: listing_id={om['listing_id']}, created_at={om['created_at']}")
+        
+        # Return the most recent outreach message
         for msg in messages:
             if (
                 msg.message_context
@@ -64,64 +89,33 @@ def get_last_contacted_listing(conversation_id: Optional[str]) -> Optional[Dict[
                                 break
                 except Exception:
                     pass
+                logger.critical(f"SELECTED: listing_id={out['listing_id']}, created_at={out['contacted_at']}")
                 return out
-    except Exception:
+    except Exception as e:
+        logger.exception(f"Error in get_last_contacted_listing: {e}")
         return None
     return None
 
 
-def check_for_new_images(listing_id: int, outreach_timestamp: Optional[str] = None) -> Dict[str, Any]:
+def check_for_new_images(listing_id: int) -> Dict:
     try:
         from assistant.models import Listing
-        from django.utils import timezone
         listing = Listing.objects.get(id=listing_id)
         sd = listing.structured_data or {}
-        current_images = sd.get("image_urls", [])
-        current_count = len(current_images)
-        last_update_str = sd.get("last_photo_update")
-        last_update = None
-        try:
-            last_update = timezone.datetime.fromisoformat(last_update_str) if last_update_str else None
-            logger.debug(f"check_images {listing_id}: last_update={last_update}")
-        except Exception as e:
-            logger.warning(f"Invalid last_photo_update for {listing_id}: {e}")
-            last_update = None
-        
-        has_new = current_count > 0
-        if outreach_timestamp:
-            try:
-                outreach_dt = timezone.datetime.fromisoformat(outreach_timestamp) if outreach_timestamp else timezone.now()
-                logger.debug(f"check_images {listing_id}: outreach_dt={outreach_dt}")
-                if last_update is None or last_update <= outreach_dt:
-                    has_new = False
-                    logger.debug(f"check_images {listing_id}: no new images (last_update <= outreach_dt or missing)")
-                else:
-                    logger.debug(f"check_images {listing_id}: new images detected")
-            except Exception as e:
-                logger.warning(f"Invalid outreach_timestamp for {listing_id}: {e}")
-                has_new = False
-        
-        media_entries = sd.get("media", [])
-        recent_media = [entry for entry in media_entries if entry.get("type") == "photo" and entry.get("added_at")]
-        return {
-            "has_new_images": has_new,
-            "image_count": current_count,
-            "image_urls": current_images,
-            "recent_media": recent_media,
-            "last_photo_update": last_update_str,
-            "verified_with_photos": sd.get("verified_with_photos", False),
-        }
-    except Exception as e:
-        logger.exception(f"Failed to check images for listing {listing_id}")
-        return {"has_new_images": False, "image_count": 0, "image_urls": [], "error": str(e)}
+        baseline = sd.get('baseline_image_count', 0)
+        current_urls = sd.get('image_urls', [])
+        has_new = len(current_urls) > baseline and sd.get('verified_with_photos', False)
+        return {"has_new_images": has_new, "current_count": len(current_urls)}
+    except:
+        return {"has_new_images": False, "current_count": 0}
 
 
 def resolve_listing_reference(text: str, conversation_id: Optional[str]) -> Optional[int]:
     import re
     t = (text or "").lower()
 
-    # Direct pattern: "listing <id>"
-    m = re.search(r"\blisting\s*(\d+)\b", t)
+    # Direct pattern variants: "listing <id>", "listing id <id>", "listing #<id>"
+    m = re.search(r"\blisting(?:\s*id|\s*#)?\s*(\d+)\b", t)
     if m:
         try:
             listing_id = int(m.group(1))

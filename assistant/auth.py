@@ -250,3 +250,4 @@ def check_auth_status(request):
     }, status=status.HTTP_200_OK)
 
 
+

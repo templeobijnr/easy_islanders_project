@@ -13,6 +13,10 @@ from django.conf import settings
 from .models import Listing
 from .utils.notifications import put_card_display, put_auto_display
 from .twilio_client import MediaProcessor
+from datetime import datetime, timedelta
+from django.utils import timezone as dt_timezone
+# REMOVED incorrect import: from .utils.outreach import check_for_new_images, graph_run_event
+from .twilio_client import TwilioWhatsAppClient
 
 logger = logging.getLogger(__name__)
 
@@ -232,4 +236,97 @@ def process_webhook_media_task(self, webhook_data: Dict[str, Any]) -> Dict[str, 
         
     except Exception as e:
         logger.error(f"Failed to process webhook media: {e}")
+        raise
+
+
+@shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_kwargs={"max_retries": 2})
+def monitor_pending_outreaches(self) -> Dict[str, Any]:
+    """
+    Periodic task to monitor pending outreaches.
+    Checks for responses, sends follow-ups if overdue, and updates agent state.
+    """
+    # Best Practice: Import dependencies locally within the task
+    from ..tools import check_for_new_images
+    from ..brain.graph import run_event as graph_run_event
+
+    try:
+        now = datetime.now(dt_timezone.utc)
+        # Find listings where the *last* outreach entry is pending and overdue
+        # This is a more complex query that might be better handled in Python
+        pending_listings = Listing.objects.filter(
+            structured_data__outreach__isnull=False
+        ).exclude(
+            structured_data__outreach=[]
+        )
+        
+        monitored = 0
+        follow_ups_sent = 0
+        updates = []
+        
+        for listing in pending_listings:
+            sd = listing.structured_data or {}
+            outreach_entries = sd.get("outreach", [])
+            if not isinstance(outreach_entries, list) or not outreach_entries:
+                continue
+            
+            # Check the last outreach entry
+            last_entry = outreach_entries[-1]
+            if last_entry.get("status") in ["queued", "sent"]:
+                follow_up_at_str = last_entry.get("follow_up_at")
+                if not follow_up_at_str:
+                    continue
+                
+                try:
+                    follow_up_at = datetime.fromisoformat(follow_up_at_str).replace(tzinfo=dt_timezone.utc)
+                except ValueError:
+                    continue
+
+                if now >= follow_up_at:
+                    monitored += 1
+                    # Check for new images/updates since the outreach was sent
+                    check_result = check_for_new_images(listing.id, last_entry["at"])
+                    if check_result.get("success") and check_result.get("has_new_images"):
+                        # Update status to resolved
+                        last_entry["status"] = "resolved_by_monitoring"
+                        updates.append({
+                            "listing_id": listing.id,
+                            "action": "resolved",
+                            "image_count": check_result.get("image_count")
+                        })
+                        
+                        # Trigger agent event
+                        conversation_id = last_entry.get("conversation_id")
+                        if graph_run_event and conversation_id:
+                            graph_run_event(
+                                conversation_id,
+                                'media_received',
+                                listing_id=listing.id,
+                                image_count=check_result.get("image_count")
+                            )
+                    else:
+                        # Send follow-up
+                        twilio = TwilioWhatsAppClient()
+                        follow_up_text = "Hello! Just following up on my previous message about the property interest. Could you please share photos and availability?"
+                        result = twilio.send_message(last_entry["to"], follow_up_text)
+                        if result.get("success"):
+                            last_entry["status"] = "followed_up"
+                            last_entry["follow_up_at"] = (now + timedelta(hours=24)).isoformat()  # Reset for next check
+                            follow_ups_sent += 1
+                        else:
+                            logger.warning(f"Follow-up failed for listing {listing.id}")
+            
+                    # Save updates to the specific listing
+                    listing.structured_data = sd
+                    listing.save(update_fields=["structured_data"])
+        
+        logger.info(f"Monitored {monitored} pending outreaches, sent {follow_ups_sent} follow-ups")
+        return {
+            "success": True,
+            "monitored": monitored,
+            "follow_ups_sent": follow_ups_sent,
+            "updates": updates
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to monitor pending outreaches: {e}")
         raise

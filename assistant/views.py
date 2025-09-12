@@ -35,7 +35,7 @@ from .auth import (
     register_user, login_user, logout_user, 
     get_user_profile, update_user_profile, check_auth_status
 )
-from .serializers import ServiceProviderSerializer, KnowledgeBaseSerializer
+from .serializers import ServiceProviderSerializer, KnowledgeBaseSerializer, ListingSerializer
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
@@ -65,13 +65,34 @@ from .utils.notifications import (
 
 def _notify_new_images(listing_id: int, media_urls: List[str]):
     """Notify that new images are available for a listing."""
-    notification = {
-        "listing_id": listing_id,
-        "media_urls": media_urls,
-        "type": "new_images"
-    }
-    put_notification(listing_id, notification)
-    logger.info(f"Notification created for listing {listing_id} with {len(media_urls)} images")
+    try:
+        # Get the updated listing with all images
+        listing = Listing.objects.get(id=listing_id)
+        sd = listing.structured_data or {}
+        
+        # Get all current images (not just the new ones)
+        all_image_urls = sd.get('image_urls', [])
+        
+        notification = {
+            "listing_id": listing_id,
+            "media_urls": media_urls,
+            "image_urls": all_image_urls,  # All images, not just new ones
+            "verified_with_photos": sd.get('verified_with_photos', False),
+            "type": "new_images"
+        }
+        put_notification(listing_id, notification)
+        logger.info(f"Notification created for listing {listing_id} with {len(media_urls)} new images, {len(all_image_urls)} total images")
+    except Exception as e:
+        logger.error(f"Failed to create notification for listing {listing_id}: {e}")
+        # Fallback to basic notification
+        notification = {
+            "listing_id": listing_id,
+            "media_urls": media_urls,
+            "image_urls": media_urls,  # Fallback to just new images
+            "verified_with_photos": False,
+            "type": "new_images"
+        }
+        put_notification(listing_id, notification)
 
 
 def _auto_trigger_image_display(listing_id: int, media_urls: List[str], conversation_id: Optional[str] = None):
@@ -125,20 +146,46 @@ def check_listing_images(request, listing_id: int):
     try:
         listing = Listing.objects.get(id=listing_id)
         sd = listing.structured_data or {}
-        image_urls = sd.get('image_urls', [])
+        
+        # Convert image URLs from relative paths to API URLs
+        images = []
+        if sd.get("image_urls"):
+            for img_url in sd.get("image_urls", []):
+                if img_url.startswith('/listings/'):
+                    # Convert relative path to full API URL
+                    path_parts = img_url.strip('/').split('/')
+                    if len(path_parts) >= 4 and path_parts[0] == 'listings' and path_parts[2] == 'media':
+                        listing_id_from_path = path_parts[1]
+                        filename = path_parts[3]
+                        api_url = f"/api/listings/{listing_id_from_path}/media/{filename}"
+                        images.append(api_url)
+                    else:
+                        images.append(img_url)
+                else:
+                    images.append(img_url)
+        
+        # Get notifications if conversation_id provided
+        conversation_id = request.GET.get('conversation_id')
+        notifications = []
+        if conversation_id:
+            notifications = get_notification_data(conversation_id)
+            logger.info(f"Notifications for {conversation_id}: {len(notifications)} items")
         
         return Response({
             "listing_id": listing_id,
-            "image_count": len(image_urls),
-            "image_urls": image_urls,
+            "images": images,
+            "image_count": len(images),
             "last_photo_update": sd.get('last_photo_update'),
-            "verified_with_photos": sd.get('verified_with_photos', False)
+            "verified_with_photos": sd.get('verified_with_photos', False),
+            "auto_display": get_auto_display_data(conversation_id or str(listing_id)),
+            "notifications": notifications
         })
+        
     except Listing.DoesNotExist:
-        return Response({"error": "Listing not found"}, status=404)
+        return Response({"error": "Listing not found"}, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
-        logger.exception(f"Error checking listing images for {listing_id}")
-        return Response({"error": "Internal server error"}, status=500)
+        logger.exception("Image check error")
+        return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['GET'])
@@ -171,7 +218,7 @@ def get_auto_display(request, listing_id: int):
 def get_card_display(request, listing_id: int):
     """Get card display data prepared after automatic GET request."""
     try:
-        card_data = get_card_display(listing_id)
+        card_data = get_card_display_data(listing_id)
         
         if card_data:
             return Response({
@@ -231,6 +278,171 @@ def chat_with_assistant(request):
         }, status=status.HTTP_200_OK)
     except Exception as e:
         logger.error(f"Critical error in chat_with_assistant: {e}", exc_info=True)
+        return Response({'error': 'An unexpected server error occurred.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+def handle_chat_event(request):
+    """
+    Handles UI-driven events (e.g., button clicks) by translating them
+    into natural language messages and processing them through the agent.
+    """
+    event_data = request.data
+    event_type = event_data.get('event')
+    conversation_id = _ensure_conversation(event_data.get('conversation_id'))
+    
+    if not event_type:
+        return Response({'error': 'Event type cannot be empty.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Translate the event into a natural language message for the agent
+    message = ""
+    listing_id = event_data.get('listing_id')
+    
+    if event_type == 'request_photos':
+        if listing_id:
+            message = f"The user requested photos for listing ID {listing_id}."
+        else:
+            return Response({'error': 'Listing ID is required for request_photos event.'}, status=status.HTTP_400_BAD_REQUEST)
+    elif event_type == 'contact_agent':
+        if listing_id:
+            message = f"The user wants to contact the agent for listing ID {listing_id}."
+        else:
+            return Response({'error': 'Listing ID is required for contact_agent event.'}, status=status.HTTP_400_BAD_REQUEST)
+    else:
+        return Response({'error': f"Unknown event type: {event_type}"}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Process this "internal" message through the agent
+    try:
+        # For request_photos events, deterministically trigger outreach and persist context
+        if event_type == 'request_photos' and listing_id:
+            from .tools import initiate_contact_with_seller, check_for_new_images
+            from .brain.memory import save_assistant_turn as mem_save_assistant_turn
+
+            # Trigger outreach (also updates ContactIndex with conversation context)
+            tool_result = initiate_contact_with_seller(
+                listing_id=int(listing_id),
+                channel='whatsapp',
+                language='en',
+                conversation_id=conversation_id,
+            )
+
+            # Build assistant reply and persist as an agent_outreach turn
+            if tool_result.get('ok'):
+                # Capture baseline image count at the time of outreach
+                baseline = check_for_new_images(int(listing_id))
+                baseline_count = int(baseline.get('image_count') or 0)
+                response_msg = f"OK, I've contacted the agent for listing {listing_id}. I'll let you know when they reply."
+                pending_actions = [
+                    {"type": "outreach_pictures", "listing_id": int(listing_id), "status": "waiting", "timestamp": timezone.now().isoformat(), "context": {"baseline_image_count": baseline_count}},
+                    {"type": "outreach_availability", "listing_id": int(listing_id), "status": "waiting", "timestamp": timezone.now().isoformat()},
+                ]
+                mem_save_assistant_turn(
+                    conversation_id,
+                    message,
+                    response_msg,
+                    message_context={
+                        "intent_type": "agent_outreach",
+                        "tool_used": "initiate_contact_with_seller",
+                        "pending_actions": pending_actions,
+                        "contacted_listing": int(listing_id),
+                        "outreach_ok": True,
+                    },
+                )
+            elif tool_result.get('reason') == 'no_contact':
+                response_msg = f"I'm sorry, but I don't have contact information for listing {listing_id}."
+                mem_save_assistant_turn(
+                    conversation_id,
+                    message,
+                    response_msg,
+                    message_context={
+                        "intent_type": "agent_outreach",
+                        "tool_used": "initiate_contact_with_seller",
+                        "contacted_listing": int(listing_id),
+                        "outreach_ok": False,
+                        "outreach_reason": "no_contact",
+                    },
+                )
+            else:
+                response_msg = f"I tried to contact the agent for listing {listing_id}, but ran into an issue."
+                mem_save_assistant_turn(
+                    conversation_id,
+                    message,
+                    response_msg,
+                    message_context={
+                        "intent_type": "agent_outreach",
+                        "tool_used": "initiate_contact_with_seller",
+                        "contacted_listing": int(listing_id),
+                        "outreach_ok": False,
+                        "outreach_reason": tool_result.get('reason') or 'error',
+                    },
+                )
+
+            return Response({
+                'response': response_msg,
+                'language': 'en',
+                'recommendations': [],
+                'conversation_id': conversation_id,
+            }, status=status.HTTP_200_OK)
+        elif event_type == 'contact_agent' and listing_id:
+            from .tools import initiate_contact_with_seller
+            from .brain.memory import save_assistant_turn as mem_save_assistant_turn
+
+            tool_result = initiate_contact_with_seller(
+                listing_id=int(listing_id),
+                channel='whatsapp',
+                language='en',
+                conversation_id=conversation_id,
+            )
+
+            if tool_result.get('ok'):
+                response_msg = f"OK, I've contacted the agent for listing {listing_id}."
+                mem_save_assistant_turn(
+                    conversation_id,
+                    message,
+                    response_msg,
+                    message_context={
+                        "intent_type": "agent_outreach",
+                        "tool_used": "initiate_contact_with_seller",
+                        "contacted_listing": int(listing_id),
+                        "outreach_ok": True,
+                    },
+                )
+            else:
+                response_msg = f"I tried to contact the agent for listing {listing_id}, but ran into an issue."
+                mem_save_assistant_turn(
+                    conversation_id,
+                    message,
+                    response_msg,
+                    message_context={
+                        "intent_type": "agent_outreach",
+                        "tool_used": "initiate_contact_with_seller",
+                        "contacted_listing": int(listing_id),
+                        "outreach_ok": False,
+                        "outreach_reason": tool_result.get('reason') or 'error',
+                    },
+                )
+
+            return Response({
+                'response': response_msg,
+                'language': 'en',
+                'recommendations': [],
+                'conversation_id': conversation_id,
+            }, status=status.HTTP_200_OK)
+        else:
+            # For other events, use the normal agent processing
+            if ENABLE_LANGGRAPH and graph_run_message:
+                lc_result = graph_run_message(message, conversation_id)
+            else:
+                lc_result = lc_process_turn(message, conversation_id)
+                
+            return Response({
+                'response': lc_result.get('message', ''),
+                'language': lc_result.get('language', 'en'),
+                'recommendations': lc_result.get('recommendations') or [],
+                'conversation_id': conversation_id,
+            }, status=status.HTTP_200_OK)
+    except Exception as e:
+        logger.error(f"Critical error in handle_chat_event: {e}", exc_info=True)
         return Response({'error': 'An unexpected server error occurred.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -556,8 +768,35 @@ def _validate_twilio_webhook(request) -> bool:
         return False
 
 
-@csrf_exempt
-@require_http_methods(["GET", "POST"])
+# 1. View to get details for a single listing
+class ListingDetailView(generics.RetrieveAPIView):
+    queryset = Listing.objects.all()
+    serializer_class = ListingSerializer
+    lookup_field = 'id'
+
+# 2. View to trigger the photo request
+@api_view(['POST'])
+def request_listing_photos(request, listing_id):
+    listing = get_object_or_404(Listing, id=listing_id)
+    
+    # Prevent re-requesting if already pending
+    if listing.photos_requested:
+        return Response({'status': 'Photos already requested'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # --- Trigger Twilio Logic ---
+    # success = send_photo_request_to_agent(listing.contact_number)
+    # if not success:
+    #     return Response({'error': 'Failed to send WhatsApp message'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    listing.photos_requested = True
+    listing.save()
+    
+    # Return the updated listing data so the frontend can immediately update its state
+    serializer = ListingSerializer(listing, context={'request': request})
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+@api_view(['POST', 'GET'])  # Allow GET for health checks
 def twilio_webhook(request):
     """
     Twilio webhook endpoint for receiving WhatsApp replies and media.
@@ -573,6 +812,15 @@ def twilio_webhook(request):
     - From: Sender's WhatsApp number
     - MessageSid: Unique message ID
     """
+    # --- AGGRESSIVE LOGGING FOR DEBUGGING ---
+    # Using logger.critical to make it highly visible in the terminal
+    logger.critical("!!! TWILIO WEBHOOK HIT !!!")
+    if request.method == "POST":
+        logger.critical(f"RAW POST DATA: {request.POST.dict()}")
+    else:
+        logger.critical("Received GET request for webhook verification.")
+    # --- END OF AGGRESSIVE LOGGING ---
+
     try:
         # Handle GET requests (webhook verification)
         if request.method == "GET":
@@ -585,10 +833,42 @@ def twilio_webhook(request):
             return JsonResponse({"error": "Invalid signature"}, status=403)
         
         # Handle POST requests (actual webhook data)
-        # Twilio sends data as form data, not JSON
         webhook_data = request.POST.dict()
-        
         logger.info(f"Twilio webhook received: {webhook_data}")
+
+        # --- Resolve sender and context FIRST ---
+        from_number = (webhook_data.get('From') or '').replace('whatsapp:', '')
+        listing_id = None
+        conversation_id = None
+        try:
+            norm = ''.join(ch for ch in from_number if ch.isdigit() or ch == '+')
+            
+            # Enhanced resolution strategy: prioritize by conversation context
+            all_contacts = ContactIndex.objects.filter(normalized_contact__icontains=norm).select_related('conversation', 'listing').order_by('-created_at')
+            
+            logger.critical(f"Found {all_contacts.count()} ContactIndex entries for number {from_number} (normalized: {norm})")
+            for i, contact in enumerate(all_contacts):
+                logger.critical(f"  Entry {i+1}: listing_id={contact.listing_id}, conversation_id={contact.conversation.conversation_id if contact.conversation else None}, created_at={contact.created_at}")
+            
+            # Strategy 1: Look for entries with active conversations (most recent first)
+            active_conversation_contacts = all_contacts.filter(conversation__isnull=False).order_by('-created_at')
+            if active_conversation_contacts.exists():
+                idx = active_conversation_contacts.first()
+                listing_id = idx.listing_id
+                conversation_id = idx.conversation.conversation_id
+                logger.critical(f"RESOLVED via active conversation: listing_id={listing_id}, conversation_id={conversation_id}")
+            else:
+                # Strategy 2: Fallback to most recent entry (original behavior)
+                idx = all_contacts.first()
+                if idx:
+                    listing_id = idx.listing_id
+                    conversation_id = idx.conversation.conversation_id if idx.conversation else None
+                    logger.critical(f"RESOLVED via fallback (most recent): listing_id={listing_id}, conversation_id={conversation_id}")
+                else:
+                    logger.warning(f"Webhook context NOT FOUND for number: {from_number} (Normalized: {norm})")
+                    
+        except Exception as e:
+            logger.error(f"Error resolving ContactIndex for incoming webhook: {e}")
         
         # Check if this is a media message
         media_urls = []
@@ -599,6 +879,10 @@ def twilio_webhook(request):
                 logger.info(f"Found media URL {i}: {media_url}")
         
         if media_urls:
+            if not listing_id:
+                logger.error(f"Received media from {from_number} but could not resolve a listing_id.")
+                return JsonResponse({"success": False, "error": "Could not identify the listing for this media."}, status=400)
+
             # Process media (photos)
             stored_urls = []
             for media_url in media_urls:
@@ -674,25 +958,13 @@ def twilio_webhook(request):
                 logger.error("Failed to store any media items")
                 return JsonResponse({"success": False, "error": "Failed to process media"}, status=400)
         else:
-            # Text message: try to resolve listing via ContactIndex; parse availability; notify UI and update DB
-            from_number = (webhook_data.get('From') or '').replace('whatsapp:', '')
+            # Text message: parse availability; notify UI and update DB
             body_raw = webhook_data.get('Body') or ''
             body = body_raw.strip().lower()
             logger.info(f"Text message received from {from_number}: {body_raw}")
             
-            # Resolve listing and conversation
-            listing_id = None
-            conversation_id = None
-            try:
-                norm = ''.join(ch for ch in from_number if ch.isdigit() or ch == '+')
-                idx = ContactIndex.objects.filter(normalized_contact__icontains=norm).select_related('conversation').order_by('-created_at').first()
-                if idx:
-                    listing_id = idx.listing_id
-                    conversation_id = idx.conversation.conversation_id if idx.conversation else None
-            except Exception as e:
-                logger.error(f"Error resolving ContactIndex for text: {e}")
-            
-            logger.info(f"Text message resolved: listing_id={listing_id}, conversation_id={conversation_id}, body='{body_raw}'")
+            # Context is already resolved above
+            logger.info(f"Text message context: listing_id={listing_id}, conversation_id={conversation_id}")
             
             # Parse availability heuristics
             availability = None

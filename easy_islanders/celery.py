@@ -13,8 +13,17 @@ app.config_from_object('django.conf:settings', namespace='CELERY')
 # Load task modules from all registered Django apps.
 app.autodiscover_tasks()
 
+app.conf.beat_schedule = {
+    'monitor-outreaches-every-15-mins': {
+        'task': 'assistant.tasks.monitor_pending_outreaches',
+        'schedule': 900.0,  # 15 minutes in seconds
+    },
+}
+app.conf.timezone = 'UTC'
+
 @app.task(bind=True)
 def debug_task(self):
     print(f'Request: {self.request!r}')
+
 
 

@@ -206,25 +206,28 @@ class MediaProcessor:
                 else:
                     ext = '.jpg'  # Default fallback
                 
-                # Generate unique filename
-                filename = f"listings/{listing_id}/media/{media_id}{ext}"
+                # Generate unique filename (just the filename, not the full path)
+                filename = f"{media_id}{ext}"
                 
-                # Store to S3/CDN
-                file_content = ContentFile(response.content)
-                stored_path = default_storage.save(filename, file_content)
+                # Ensure directory exists
+                storage_path = os.path.join(settings.MEDIA_ROOT, 'listings', str(listing_id), 'media')
+                os.makedirs(storage_path, exist_ok=True)
                 
-                # Generate permanent URL
-                if self.cdn_domain:
-                    permanent_url = f"https://{self.cdn_domain}/{stored_path}"
-                else:
-                    # For local development, use our custom media serving endpoint
-                    from django.urls import reverse
-                    permanent_url = reverse('serve-listing-media', kwargs={
-                        'listing_id': listing_id,
-                        'filename': f"{media_id}{ext}"
-                    })
+                # Save the file
+                file_path = os.path.join(storage_path, filename)
+                with open(file_path, 'wb') as f:
+                    f.write(response.content)
+                    
+                # Generate the permanent API URL (correct path)
+                permanent_url = f"/api/listings/{listing_id}/media/{filename}"
+                    
+                logger.critical(f"IMAGE SAVED: Successfully stored media for listing {listing_id}.")
+                logger.critical(f"  - Local Path: {file_path}")
+                logger.critical(f"  - Final API URL: {permanent_url}")
+
+                # Update the listing model with the new media URL
+                self._update_listing_media(listing_id, permanent_url, media_id)
                 
-                logger.info(f"Media stored successfully: {permanent_url}")
                 return permanent_url
                 
             except Exception as e:
@@ -356,7 +359,7 @@ class MediaProcessor:
                 pass
 
             # Additional idempotency check via processed_media_ids
-            try:
+            try: 
                 if media_id in sd.get('processed_media_ids', []):
                     logger.info(f"Media {media_id} already processed for listing {listing_id}")
                     return  # Comment this out or remove to not skip
@@ -387,7 +390,13 @@ class MediaProcessor:
             listing.image_urls = sd.get('image_urls', [])
             listing.save(update_fields=['structured_data', 'image_urls'])
             
-            logger.info(f"Updated Listing #{listing_id} with new media: {media_url}")
+            # NEW: On receipt
+            listing.photos_requested = False  # Reset if fulfilled
+            listing.verified_with_photos = True
+            listing.save(update_fields=['photos_requested', 'structured_data'])
+
+            logger.info(f"Updated listing {listing_id}: images={len(sd['image_urls'])}, verified={sd['verified_with_photos']}")
+            logger.info(f"Photos received for {listing_id}: {len(sd['image_urls'])} images, notifying...")
             
         except Exception as e:
             logger.exception(f"Failed to update listing {listing_id} with media")

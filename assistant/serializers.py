@@ -1,7 +1,7 @@
 # assistant/serializers.py
 
 from rest_framework import serializers
-from .models import UserRequest, ServiceProvider, ServiceFeature, Booking, KnowledgeBase, LinkSource
+from .models import UserRequest, ServiceProvider, ServiceFeature, Booking, KnowledgeBase, LinkSource, Listing, Image
 
 class ServiceFeatureSerializer(serializers.ModelSerializer):
     """Serializer for Service Features, customized for multilingual support."""
@@ -77,3 +77,35 @@ class LinkSourceSerializer(serializers.ModelSerializer):
     class Meta:
         model = LinkSource
         fields = '__all__'
+
+class ImageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Image
+        fields = ['image'] # We only need the URL path for the frontend
+
+class ListingSerializer(serializers.ModelSerializer):
+    # This field will aggregate all image URLs into a single list.
+    image_urls = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Listing
+        fields = [
+            'id',
+            'title',
+            # Add other important listing fields here
+            'price',
+            'location',
+            # The two crucial fields for our logic:
+            'photos_requested',
+            'image_urls',
+        ]
+
+    def get_image_urls(self, obj):
+        """
+        This method is called by the serializer to get the value for 'image_urls'.
+        It fetches all related Image objects and builds their full, absolute URLs.
+        """
+        request = self.context.get('request')
+        images = obj.images.all()
+        # If there's a request context, build the full URL, otherwise return the relative path.
+        return [request.build_absolute_uri(image.image.url) for image in images] if request else [image.image.url for image in images]

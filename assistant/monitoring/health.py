@@ -423,3 +423,4 @@ class HealthChecker:
         history_key = f"{self.health_history_key}:recent"
         return cache.get(history_key, [])
 
+

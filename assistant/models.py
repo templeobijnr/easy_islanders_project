@@ -390,6 +390,15 @@ class UserProfile(models.Model):
     last_interaction = models.DateTimeField(null=True, blank=True)
     satisfaction_rating = models.FloatField(null=True, blank=True)
     
+    # Proactive Behavior Preferences
+    proactive_enabled = models.BooleanField(default=True)
+    proactive_photos = models.BooleanField(default=True)
+    proactive_reminders = models.BooleanField(default=True)
+    proactive_questions = models.BooleanField(default=True)
+    proactive_predictions = models.BooleanField(default=False)
+    max_proactive_per_day = models.IntegerField(default=3)
+    preferred_proactive_times = models.JSONField(default=list)  # Hours of day for proactive messages
+    
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

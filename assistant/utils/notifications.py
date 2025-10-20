@@ -114,7 +114,10 @@ def put_notification(key: str, notification_data: Dict[str, Any], ttl_seconds: i
             **notification_data,
             "timestamp": time.time()
         }
+        logger.critical(f"DEBUG put_notification: Storing with cache_key={cache_key}")
+        logger.critical(f"DEBUG put_notification: Value={value}")
         cache.set(cache_key, json.dumps(value), ttl_seconds)
+        logger.critical(f"DEBUG put_notification: Successfully stored notification for key {key}")
         logger.info(f"Notification stored for key {key}")
     except Exception as e:
         logger.error(f"Failed to store notification for key {key}: {e}")
@@ -124,10 +127,16 @@ def get_notification(key: str) -> Optional[Dict[str, Any]]:
     """Retrieve and delete notification data from Redis."""
     try:
         cache_key = f"notification:{key}"
+        logger.critical(f"DEBUG get_notification: Looking for cache_key={cache_key}")
         raw_data = cache.get(cache_key)
+        logger.critical(f"DEBUG get_notification: Raw data from cache: {raw_data}")
         if raw_data:
+            parsed_data = json.loads(raw_data)
+            logger.critical(f"DEBUG get_notification: Parsed data: {parsed_data}")
             cache.delete(cache_key)
-            return json.loads(raw_data)
+            logger.critical(f"DEBUG get_notification: Deleted from cache and returning data")
+            return parsed_data
+        logger.critical(f"DEBUG get_notification: No data found for key {key}")
         return None
     except Exception as e:
         logger.error(f"Failed to retrieve notification for key {key}: {e}")

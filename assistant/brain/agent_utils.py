@@ -182,8 +182,16 @@ def build_recommendation_card(listing_id: int) -> List[Dict[str, Any]]:
         from assistant.utils.url_utils import normalize_image_list
         listing = Listing.objects.get(id=listing_id)
         sd = listing.structured_data or {}
-        image_status = check_for_new_images(listing_id)
-        raw_images = image_status.get("image_urls", [])
+        
+        # Get images directly from structured_data (same as notification system)
+        raw_images = sd.get('image_urls', [])
+        verified_with_photos = sd.get('verified_with_photos', False)
+        
+        logger.critical(f"DEBUG build_recommendation_card for listing {listing_id}:")
+        logger.critical(f"  structured_data: {sd}")
+        logger.critical(f"  raw_images: {raw_images}")
+        logger.critical(f"  verified_with_photos: {verified_with_photos}")
+        
         # Ensure API prefix for relative paths
         images = []
         for img in raw_images:
@@ -192,19 +200,23 @@ def build_recommendation_card(listing_id: int) -> List[Dict[str, Any]]:
             else:
                 images.append(img)
         images = normalize_image_list(images)
-        return [
-            {
-                "id": listing.id,
-                "title": sd.get("title", f"Property {listing_id}"),
-                "price": sd.get("price", "Price on request"),
-                "location": sd.get("location", listing.location or "North Cyprus"),
-                "images": images[:5],
-                "description": sd.get("description", "Updated with new photos"),
-                "features": sd.get("features", []),
-                "verified_with_photos": True,
-                "auto_display": True,
-            }
-        ]
+        
+        logger.critical(f"  final_images: {images}")
+        
+        card = [{
+            "id": listing.id,
+            "title": sd.get("title", f"Property {listing_id}"),
+            "price": sd.get("price", "Price on request"),
+            "location": sd.get("location", listing.location or "North Cyprus"),
+            "images": images[:5],
+            "description": sd.get("description", "Updated with new photos"),
+            "features": sd.get("features", []),
+            "verified_with_photos": verified_with_photos,  # Use actual value from DB
+            "auto_display": True,
+        }]
+        
+        logger.critical(f"  final_card: {card}")
+        return card
     except Exception as e:
         logger.error(f"Error building card for {listing_id}: {e}")
         return []

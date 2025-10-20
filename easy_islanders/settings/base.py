@@ -189,3 +189,17 @@ CELERY_TASK_TIME_LIMIT = 60
 CELERY_TASK_ACKS_LATE = True
 CELERY_TASK_REJECT_ON_WORKER_LOST = True
 OPENAI_MODEL = config('OPENAI_MODEL', default='gpt-4-turbo-preview')
+
+# Proactive Agent Configuration
+PROACTIVE_AGENT_ENABLED = config('PROACTIVE_AGENT_ENABLED', default=False, cast=bool)
+ENABLE_PROACTIVE_PHOTOS = config('ENABLE_PROACTIVE_PHOTOS', default=False, cast=bool)
+ENABLE_PROACTIVE_REMINDERS = config('ENABLE_PROACTIVE_REMINDERS', default=False, cast=bool)
+ENABLE_PROACTIVE_QUESTIONS = config('ENABLE_PROACTIVE_QUESTIONS', default=False, cast=bool)
+ENABLE_PROACTIVE_PREDICTIONS = config('ENABLE_PROACTIVE_PREDICTIONS', default=False, cast=bool)
+
+# Auto-Response Configuration
+ENABLE_AUTO_RESPONSE = config('ENABLE_AUTO_RESPONSE', default=False, cast=bool)
+
+# Proactive Agent Limits
+MAX_PROACTIVE_MESSAGES_PER_DAY = config('MAX_PROACTIVE_MESSAGES_PER_DAY', default=3, cast=int)
+PROACTIVE_RATE_LIMIT_WINDOW = config('PROACTIVE_RATE_LIMIT_WINDOW', default=3600, cast=int)  # 1 hour

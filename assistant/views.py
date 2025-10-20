@@ -1179,18 +1179,22 @@ def create_booking(request):
         except Listing.DoesNotExist:
             return Response({'error': 'Listing not found'}, status=status.HTTP_404_NOT_FOUND)
         
-        # Get or create conversation
+        # Get or create conversation by its public identifier
         conversation = None
         if conversation_id:
             try:
-                conversation = Conversation.objects.get(id=conversation_id)
+                conversation = Conversation.objects.get(conversation_id=conversation_id)
             except Conversation.DoesNotExist:
-                pass
-        
-        if not conversation:
+                # Create with the provided public identifier to maintain continuity
+                conversation = Conversation.objects.create(
+                    conversation_id=str(conversation_id),
+                    user_id=str(request.user.id),
+                )
+        else:
+            # Generate a new public conversation id
             conversation = Conversation.objects.create(
+                conversation_id=str(uuid.uuid4()),
                 user_id=str(request.user.id),
-                language=data.get('language', 'en')
             )
         
         # Create booking
@@ -1257,7 +1261,13 @@ def get_user_bookings(request):
         if not request.user.is_authenticated:
             return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
         
-        bookings = Booking.objects.filter(user=request.user).order_by('-created_at')
+        # Optimize query to avoid N+1 when accessing related listing fields
+        bookings = (
+            Booking.objects
+            .filter(user=request.user)
+            .select_related('listing')
+            .order_by('-created_at')
+        )
         
         booking_data = []
         for booking in bookings:

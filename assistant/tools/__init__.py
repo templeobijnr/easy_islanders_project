@@ -978,12 +978,15 @@ def check_for_new_images(
         
         # If no timestamp provided, return current status
         if not outreach_timestamp:
-            return {
+            result = {
                 "success": True,
                 "has_new_images": current_count > 0,
                 "image_count": current_count,
+                "image_urls": images,  # Fix: use image_urls instead of new_images
                 "new_images": images
             }
+            logger.critical(f"DEBUG check_for_new_images (no timestamp) for listing {listing_id}: {result}")
+            return result
         
         # Parse the outreach timestamp
         try:
@@ -1008,6 +1011,7 @@ def check_for_new_images(
             "success": True,
             "has_new_images": has_new,
             "image_count": len(images) if has_new else 0,
+            "image_urls": images if has_new else [],  # Fix: use image_urls instead of new_images
             "new_images": images if has_new else []
         }
     except Listing.DoesNotExist:

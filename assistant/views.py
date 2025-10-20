@@ -909,6 +909,59 @@ def twilio_webhook(request):
                 from .tasks import trigger_get_and_prepare_card_task
                 trigger_get_and_prepare_card_task.delay(listing_id, conversation_id=conversation_id)
                 
+                # AUTO-RESPONSE: Trigger intelligent agent response (feature flag controlled)
+                logger.critical(f"AUTO-RESPONSE CHECK: ENABLE_AUTO_RESPONSE={getattr(settings, 'ENABLE_AUTO_RESPONSE', False)}")
+                if getattr(settings, 'ENABLE_AUTO_RESPONSE', False):
+                    from .auto_response import trigger_auto_response
+                    logger.critical(f"AUTO-RESPONSE TRIGGER: About to trigger auto-response for listing {listing_id}")
+                    
+                    # If no conversation_id, create one or use a default
+                    if not conversation_id:
+                        # Try to find or create a conversation for this listing
+                        from .models import Conversation
+                        try:
+                            # Look for existing conversation for this listing
+                            conv = Conversation.objects.filter(
+                                conversation_id__contains=str(listing_id)
+                            ).first()
+                            
+                            if not conv:
+                                # Create a new conversation for this listing
+                                conv = Conversation.objects.create(
+                                    conversation_id=f"listing_{listing_id}_{int(time.time())}"
+                                )
+                                logger.info(f"Created new conversation {conv.conversation_id} for listing {listing_id}")
+                            
+                            conversation_id = conv.conversation_id
+                        except Exception as e:
+                            logger.error(f"Failed to create conversation for listing {listing_id}: {e}")
+                            # Use a fallback conversation ID
+                            conversation_id = f"listing_{listing_id}_fallback"
+                    
+                    # Prepare webhook data for auto-response
+                    auto_response_data = {
+                        "listing_id": listing_id,
+                        "conversation_id": conversation_id,
+                        "text": webhook_data.get('Body', ''),
+                        "from_number": from_number
+                    }
+                    
+                    # Add media URLs
+                    for i in range(10):
+                        media_url = webhook_data.get(f'MediaUrl{i}')
+                        if media_url:
+                            auto_response_data[f'MediaUrl{i}'] = media_url
+                    
+                    # Trigger auto-response (async)
+                    result = trigger_auto_response.delay(
+                        listing_id=listing_id,
+                        conversation_id=conversation_id,
+                        webhook_data=auto_response_data
+                    )
+                    logger.critical(f"AUTO-RESPONSE TRIGGERED: Task ID {result.id} for listing {listing_id} with conversation {conversation_id}")
+                else:
+                    logger.critical(f"AUTO-RESPONSE DISABLED: Feature flag is False, not triggering auto-response")
+                
                 # Update LangGraph state with media_received event (before returning)
                 if ENABLE_LANGGRAPH and graph_run_event and conversation_id:
                     try:
@@ -919,6 +972,7 @@ def twilio_webhook(request):
                 # NEW: Persist durable chat message for images
                 try:
                     if conversation_id:
+                        from .models import Conversation, Message
                         conv = Conversation.objects.get(conversation_id=conversation_id)
                         Message.objects.create(
                             conversation=conv,
@@ -1004,6 +1058,7 @@ def twilio_webhook(request):
                 # Persist assistant turn for durable context
                 try:
                     if conversation_id:
+                        from .models import Conversation, Message
                         conv = Conversation.objects.get(conversation_id=conversation_id)
                         Message.objects.create(
                             conversation=conv,
@@ -1026,7 +1081,55 @@ def twilio_webhook(request):
                     except Exception:
                         pass
                 
+                # AUTO-RESPONSE: Trigger intelligent agent response for text messages
+                logger.critical(f"AUTO-RESPONSE CHECK (TEXT): ENABLE_AUTO_RESPONSE={getattr(settings, 'ENABLE_AUTO_RESPONSE', False)}")
+                if getattr(settings, 'ENABLE_AUTO_RESPONSE', False):
+                    from .auto_response import trigger_auto_response
+                    logger.critical(f"AUTO-RESPONSE TRIGGER (TEXT): About to trigger auto-response for listing {listing_id}")
+                    
+                    # Prepare webhook data for auto-response
+                    auto_response_data = {
+                        "listing_id": listing_id,
+                        "conversation_id": conversation_id,
+                        "text": body_raw,
+                        "from_number": from_number
+                    }
+                    
+                    # Trigger auto-response (async)
+                    result = trigger_auto_response.delay(
+                        listing_id=listing_id,
+                        conversation_id=conversation_id,
+                        webhook_data=auto_response_data
+                    )
+                    logger.critical(f"AUTO-RESPONSE TRIGGERED (TEXT): Task ID {result.id} for listing {listing_id} with conversation {conversation_id}")
+                else:
+                    logger.critical(f"AUTO-RESPONSE DISABLED (TEXT): Feature flag is False, not triggering auto-response")
+                
                 return JsonResponse({"success": True, "message": "Availability processed", "listing_id": listing_id, "availability": availability})
+            
+            # AUTO-RESPONSE: Also trigger for text messages without availability
+            logger.critical(f"AUTO-RESPONSE CHECK (TEXT NO AVAIL): ENABLE_AUTO_RESPONSE={getattr(settings, 'ENABLE_AUTO_RESPONSE', False)}")
+            if getattr(settings, 'ENABLE_AUTO_RESPONSE', False):
+                from .auto_response import trigger_auto_response
+                logger.critical(f"AUTO-RESPONSE TRIGGER (TEXT NO AVAIL): About to trigger auto-response for listing {listing_id}")
+                
+                # Prepare webhook data for auto-response
+                auto_response_data = {
+                    "listing_id": listing_id,
+                    "conversation_id": conversation_id,
+                    "text": body_raw,
+                    "from_number": from_number
+                }
+                
+                # Trigger auto-response (async)
+                result = trigger_auto_response.delay(
+                    listing_id=listing_id,
+                    conversation_id=conversation_id,
+                    webhook_data=auto_response_data
+                )
+                logger.critical(f"AUTO-RESPONSE TRIGGERED (TEXT NO AVAIL): Task ID {result.id} for listing {listing_id} with conversation {conversation_id}")
+            else:
+                logger.critical(f"AUTO-RESPONSE DISABLED (TEXT NO AVAIL): Feature flag is False, not triggering auto-response")
             
             return JsonResponse({"success": True, "message": "Text message received"})
         
@@ -1374,14 +1477,29 @@ def get_conversation_notifications(request):
                 'timestamp': timezone.now().isoformat()
             })
         
-        # Get general notifications
+        # Get general notifications (including proactive updates)
         general_notifications = get_notification_data(conversation_id)
+        logger.critical(f"DEBUG get_conversation_notifications: conversation_id={conversation_id}")
+        logger.critical(f"DEBUG general_notifications retrieved: {general_notifications}")
         if general_notifications:
-            notifications.append({
-                'type': 'general',
-                'data': general_notifications,
-                'timestamp': timezone.now().isoformat()
-            })
+            notif_type = general_notifications.get('type')
+            # Normalize legacy/alt types to the UI-supported 'proactive_update'
+            if notif_type in ('proactive_update', 'auto_update'):
+                logger.info(f"DEBUG: Mapping notification type '{notif_type}' to 'proactive_update': {general_notifications}")
+                notifications.append({
+                    'type': 'proactive_update',
+                    'data': general_notifications.get('data', {}),
+                    'timestamp': general_notifications.get('timestamp', timezone.now().isoformat())
+                })
+            else:
+                notifications.append({
+                    'type': 'general',
+                    'data': general_notifications,
+                    'timestamp': timezone.now().isoformat()
+                })
+        
+        logger.critical(f"DEBUG get_conversation_notifications FINAL: returning {len(notifications)} notifications")
+        logger.critical(f"DEBUG notifications details: {notifications}")
         
         return Response({
             'notifications': notifications,

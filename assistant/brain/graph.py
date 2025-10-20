@@ -667,3 +667,68 @@ def run_event(conversation_id: str, event_name: str, **payload: Any) -> Dict[str
             state["listing_ctx"]["verified_with_photos"] = bool(payload.get("verified_with_photos") or False)
     _save_state(conversation_id, state)
     return {"ok": True}
+
+
+def _do_proactive_update(listing_id: int, conversation_id: str, image_count: int) -> Dict[str, Any]:
+    """
+    Generate automatic agent response when images are received.
+    This function is called proactively without user input.
+    """
+    try:
+        from .agent_utils import build_recommendation_card
+        from .memory import save_assistant_turn as mem_save_assistant_turn
+        from assistant.models import Listing
+        
+        logger.info(f"Generating proactive update for listing {listing_id}, conversation {conversation_id}")
+        
+        # Get listing details for more personalized message
+        try:
+            listing = Listing.objects.get(id=listing_id)
+            location = listing.location or "the property"
+        except Listing.DoesNotExist:
+            location = "the property"
+        
+        # Build recommendation card with new images
+        recs = build_recommendation_card(listing_id)
+        
+        # Generate more natural and engaging proactive message
+        if image_count == 1:
+            response_msg = f"📸 Great news! The agent just sent a new photo for {location}. Check it out!"
+        else:
+            response_msg = f"📸 Awesome! I've received {image_count} new photos for {location}. Take a look!"
+        
+        # Add a call to action
+        response_msg += " Would you like me to contact them for more details or show you similar properties?"
+        
+        # Save to conversation with proactive context
+        mem_save_assistant_turn(
+            conversation_id, 
+            "",  # No user input for proactive response
+            response_msg, 
+            message_context={
+                "intent_type": "proactive_update", 
+                "listing_id": listing_id,
+                "image_count": image_count,
+                "proactive": True,
+                "location": location
+            }
+        )
+        
+        logger.info(f"Proactive update generated for listing {listing_id}: {len(recs)} recommendations")
+        
+        return {
+            "message": response_msg, 
+            "language": "en",
+            "recommendations": recs,
+            "proactive": True
+        }
+        
+    except Exception as e:
+        logger.error(f"Error generating proactive update for listing {listing_id}: {e}")
+        return {
+            "message": f"I've received new photos for listing {listing_id}, but I'm having trouble displaying them right now. Please try asking me about this property again.",
+            "language": "en", 
+            "recommendations": [],
+            "proactive": True,
+            "error": str(e)
+        }

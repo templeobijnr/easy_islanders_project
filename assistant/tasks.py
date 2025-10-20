@@ -21,6 +21,33 @@ from .twilio_client import TwilioWhatsAppClient
 logger = logging.getLogger(__name__)
 
 
+def _check_proactive_rate_limit(conversation_id: str) -> bool:
+    """Check if user has exceeded proactive message rate limit"""
+    from django.core.cache import cache
+    from django.conf import settings
+    
+    cache_key = f"proactive_rate_limit:{conversation_id}"
+    current_count = cache.get(cache_key, 0)
+    max_messages = getattr(settings, 'MAX_PROACTIVE_MESSAGES_PER_DAY', 3)
+    
+    logger.info(f"Rate limit check for {conversation_id}: {current_count}/{max_messages}")
+    return current_count < max_messages
+
+
+def _update_proactive_rate_limit(conversation_id: str) -> None:
+    """Update proactive message rate limit counter"""
+    from django.core.cache import cache
+    from django.conf import settings
+    
+    cache_key = f"proactive_rate_limit:{conversation_id}"
+    current_count = cache.get(cache_key, 0)
+    window_seconds = getattr(settings, 'PROACTIVE_RATE_LIMIT_WINDOW', 3600)  # 1 hour
+    
+    new_count = current_count + 1
+    cache.set(cache_key, new_count, timeout=window_seconds)
+    logger.info(f"Updated rate limit for {conversation_id}: {new_count}")
+
+
 @shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_kwargs={"max_retries": 3})
 def process_incoming_media_task(self, listing_id: int, media_urls: List[str]) -> Dict[str, Any]:
     """
@@ -329,4 +356,359 @@ def monitor_pending_outreaches(self) -> Dict[str, Any]:
         
     except Exception as e:
         logger.error(f"Failed to monitor pending outreaches: {e}")
+        raise
+
+
+@shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_kwargs={"max_retries": 3})
+def trigger_proactive_agent_response(self, listing_id: int, conversation_id: str, image_count: int) -> Dict[str, Any]:
+    """
+    Automatically trigger agent response when images are received.
+    This creates a proactive notification without user input.
+    """
+    try:
+        from django.conf import settings
+        from .models import UserProfile
+        from .utils.notifications import put_notification
+        
+        logger.info(f"Triggering proactive agent response for listing {listing_id}, conversation {conversation_id}")
+        
+        # Check feature flags
+        if not getattr(settings, 'PROACTIVE_AGENT_ENABLED', False):
+            logger.info("Proactive agent disabled by feature flag")
+            return {"success": False, "reason": "feature_disabled"}
+            
+        if not getattr(settings, 'ENABLE_PROACTIVE_PHOTOS', False):
+            logger.info("Proactive photos disabled by feature flag")
+            return {"success": False, "reason": "photos_disabled"}
+        
+        # Check user preferences
+        try:
+            user_profile = UserProfile.objects.get(user_id=conversation_id)
+            if not user_profile.proactive_enabled or not user_profile.proactive_photos:
+                logger.info(f"User {conversation_id} has proactive photos disabled")
+                return {"success": False, "reason": "user_preference"}
+        except UserProfile.DoesNotExist:
+            # If no user profile exists, allow proactive messages (default behavior)
+            pass
+        
+        # Check rate limiting
+        logger.info(f"Checking rate limit for conversation {conversation_id}")
+        if not _check_proactive_rate_limit(conversation_id):
+            logger.info(f"Rate limit exceeded for conversation {conversation_id}")
+            return {"success": False, "reason": "rate_limit"}
+        logger.info(f"Rate limit check passed for conversation {conversation_id}")
+        
+        # Import here to avoid circular imports
+        from .brain.graph import _do_proactive_update
+        
+        # Generate proactive response
+        response = _do_proactive_update(listing_id, conversation_id, image_count)
+        
+        # Create a notification for the frontend to pick up
+        notification = {
+            "listing_id": listing_id,
+            "type": "proactive_update",
+            "data": {
+                "message": response["message"],
+                "recommendations": response["recommendations"],
+                "proactive": True,
+                "image_count": image_count
+            }
+        }
+        
+        # Store notification for frontend polling to pick up (use conversation_id as key)
+        put_notification(conversation_id, notification)
+        
+        # Update rate limiting counter
+        _update_proactive_rate_limit(conversation_id)
+        
+        logger.info(f"Proactive agent response completed for listing {listing_id}")
+        
+        return {
+            "success": True,
+            "listing_id": listing_id,
+            "conversation_id": conversation_id,
+            "image_count": image_count,
+            "response": response
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to trigger proactive agent response for listing {listing_id}: {e}")
+        raise
+
+
+@shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_kwargs={"max_retries": 3})
+def send_proactive_reminders(self) -> Dict[str, Any]:
+    """
+    Send proactive reminders to users based on their activity and preferences.
+    This runs on a schedule (e.g., daily) and sends messages without user input.
+    """
+    try:
+        from django.conf import settings
+        from .models import UserProfile, Conversation, Message
+        from .utils.notifications import put_notification
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        logger.info("Starting proactive reminders task")
+        
+        # Check feature flags
+        if not getattr(settings, 'PROACTIVE_AGENT_ENABLED', False):
+            logger.info("Proactive agent disabled by feature flag")
+            return {"success": False, "reason": "feature_disabled"}
+            
+        if not getattr(settings, 'ENABLE_PROACTIVE_REMINDERS', False):
+            logger.info("Proactive reminders disabled by feature flag")
+            return {"success": False, "reason": "reminders_disabled"}
+        
+        reminders_sent = 0
+        
+        # Find users who haven't interacted in 24 hours
+        cutoff_time = timezone.now() - timedelta(hours=24)
+        
+        for profile in UserProfile.objects.filter(
+            proactive_enabled=True,
+            proactive_reminders=True,
+            last_interaction__lt=cutoff_time
+        ):
+            try:
+                # Check rate limiting
+                if not _check_proactive_rate_limit(profile.user_id):
+                    logger.info(f"Rate limit exceeded for user {profile.user_id}")
+                    continue
+                
+                # Generate reminder message
+                reminder_message = "Hi! I noticed you haven't been active lately. I have some new property updates that might interest you. Would you like me to show you what's new?"
+                
+                # Create notification
+                notification = {
+                    "type": "proactive_reminder",
+                    "data": {
+                        "message": reminder_message,
+                        "recommendations": [],
+                        "proactive": True,
+                        "reminder_type": "inactivity"
+                    }
+                }
+                
+                # Store notification
+                put_notification(profile.user_id, notification)
+                
+                # Update rate limiting
+                _update_proactive_rate_limit(profile.user_id)
+                
+                # Save message to conversation
+                try:
+                    conv = Conversation.objects.get(conversation_id=profile.user_id)
+                    Message.objects.create(
+                        conversation=conv,
+                        content=reminder_message,
+                        message_context={
+                            "intent_type": "proactive_reminder",
+                            "proactive": True,
+                            "reminder_type": "inactivity"
+                        }
+                    )
+                except Conversation.DoesNotExist:
+                    # Create conversation if it doesn't exist
+                    conv = Conversation.objects.create(conversation_id=profile.user_id)
+                    Message.objects.create(
+                        conversation=conv,
+                        content=reminder_message,
+                        message_context={
+                            "intent_type": "proactive_reminder",
+                            "proactive": True,
+                            "reminder_type": "inactivity"
+                        }
+                    )
+                
+                reminders_sent += 1
+                logger.info(f"Sent proactive reminder to user {profile.user_id}")
+                
+            except Exception as e:
+                logger.error(f"Failed to send reminder to user {profile.user_id}: {e}")
+                continue
+        
+        logger.info(f"Proactive reminders completed: {reminders_sent} sent")
+        return {
+            "success": True,
+            "reminders_sent": reminders_sent
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to send proactive reminders: {e}")
+        raise
+
+
+@shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_kwargs={"max_retries": 3})
+def send_market_updates(self) -> Dict[str, Any]:
+    """
+    Send proactive market updates and trends to interested users.
+    This runs weekly and provides valuable market insights.
+    """
+    try:
+        from django.conf import settings
+        from .models import UserProfile
+        from .utils.notifications import put_notification
+        
+        logger.info("Starting market updates task")
+        
+        # Check feature flags
+        if not getattr(settings, 'PROACTIVE_AGENT_ENABLED', False):
+            return {"success": False, "reason": "feature_disabled"}
+            
+        if not getattr(settings, 'ENABLE_PROACTIVE_PREDICTIONS', False):
+            return {"success": False, "reason": "predictions_disabled"}
+        
+        updates_sent = 0
+        
+        # Find users interested in market updates
+        for profile in UserProfile.objects.filter(
+            proactive_enabled=True,
+            proactive_predictions=True
+        ):
+            try:
+                # Check rate limiting
+                if not _check_proactive_rate_limit(profile.user_id):
+                    continue
+                
+                # Generate market update message
+                market_message = "📊 Market Update: Property prices in Kyrenia have increased by 5% this week. I found 3 new properties that match your criteria. Would you like me to show you?"
+                
+                # Create notification
+                notification = {
+                    "type": "proactive_market_update",
+                    "data": {
+                        "message": market_message,
+                        "recommendations": [],
+                        "proactive": True,
+                        "update_type": "market_trends"
+                    }
+                }
+                
+                # Store notification
+                put_notification(profile.user_id, notification)
+                _update_proactive_rate_limit(profile.user_id)
+                
+                updates_sent += 1
+                logger.info(f"Sent market update to user {profile.user_id}")
+                
+            except Exception as e:
+                logger.error(f"Failed to send market update to user {profile.user_id}: {e}")
+                continue
+        
+        logger.info(f"Market updates completed: {updates_sent} sent")
+        return {
+            "success": True,
+            "updates_sent": updates_sent
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to send market updates: {e}")
+        raise
+
+
+@shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_kwargs={"max_retries": 3})
+def monitor_new_media_and_trigger_proactive(self) -> Dict[str, Any]:
+    """
+    Monitor for new media in listings and trigger proactive responses.
+    This task runs periodically to catch any media that might have been missed.
+    """
+    try:
+        from django.conf import settings
+        from .models import Listing, Conversation
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        logger.info("Starting new media monitoring task")
+        
+        # Check feature flags
+        if not getattr(settings, 'PROACTIVE_AGENT_ENABLED', False):
+            logger.info("Proactive agent disabled by feature flag")
+            return {"success": False, "reason": "feature_disabled"}
+            
+        if not getattr(settings, 'ENABLE_PROACTIVE_PHOTOS', False):
+            logger.info("Proactive photos disabled by feature flag")
+            return {"success": False, "reason": "photos_disabled"}
+        
+        proactive_responses_triggered = 0
+        
+        # Find listings that have been updated with new media in the last hour
+        cutoff_time = timezone.now() - timedelta(hours=1)
+        
+        recent_listings = Listing.objects.filter(
+            last_seen_at__gte=cutoff_time,
+            has_image=True,
+            is_active=True
+        ).order_by('-last_seen_at')
+        
+        logger.info(f"Found {recent_listings.count()} recent listings with media")
+        
+        for listing in recent_listings:
+            try:
+                # Check if we've already sent a proactive response for this listing recently
+                cache_key = f"proactive_sent:{listing.id}"
+                from django.core.cache import cache
+                
+                if cache.get(cache_key):
+                    logger.info(f"Proactive response already sent for listing {listing.id}")
+                    continue
+                
+                # Count images for this listing
+                image_count = len(listing.image_urls) if listing.image_urls else 0
+                
+                if image_count == 0:
+                    continue
+                
+                # Find or create conversation for this listing
+                conversation_id = None
+                
+                # Try to find existing conversation
+                conv = Conversation.objects.filter(
+                    conversation_id__contains=str(listing.id)
+                ).first()
+                
+                if not conv:
+                    # Create new conversation
+                    conv = Conversation.objects.create(
+                        conversation_id=f"listing_{listing.id}_{int(time.time())}"
+                    )
+                    logger.info(f"Created conversation {conv.conversation_id} for listing {listing.id}")
+                
+                conversation_id = conv.conversation_id
+                
+                # Check rate limiting
+                if not _check_proactive_rate_limit(conversation_id):
+                    logger.info(f"Rate limit exceeded for conversation {conversation_id}")
+                    continue
+                
+                # Trigger proactive response
+                result = trigger_proactive_agent_response(
+                    listing_id=listing.id,
+                    conversation_id=conversation_id,
+                    image_count=image_count
+                )
+                
+                if result.get("success"):
+                    # Mark as sent to avoid duplicates
+                    cache.set(cache_key, True, timeout=3600)  # 1 hour
+                    _update_proactive_rate_limit(conversation_id)
+                    proactive_responses_triggered += 1
+                    logger.info(f"Triggered proactive response for listing {listing.id}")
+                else:
+                    logger.warning(f"Failed to trigger proactive response for listing {listing.id}: {result.get('reason')}")
+                
+            except Exception as e:
+                logger.error(f"Failed to process listing {listing.id}: {e}")
+                continue
+        
+        logger.info(f"Media monitoring completed: {proactive_responses_triggered} proactive responses triggered")
+        return {
+            "success": True,
+            "proactive_responses_triggered": proactive_responses_triggered,
+            "listings_checked": recent_listings.count()
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to monitor new media: {e}")
         raise

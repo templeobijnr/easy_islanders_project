@@ -140,19 +140,25 @@ const EasyIslanders = () => {
   useEffect(() => {
     let pollingInterval = null;
     
+    console.log(`[POLLING SETUP] conversationId: ${conversationId}, isAuthenticated: ${isAuthenticated}`);
+    console.log(`[POLLING SETUP] Component mounted/updated - this should appear in console`);
+    
     if (conversationId && isAuthenticated) {
+      console.log(`[POLLING SETUP] Starting polling for conversation: ${conversationId}`);
       // Start polling for notifications every 5 seconds
       pollingInterval = setInterval(async () => {
         try {
+          console.log(`[POLLING] Checking notifications for conversation: ${conversationId}`);
           const response = await axios.get(
             `${config.getApiUrl()}/api/notifications/?conversation_id=${conversationId}`,
             { timeout: 10000 }
           );
           
+          console.log(`[POLLING] API Response:`, response.data);
           const notifications = response.data.notifications || [];
           
           if (notifications.length > 0) {
-            console.log('Received notifications:', notifications);
+            console.log(`[POLLING] Received ${notifications.length} notifications:`, notifications);
             
             setMessages(prevMessages => {
               let messagesChanged = false;
@@ -200,6 +206,39 @@ const EasyIslanders = () => {
                     timestamp: notification.timestamp
                   });
                   messagesChanged = true;
+                } else if (notification.type === 'proactive_update') {
+                  // Handle proactive agent updates (automatic notifications)
+                  const data = notification.data || {};
+                  const message = data.message || 'I have an update for you!';
+                  const recommendations = data.recommendations || [];
+                  
+                  console.log('[POLLING] Received proactive_update notification:', { 
+                    type: notification.type,
+                    message, 
+                    recommendationsCount: recommendations.length,
+                    fullData: data,
+                    fullNotification: notification
+                  });
+                  
+                  updatedMessages.push({
+                    type: 'assistant',
+                    content: message,
+                    language: 'en',
+                    recommendations: recommendations,
+                    proactive: true,
+                    timestamp: new Date().toISOString()
+                  });
+                  messagesChanged = true;
+                  
+                  // Auto-scroll to show the new message
+                  console.log('[POLLING] Adding proactive message to chat:', {
+                    message,
+                    recommendationsCount: recommendations.length,
+                    proactive: true
+                  });
+                  setTimeout(() => {
+                    scrollToBottom();
+                  }, 100);
                 }
               });
 
@@ -216,15 +255,26 @@ const EasyIslanders = () => {
             }
           }
         } catch (error) {
-          console.error('Polling error:', error);
+          console.error('[POLLING] Error polling for notifications:', error);
+          console.error('[POLLING] Error details:', {
+            message: error.message,
+            response: error.response?.data,
+            status: error.response?.status,
+            conversationId
+          });
           // Don't show error to user, just log it
         }
       }, 5000); // Poll every 5 seconds
+      
+      console.log(`[POLLING SETUP] Polling interval created for conversation: ${conversationId}`);
+    } else {
+      console.log(`[POLLING SETUP] Not starting polling - conversationId: ${conversationId}, isAuthenticated: ${isAuthenticated}`);
     }
     
     // Cleanup interval on unmount or when dependencies change
     return () => {
       if (pollingInterval) {
+        console.log(`[POLLING CLEANUP] Clearing polling interval for conversation: ${conversationId}`);
         clearInterval(pollingInterval);
       }
     };
@@ -715,9 +765,17 @@ const EasyIslanders = () => {
                         className={`max-w-2xl ${
                           message.type === 'user'
                             ? 'bg-blue-600 text-white rounded-l-xl rounded-tr-xl'
-                            : 'bg-white border rounded-r-xl rounded-tl-xl shadow-sm'
+                            : message.proactive 
+                              ? 'bg-green-50 border-green-200 border-2 rounded-r-xl rounded-tl-xl shadow-sm'
+                              : 'bg-white border rounded-r-xl rounded-tl-xl shadow-sm'
                         } px-4 py-3`}
                       >
+                        {message.proactive && (
+                          <div className="flex items-center gap-2 mb-2 text-green-600 text-xs font-medium">
+                            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                            Auto-update
+                          </div>
+                        )}
                         <div className="text-sm whitespace-pre-wrap">
                           {message.content}
                         </div>

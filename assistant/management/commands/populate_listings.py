@@ -5,7 +5,7 @@ from typing import List
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
-from assistant.models import Listing
+from listings.models import Listing
 
 
 AREAS: List[str] = [

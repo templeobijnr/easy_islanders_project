@@ -41,9 +41,12 @@ INSTALLED_APPS = [
 
     # Third-party apps
     'rest_framework',
+    'rest_framework_simplejwt',
     'corsheaders',
 
-    # Local apps
+    # Local apps - users must come before assistant
+    'users',
+    'listings',
     'assistant',
 ]
 
@@ -135,7 +138,27 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-CORS_ALLOW_ALL_ORIGINS = True 
+# Custom User Model (Phase 0 - Authentication)
+AUTH_USER_MODEL = 'users.User'
+
+# REST Framework & JWT Configuration
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ]
+}
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': __import__('datetime').timedelta(days=7),
+    'REFRESH_TOKEN_LIFETIME': __import__('datetime').timedelta(days=30),
+    'ALGORITHM': 'HS256',
+}
+
+CORS_ALLOW_ALL_ORIGINS = True
 
 # --- DECOUPLE AND AI CONFIGURATION ---
 # This part is crucial for reading the .env file

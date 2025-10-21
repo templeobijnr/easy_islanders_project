@@ -677,7 +677,7 @@ def _do_proactive_update(listing_id: int, conversation_id: str, image_count: int
     try:
         from .agent_utils import build_recommendation_card
         from .memory import save_assistant_turn as mem_save_assistant_turn
-        from assistant.models import Listing
+        from listings.models import Listing
         
         logger.info(f"Generating proactive update for listing {listing_id}, conversation {conversation_id}")
         

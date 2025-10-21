@@ -287,7 +287,7 @@ class MediaProcessor:
     
     def _find_listing_by_contact(self, contact_number: str) -> Optional[int]:
         """Find listing ID by contact number."""
-        from assistant.models import Listing
+        from listings.models import Listing
         
         try:
             # Clean the contact number (remove whatsapp: prefix and any formatting)
@@ -336,7 +336,7 @@ class MediaProcessor:
     
     def _update_listing_media(self, listing_id: int, media_url: str, media_id: str):
         """Update listing with new media."""
-        from assistant.models import Listing
+        from listings.models import Listing
         
         try:
             listing = Listing.objects.get(id=listing_id)

@@ -27,6 +27,7 @@ const config = {
   // API Endpoints
   ENDPOINTS: {
     CHAT: '/api/chat/',
+    RECOMMENDATIONS: '/api/recommendations/',
     AUTH: {
       REGISTER: '/api/auth/register/',
       LOGIN: '/api/auth/login/',

@@ -26,6 +26,9 @@ class DisableMigrations:
 
 MIGRATION_MODULES = DisableMigrations()
 
+# Use in-memory email backend for testing
+EMAIL_BACKEND = 'django.core.mail.backends.locmem.EmailBackend'
+
 # Use in-memory cache for testing
 CACHES = {
     'default': {

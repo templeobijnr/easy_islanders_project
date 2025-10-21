@@ -56,7 +56,8 @@ from django.conf import settings
 from django.db import transaction
 from django.db.models import Q
 
-from assistant.models import KnowledgeBase, Listing, ServiceProvider
+from assistant.models import KnowledgeBase, ServiceProvider
+from listings.models import Listing
 from assistant.scrapers.car_finder import sync_find_all_cars
 from assistant.scrapers.property_finder import sync_find_all_properties
 from assistant.serializers import KnowledgeBaseSerializer, ServiceProviderSerializer
@@ -866,7 +867,7 @@ def initiate_contact_with_seller(
                     if conversation_id:
                         from assistant.models import Conversation
                         try:
-                            conversation = Conversation.objects.get(conversation_id=conversation_id)
+                            conversation = Conversation.objects.get(id=conversation_id)
                         except Conversation.DoesNotExist:
                             logger.warning(f"Conversation {conversation_id} not found for ContactIndex")
                     

@@ -1,0 +1,26 @@
+name: CD - Deploy to Production
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Deploy to Railway
+      uses: bervProject/railway-deploy@main
+      with:
+        railway_token: ${{ secrets.RAILWAY_TOKEN }}
+        service: ${{ secrets.RAILWAY_SERVICE_ID }}
+        environment: production
+
+    - name: Notify deployment success
+      if: success()
+      run: |
+        echo "✅ Deployment to production completed successfully"
+        echo "🌐 Application is now available at: https://easy-islanders-production.up.railway.app"

@@ -30,7 +30,8 @@ try:
 except Exception:
     graph_run_message = None
     graph_run_event = None
-from .models import DemandLead, ServiceProvider, KnowledgeBase, Listing, Conversation, Booking
+from listings.models import Listing
+from .models import DemandLead, ServiceProvider, KnowledgeBase, Conversation, Booking
 from .auth import (
     register_user, login_user, logout_user, 
     get_user_profile, update_user_profile, check_auth_status
@@ -47,7 +48,7 @@ from django.db import transaction
 import json
 import logging
 
-from .models import Listing, Conversation, Message
+from .models import Conversation, Message
 from .tools import initiate_contact_with_seller
 from .twilio_client import TwilioWhatsAppClient, MediaProcessor
 from .models import ContactIndex
@@ -247,15 +248,25 @@ except Exception as e:
 
 
 def _ensure_conversation(conversation_id: Optional[str]) -> str:
+    """Ensure a conversation exists and return its ID."""
     if conversation_id:
-        Conversation.objects.get_or_create(conversation_id=conversation_id)
-        return conversation_id
+        # Validate if conversation_id is a valid UUID
+        try:
+            uuid.UUID(conversation_id)
+            Conversation.objects.get_or_create(id=conversation_id)
+            return conversation_id
+        except ValueError:
+            # If not a valid UUID, create a new one
+            pass
+    
+    # Create new conversation with valid UUID
     new_id = str(uuid.uuid4())
-    Conversation.objects.get_or_create(conversation_id=new_id)
+    Conversation.objects.get_or_create(id=new_id)
     return new_id
 
 
 @api_view(['POST'])
+@permission_classes([AllowAny])
 def chat_with_assistant(request):
     message = (request.data.get('message') or '').strip()
     if not message:
@@ -282,6 +293,7 @@ def chat_with_assistant(request):
 
 
 @api_view(['POST'])
+@permission_classes([AllowAny])
 def handle_chat_event(request):
     """
     Handles UI-driven events (e.g., button clicks) by translating them
@@ -448,17 +460,21 @@ def handle_chat_event(request):
 
 @api_view(['GET'])
 def get_recommendations(request):
-    category = request.query_params.get('category')
+    category_slug = request.query_params.get('category')
     location = request.query_params.get('location')
-    language = request.query_params.get('language', 'en')
 
-    queryset = ServiceProvider.objects.filter(is_active=True).order_by('-is_featured', '-rating')
-    if category:
-        queryset = queryset.filter(category__iexact=category)
+    # Query the new Listing model
+    queryset = Listing.objects.filter(is_active=True, is_published=True).order_by('-created_at')
+    
+    if category_slug:
+        # Filter by the slug of the related Category
+        queryset = queryset.filter(category__slug__iexact=category_slug)
+        
     if location:
         queryset = queryset.filter(location__icontains=location)
 
-    serializer = ServiceProviderSerializer(queryset, many=True, context={'language': language})
+    # Use the ListingSerializer
+    serializer = ListingSerializer(queryset, many=True, context={'request': request})
     return Response(serializer.data)
 
 
@@ -973,7 +989,7 @@ def twilio_webhook(request):
                 try:
                     if conversation_id:
                         from .models import Conversation, Message
-                        conv = Conversation.objects.get(conversation_id=conversation_id)
+                        conv = Conversation.objects.get(id=conversation_id)
                         Message.objects.create(
                             conversation=conv,
                             role='assistant',
@@ -1059,7 +1075,7 @@ def twilio_webhook(request):
                 try:
                     if conversation_id:
                         from .models import Conversation, Message
-                        conv = Conversation.objects.get(conversation_id=conversation_id)
+                        conv = Conversation.objects.get(id=conversation_id)
                         Message.objects.create(
                             conversation=conv,
                             role='assistant',

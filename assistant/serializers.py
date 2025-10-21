@@ -1,7 +1,8 @@
 # assistant/serializers.py
 
 from rest_framework import serializers
-from .models import UserRequest, ServiceProvider, ServiceFeature, Booking, KnowledgeBase, LinkSource, Listing, Image
+from .models import ServiceProvider, ServiceFeature, Booking, KnowledgeBase, LinkSource
+from listings.models import Listing, Image
 
 class ServiceFeatureSerializer(serializers.ModelSerializer):
     """Serializer for Service Features, customized for multilingual support."""
@@ -42,22 +43,7 @@ class BookingSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ('booking_reference', 'created_at', 'updated_at')
 
-class UserRequestSerializer(serializers.ModelSerializer):
-    """Serializer for viewing User Requests."""
-    class Meta:
-        model = UserRequest
-        fields = '__all__'
-        read_only_fields = ('created_at', 'updated_at')
-
-class UserRequestCreateSerializer(serializers.ModelSerializer):
-    """Serializer for creating a new User Request."""
-    class Meta:
-        model = UserRequest
-        fields = [
-            'name', 'phone_number', 'email', 'preferred_language',
-            'request_type', 'message', 'original_message',
-            'location_preference', 'budget_range', 'dates_needed', 'number_of_people'
-        ]
+# NOTE: UserRequestSerializer and UserRequestCreateSerializer removed - UserRequest model deprecated
 
 class KnowledgeBaseSerializer(serializers.ModelSerializer):
     """Serializer for Knowledge Base articles with multilingual support."""

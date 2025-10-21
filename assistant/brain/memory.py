@@ -13,7 +13,7 @@ def load_recent_messages(conversation_id: Optional[str], limit: int = 10) -> Lis
     if not conversation_id:
         return []
     try:
-        conv = Conversation.objects.get(conversation_id=conversation_id)
+        conv = Conversation.objects.get(id=conversation_id)
     except Conversation.DoesNotExist:
         return []
     msgs = conv.messages.order_by("-created_at")[:limit]
@@ -28,7 +28,7 @@ def save_assistant_turn(
 ) -> None:
     if not conversation_id:
         return
-    conv, _ = Conversation.objects.get_or_create(conversation_id=conversation_id)
+    conv, _ = Conversation.objects.get_or_create(id=conversation_id)
     Message.objects.create(
         conversation=conv,
         role="user",
@@ -53,7 +53,7 @@ def extract_pending_actions(conversation_id: Optional[str]) -> List[Dict]:
         return []
     
     try:
-        conv = Conversation.objects.get(conversation_id=conversation_id)
+        conv = Conversation.objects.get(id=conversation_id)
         # Look for the most recent outreach message (regardless of time)
         outreach_msgs = conv.messages.filter(
             role='assistant',
@@ -155,7 +155,7 @@ def load_recent_messages_with_context(conversation_id: Optional[str], limit: int
     if not conversation_id:
         return []
     try:
-        conv = Conversation.objects.get(conversation_id=conversation_id)
+        conv = Conversation.objects.get(id=conversation_id)
     except Conversation.DoesNotExist:
         return []
     

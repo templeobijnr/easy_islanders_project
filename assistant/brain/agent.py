@@ -120,7 +120,7 @@ def extract_pending_actions(conversation_id: Optional[str]) -> List[Dict]:
     if not conversation_id:
         return []
     try:
-        last_msg = Message.objects.filter(conversation__conversation_id=conversation_id, role="assistant").order_by('-created_at').first()
+        last_msg = Message.objects.filter(conversation__id=conversation_id, role="assistant").order_by('-created_at').first()
         if last_msg and last_msg.message_context:
             pending_actions = last_msg.message_context.get("pending_actions", [])
             # Update status based on current DB state
@@ -160,7 +160,7 @@ def _get_last_recommendations(conversation_id: Optional[str]) -> List[int]:
     try:
         messages = (
             Message.objects
-            .filter(conversation__conversation_id=conversation_id, role="assistant")
+            .filter(conversation__id=conversation_id, role="assistant")
             .order_by("-created_at")
         )
         for msg in messages:
@@ -177,7 +177,7 @@ def _get_last_contacted_listing(conversation_id: Optional[str]) -> Optional[Dict
     try:
         messages = (
             Message.objects
-            .filter(conversation__conversation_id=conversation_id, role="assistant")
+            .filter(conversation__id=conversation_id, role="assistant")
             .order_by("-created_at")
         )
         for msg in messages:

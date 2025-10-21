@@ -21,7 +21,7 @@ def get_last_recommendations(conversation_id: Optional[str]) -> List[int]:
     try:
         from assistant.models import Message
         messages = (
-            Message.objects.filter(conversation__conversation_id=conversation_id, role="assistant")
+            Message.objects.filter(conversation__id=conversation_id, role="assistant")
             .order_by("-created_at")
         )
         for msg in messages:
@@ -39,7 +39,7 @@ def get_last_contacted_listing(conversation_id: Optional[str]) -> Optional[Dict[
     try:
         from assistant.models import Message
         messages = (
-            Message.objects.filter(conversation__conversation_id=conversation_id, role="assistant")
+            Message.objects.filter(conversation__id=conversation_id, role="assistant")
             .order_by("-created_at")
         )
         
@@ -99,7 +99,7 @@ def get_last_contacted_listing(conversation_id: Optional[str]) -> Optional[Dict[
 
 def check_for_new_images(listing_id: int) -> Dict:
     try:
-        from assistant.models import Listing
+        from listings.models import Listing
         listing = Listing.objects.get(id=listing_id)
         sd = listing.structured_data or {}
         baseline = sd.get('baseline_image_count', 0)
@@ -119,7 +119,7 @@ def resolve_listing_reference(text: str, conversation_id: Optional[str]) -> Opti
     if m:
         try:
             listing_id = int(m.group(1))
-            from assistant.models import Listing
+            from listings.models import Listing
             from assistant.tools import has_contact_info
             listing = Listing.objects.filter(id=listing_id, is_active=True).first()
             if listing:
@@ -144,7 +144,7 @@ def resolve_listing_reference(text: str, conversation_id: Optional[str]) -> Opti
         if m3:
             try:
                 beds = int(m3.group(1))
-                from assistant.models import Listing
+                from listings.models import Listing
                 cand = (
                     Listing.objects.filter(id__in=recs, is_active=True)
                     .filter(Q(structured_data__bedrooms=beds) | Q(raw_text__icontains=f"{beds}+1"))
@@ -162,7 +162,7 @@ def resolve_listing_reference(text: str, conversation_id: Optional[str]) -> Opti
     bedrooms = int(bedroom_match.group(1)) if bedroom_match else None
     location = next((kw for kw in location_keywords if kw in t), None)
 
-    from assistant.models import Listing
+    from listings.models import Listing
     from assistant.tools import has_contact_info
     query = Q(is_active=True)
     if bedrooms:
@@ -178,7 +178,7 @@ def resolve_listing_reference(text: str, conversation_id: Optional[str]) -> Opti
 
 def build_recommendation_card(listing_id: int) -> List[Dict[str, Any]]:
     try:
-        from assistant.models import Listing
+        from listings.models import Listing
         from assistant.utils.url_utils import normalize_image_list
         listing = Listing.objects.get(id=listing_id)
         sd = listing.structured_data or {}
@@ -276,7 +276,7 @@ def parse_and_correct_intent(
                 if conversation_id:
                     from assistant.models import Message
                     last_assistant = (
-                        Message.objects.filter(conversation__conversation_id=conversation_id, role='assistant')
+                        Message.objects.filter(conversation__id=conversation_id, role='assistant')
                         .order_by('-created_at')
                         .first()
                     )

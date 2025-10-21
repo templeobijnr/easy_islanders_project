@@ -10,7 +10,7 @@ import time
 import logging
 from typing import List, Dict, Any, Optional
 from django.conf import settings
-from .models import Listing
+from listings.models import Listing
 from .utils.notifications import put_card_display, put_auto_display
 from .twilio_client import MediaProcessor
 from datetime import datetime, timedelta
@@ -499,7 +499,7 @@ def send_proactive_reminders(self) -> Dict[str, Any]:
                 
                 # Save message to conversation
                 try:
-                    conv = Conversation.objects.get(conversation_id=profile.user_id)
+                    conv = Conversation.objects.get(id=profile.user_id)
                     Message.objects.create(
                         conversation=conv,
                         content=reminder_message,
@@ -511,7 +511,7 @@ def send_proactive_reminders(self) -> Dict[str, Any]:
                     )
                 except Conversation.DoesNotExist:
                     # Create conversation if it doesn't exist
-                    conv = Conversation.objects.create(conversation_id=profile.user_id)
+                    conv = Conversation.objects.create(id=profile.user_id)
                     Message.objects.create(
                         conversation=conv,
                         content=reminder_message,
@@ -616,7 +616,8 @@ def monitor_new_media_and_trigger_proactive(self) -> Dict[str, Any]:
     """
     try:
         from django.conf import settings
-        from .models import Listing, Conversation
+        from .models import Conversation
+        from listings.models import Listing
         from django.utils import timezone
         from datetime import timedelta
         

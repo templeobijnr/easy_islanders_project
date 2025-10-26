@@ -28,6 +28,15 @@ const config = {
   ENDPOINTS: {
     CHAT: '/api/chat/',
     RECOMMENDATIONS: '/api/recommendations/',
+    // F.3 API Contract V1.0 Endpoints
+    MESSAGES: {
+      GET_MESSAGES: '/api/v1/messages/',
+      UNREAD_COUNT: '/api/v1/messages/unread-count/',
+      MARK_READ: (threadId) => `/api/v1/messages/${threadId}/read_status/`,
+    },
+    THREADS: {
+      LIST: '/api/v1/threads/',
+    },
     AUTH: {
       REGISTER: '/api/auth/register/',
       LOGIN: '/api/auth/login/',

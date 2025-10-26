@@ -17,6 +17,7 @@ const DashboardSidebar = ({ isOpen, onClose }) => {
       icon: LayoutDashboard,
       submenu: [
         { label: 'My Listings', path: '/dashboard/my-listings', icon: FileText },
+        { label: 'Seller Inbox', path: '/dashboard/seller-inbox', icon: MessageSquare },
         { label: 'Sales', path: '/dashboard/sales', icon: DollarSign },
         { label: 'Messages', path: '/dashboard/messages', icon: MessageSquare },
       ]
@@ -28,6 +29,7 @@ const DashboardSidebar = ({ isOpen, onClose }) => {
 
   const isActive = (path) => location.pathname === path;
   const isDashboardActive = location.pathname.startsWith('/dashboard/my-listings') || 
+                            location.pathname.startsWith('/dashboard/seller-inbox') ||
                             location.pathname.startsWith('/dashboard/sales') ||
                             location.pathname.startsWith('/dashboard/messages');
 

@@ -13,6 +13,7 @@ export const AuthProvider = ({ children }) => {
   const [authStep, setAuthStep] = useState('type'); // 'type' -> 'form' -> 'complete'
   const [authError, setAuthError] = useState(null);
   const [authLoading, setAuthLoading] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0); // F.3 - Add unreadCount state
 
   const handleLogin = useCallback(async (credentials) => {
     try {
@@ -136,6 +137,8 @@ export const AuthProvider = ({ children }) => {
     authStep,
     authError,
     authLoading,
+    unreadCount, // F.3 - Expose unreadCount
+    setUnreadCount, // F.3 - Expose setter
     setAuthMode,
     setSelectedUserType,
     setAuthStep,

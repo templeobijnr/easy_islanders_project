@@ -41,6 +41,7 @@ INSTALLED_APPS = [
 
     # Third-party apps
     'rest_framework',
+    'rest_framework.authtoken',
     'rest_framework_simplejwt',
     'corsheaders',
 
@@ -51,6 +52,9 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'assistant.monitoring.otel_instrumentation.RequestIDMiddleware',
+    'assistant.monitoring.middleware.OpenTelemetryMiddleware',  # OpenTelemetry tracing
+    'assistant.monitoring.middleware.MetricsMiddleware',  # Additional metrics
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -85,11 +89,16 @@ WSGI_APPLICATION = 'easy_islanders.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
+# Use dj_database_url for environment-based configuration
+# This supports DATABASE_URL env var from Docker or local .env file
+import dj_database_url
+
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': dj_database_url.config(
+        default='sqlite:///db.sqlite3',  # Use SQLite for local development
+        conn_max_age=600,
+        conn_health_checks=True,
+    )
 }
 
 
@@ -145,6 +154,7 @@ AUTH_USER_MODEL = 'users.User'
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'rest_framework.authentication.TokenAuthentication',
         'rest_framework.authentication.SessionAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
@@ -158,7 +168,17 @@ SIMPLE_JWT = {
     'ALGORITHM': 'HS256',
 }
 
-CORS_ALLOW_ALL_ORIGINS = True
+# ✅ CORS Configuration for credentials support
+# When using withCredentials: true on frontend, cannot use wildcard '*'
+# Must specify exact allowed origins
+CORS_ALLOW_ALL_ORIGINS = False
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:8000',
+    'http://127.0.0.1:8000',
+]
+CORS_ALLOW_CREDENTIALS = True
 
 # --- DECOUPLE AND AI CONFIGURATION ---
 # This part is crucial for reading the .env file
@@ -223,6 +243,77 @@ ENABLE_PROACTIVE_PREDICTIONS = config('ENABLE_PROACTIVE_PREDICTIONS', default=Fa
 # Auto-Response Configuration
 ENABLE_AUTO_RESPONSE = config('ENABLE_AUTO_RESPONSE', default=False, cast=bool)
 
+# LangGraph Agent Configuration (Phase A: Safe Rollout)
+ENABLE_LANGGRAPH_AGENT = config('ENABLE_LANGGRAPH_AGENT', default=False, cast=bool)
+
+# Central Supervisor Agent (Hierarchical Router)
+ENABLE_SUPERVISOR_AGENT = config('ENABLE_SUPERVISOR_AGENT', default=False, cast=bool)
+SUPERVISOR_ROUTER_MODEL = config('SUPERVISOR_ROUTER_MODEL', default='gpt-4o-mini')
+
+# LangGraph Checkpointing Configuration (Phase A: In-memory with MemorySaver)
+# Phase B will upgrade to PostgreSQL when needed (> 50 concurrent users)
+LANGGRAPH_CHECKPOINT_CONNECTION_STRING = config(
+    'LANGGRAPH_CHECKPOINT_CONNECTION_STRING',
+    default='sqlite:///langgraph_checkpoints.db'
+)
+
 # Proactive Agent Limits
 MAX_PROACTIVE_MESSAGES_PER_DAY = config('MAX_PROACTIVE_MESSAGES_PER_DAY', default=3, cast=int)
 PROACTIVE_RATE_LIMIT_WINDOW = config('PROACTIVE_RATE_LIMIT_WINDOW', default=3600, cast=int)  # 1 hour
+
+CELERY_TASK_REJECT_ON_WORKER_LOST = True
+OPENAI_MODEL = config('OPENAI_MODEL', default='gpt-4-turbo-preview')
+
+# Proactive Agent Configuration
+PROACTIVE_AGENT_ENABLED = config('PROACTIVE_AGENT_ENABLED', default=False, cast=bool)
+ENABLE_PROACTIVE_PHOTOS = config('ENABLE_PROACTIVE_PHOTOS', default=False, cast=bool)
+ENABLE_PROACTIVE_REMINDERS = config('ENABLE_PROACTIVE_REMINDERS', default=False, cast=bool)
+ENABLE_PROACTIVE_QUESTIONS = config('ENABLE_PROACTIVE_QUESTIONS', default=False, cast=bool)
+ENABLE_PROACTIVE_PREDICTIONS = config('ENABLE_PROACTIVE_PREDICTIONS', default=False, cast=bool)
+
+# Auto-Response Configuration
+ENABLE_AUTO_RESPONSE = config('ENABLE_AUTO_RESPONSE', default=False, cast=bool)
+
+# LangGraph Agent Configuration (Phase A: Safe Rollout)
+ENABLE_LANGGRAPH_AGENT = config('ENABLE_LANGGRAPH_AGENT', default=False, cast=bool)
+
+# LangGraph Checkpointing Configuration (Phase A: In-memory with MemorySaver)
+# Phase B will upgrade to PostgreSQL when needed (> 50 concurrent users)
+LANGGRAPH_CHECKPOINT_CONNECTION_STRING = config(
+    'LANGGRAPH_CHECKPOINT_CONNECTION_STRING',
+    default='sqlite:///langgraph_checkpoints.db'
+)
+
+# Proactive Agent Limits
+MAX_PROACTIVE_MESSAGES_PER_DAY = config('MAX_PROACTIVE_MESSAGES_PER_DAY', default=3, cast=int)
+PROACTIVE_RATE_LIMIT_WINDOW = config('PROACTIVE_RATE_LIMIT_WINDOW', default=3600, cast=int)  # 1 hour
+
+# Enterprise Multi-Domain Agent Configuration (Phase B: Production Ready)
+ENABLE_ENTERPRISE_AGENT = config('ENABLE_ENTERPRISE_AGENT', default=True, cast=bool)
+
+# Registry Service Configuration
+REGISTRY_BASE_URL = config('REGISTRY_BASE_URL', default='http://localhost:8081')
+REGISTRY_API_KEY = config('REGISTRY_API_KEY', default='dev-key')
+
+# OpenTelemetry Configuration
+OTEL_EXPORTER_OTLP_ENDPOINT = config('OTEL_EXPORTER_OTLP_ENDPOINT', default='http://localhost:4317')
+OTEL_SERVICE_NAME = config('OTEL_SERVICE_NAME', default='easy-islanders')
+OTEL_SERVICE_VERSION = config('OTEL_SERVICE_VERSION', default='1.0.0')
+ENVIRONMENT = config('ENVIRONMENT', default='staging')
+
+# Sampling Configuration
+OTEL_TRACES_SAMPLER = config('OTEL_TRACES_SAMPLER', default='traceidratio')
+if ENVIRONMENT == 'production':
+    OTEL_TRACES_SAMPLER_ARG = config('OTEL_TRACES_SAMPLER_ARG', default='0.2')  # 20% sampling for production
+else:
+    OTEL_TRACES_SAMPLER_ARG = config('OTEL_TRACES_SAMPLER_ARG', default='1.0')  # 100% sampling for staging
+
+# Error sampling (always 100%)
+OTEL_ERROR_SAMPLER_ARG = config('OTEL_ERROR_SAMPLER_ARG', default='1.0')
+
+# Enable OpenTelemetry metrics
+ENABLE_OTEL_METRICS = config('ENABLE_OTEL_METRICS', default=True, cast=bool)
+
+# LLM Metrics Configuration
+LLM_METRICS_SAMPLE_RATE = float(OTEL_TRACES_SAMPLER_ARG)
+LLM_METRICS_ERROR_SAMPLE_RATE = 1.0  # Always sample errors

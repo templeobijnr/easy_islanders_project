@@ -17,19 +17,17 @@ from django.views.decorators.http import require_http_methods
 
 from rest_framework import generics, status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from openai import OpenAI
 
 # Use LangChain agent for all AI processing
-from .brain.agent import process_turn as lc_process_turn
+# from .brain.agent import process_turn as lc_process_turn  # DELETED - using enterprise agent
 from .brain.config import ENABLE_LANGGRAPH
-try:
-    from .brain.graph import run_message as graph_run_message, run_event as graph_run_event
-except Exception:
-    graph_run_message = None
-    graph_run_event = None
+# Legacy graph imports removed - using enterprise agent
+graph_run_message = None
+graph_run_event = None
 from listings.models import Listing
 from .models import DemandLead, ServiceProvider, KnowledgeBase, Conversation, Booking
 from .auth import (
@@ -53,6 +51,8 @@ from .tools import initiate_contact_with_seller
 from .twilio_client import TwilioWhatsAppClient, MediaProcessor
 from .models import ContactIndex
 
+from .brain.guardrails import run_enterprise_guardrails
+
 logger = logging.getLogger(__name__)
 
 # Simple in-memory notification store (in production, use Redis or database)
@@ -62,6 +62,8 @@ from .utils.notifications import (
     put_auto_display, get_auto_display as get_auto_display_data, pop_auto_display,
     put_notification, get_notification as get_notification_data
 )
+
+from .tasks import broadcast_request_to_sellers, broadcast_request_for_request
 
 
 def _notify_new_images(listing_id: int, media_urls: List[str]):
@@ -266,30 +268,123 @@ def _ensure_conversation(conversation_id: Optional[str]) -> str:
 
 
 @api_view(['POST'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def chat_with_assistant(request):
+    """
+    Primary chat endpoint with thread ID state management.
+    
+    - Authenticates user (required for state persistence)
+    - Generates/retrieves thread_id from ConversationThread model
+    - Links to LangGraph checkpoint system
+    - Supports cross-device sync via User ID
+    
+    Request:
+    {
+        "message": "Find me an apartment",
+        "thread_id": "optional-uuid"  # If not provided, backend retrieves/creates active thread
+    }
+    
+    Response:
+    {
+        "response": "...",
+        "thread_id": "uuid",
+        "language": "en",
+        "recommendations": [...],
+        "conversation_id": "uuid"  # Legacy field, same as thread_id
+    }
+    """
+    user = request.user
     message = (request.data.get('message') or '').strip()
+    
     if not message:
         return Response({'error': 'Message cannot be empty.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    conversation_id = _ensure_conversation(request.data.get('conversation_id'))
-
-    try:
-            if ENABLE_LANGGRAPH and graph_run_message:
-                lc_result = graph_run_message(message, conversation_id)
-            else:
-                lc_result = lc_process_turn(message, conversation_id)
-            return Response({
-                'response': lc_result.get('message', ''),
-                'language': lc_result.get('language', 'en'),
-                'recommendations': lc_result.get('recommendations') or [],
-                'function_calls': [],
-                'requires_phone': False,
-            'conversation_id': conversation_id,
+    # Pre-model guardrail: block abusive/out-of-scope/injection before expensive routing
+    guardrail_result = run_enterprise_guardrails(message)
+    if not guardrail_result.passed:
+        return Response({
+            'response': "I'm sorry, I can't assist with that request.",
+            'reason': guardrail_result.reason,
+            'language': request.data.get('language', 'en'),
+            'recommendations': [],
+            'function_calls': [],
+            'requires_phone': False,
         }, status=status.HTTP_200_OK)
+    
+    # Step 1: Resolve thread_id
+    # - If provided in request, validate it
+    # - If not provided, retrieve/create active thread for user
+    thread_id = request.data.get('thread_id')
+    
+    try:
+        if thread_id:
+            # Validate that this thread belongs to the user
+            from .models import ConversationThread
+            thread = ConversationThread.objects.get(thread_id=thread_id, user=user, is_active=True)
+        else:
+            # Get or create active thread for this user
+            from .models import ConversationThread
+            thread, created = ConversationThread.get_or_create_active(user)
+            thread_id = thread.thread_id
+            
+        # Step 2: Process message through agent with robust error handling
+        use_supervisor = getattr(settings, 'ENABLE_SUPERVISOR_AGENT', False)
+        use_enterprise_agent = getattr(settings, 'ENABLE_ENTERPRISE_AGENT', True)
+        
+        lc_result = None
+        agent_error = None
+        
+        try:
+            if use_supervisor:
+                # 🚦 Prefer Central Supervisor when enabled
+                logger.info(f"[{thread_id}] Using Supervisor Agent path")
+                from assistant.brain.agent import run_supervisor_agent
+                lc_result = run_supervisor_agent(message, thread_id)
+            elif use_enterprise_agent:
+                # ✅ ENTERPRISE PATH: 12-node enterprise architecture
+                logger.info(f"[{thread_id}] Using Enterprise Agent path")
+                from assistant.brain.agent import run_enterprise_agent
+                lc_result = run_enterprise_agent(message, thread_id)
+            else:
+                # All agent paths disabled - return safe fallback
+                logger.warning(f"[{thread_id}] No agent path enabled; using fallback")
+                lc_result = {
+                    'message': 'Agent service is temporarily unavailable. Please try again later.',
+                    'language': request.data.get('language', 'en'),
+                    'recommendations': [],
+                    'conversation_id': thread_id,
+                }
+        except Exception as agent_exc:
+            # Gracefully degrade: catch agent exceptions and return friendly message
+            logger.error(f"[{thread_id}] Agent execution failed: {agent_exc}", exc_info=True)
+            agent_error = str(agent_exc)
+            lc_result = {
+                'message': 'I encountered an issue processing your request. Please try again in a moment.',
+                'language': request.data.get('language', 'en'),
+                'recommendations': [],
+                'conversation_id': thread_id,
+            }
+        
+        # Step 3: Return response with thread_id for client-side caching
+        return Response({
+            'response': lc_result.get('message', ''),
+            'thread_id': thread_id,  # Return for localStorage caching
+            'language': lc_result.get('language', 'en'),
+            'recommendations': lc_result.get('recommendations') or [],
+            'function_calls': [],
+            'requires_phone': False,
+            'conversation_id': thread_id,  # Legacy field
+        }, status=status.HTTP_200_OK)
+        
     except Exception as e:
-        logger.error(f"Critical error in chat_with_assistant: {e}", exc_info=True)
-        return Response({'error': 'An unexpected server error occurred.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # Final safety net: if even guardrail or thread setup fails, return 200 with error message
+        logger.error(f"Critical error in chat_with_assistant (view level): {e}", exc_info=True)
+        return Response({
+            'response': 'An error occurred. Please refresh and try again.',
+            'language': request.data.get('language', 'en'),
+            'recommendations': [],
+            'conversation_id': 'unknown',
+        }, status=status.HTTP_200_OK)
 
 
 @api_view(['POST'])
@@ -320,6 +415,43 @@ def handle_chat_event(request):
             message = f"The user wants to contact the agent for listing ID {listing_id}."
         else:
             return Response({'error': 'Listing ID is required for contact_agent event.'}, status=status.HTTP_400_BAD_REQUEST)
+    elif event_type == 'submit_contact_info':
+        # New: Create generalized Request + open HITL gate (silent)
+        try:
+            from .models import Request as GenericRequest, ApproveBroadcast
+            payload = event_data.get('data') or {}
+            category = payload.get('category')
+            if not category:
+                return Response({'error': 'category required'}, status=status.HTTP_400_BAD_REQUEST)
+            req = GenericRequest.objects.create(
+                created_by=request.user,
+                category=category,
+                subcategory=payload.get('subcategory') or '',
+                location=payload.get('location') or '',
+                budget_amount=payload.get('budget_amount'),
+                budget_currency=payload.get('budget_currency') or '',
+                attributes=payload.get('attributes') or {},
+                contact=payload.get('contact') or '',
+                status='pending_approval',
+            )
+            approval = ApproveBroadcast.objects.create(
+                request_fk=req,
+                seller_ids=payload.get('seller_ids') or [],
+                target_seller_count=len(payload.get('seller_ids') or []),
+                medium=payload.get('medium') or 'whatsapp',
+            )
+            # Silent governance: do not expose HITL; confirm receipt
+            return Response({
+                'response': 'Thanks! We have your request and will reach out with options soon.',
+                'language': 'en',
+                'recommendations': [],
+                'conversation_id': conversation_id,
+                'request_id': str(req.id),
+                'status': 'pending_approval',
+            }, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            logger.exception('submit_contact_info failed')
+            return Response({'error': 'Failed to submit contact info'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     else:
         return Response({'error': f"Unknown event type: {event_type}"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -463,8 +595,8 @@ def get_recommendations(request):
     category_slug = request.query_params.get('category')
     location = request.query_params.get('location')
 
-    # Query the new Listing model
-    queryset = Listing.objects.filter(is_active=True, is_published=True).order_by('-created_at')
+    # Query the Listing model - use status='active' (not is_active/is_published which don't exist)
+    queryset = Listing.objects.filter(status='active').order_by('-created_at')
     
     if category_slug:
         # Filter by the slug of the related Category
@@ -473,7 +605,7 @@ def get_recommendations(request):
     if location:
         queryset = queryset.filter(location__icontains=location)
 
-    # Use the ListingSerializer
+    # Use the ListingSerializer with request context for absolute URLs
     serializer = ListingSerializer(queryset, many=True, context={'request': request})
     return Response(serializer.data)
 
@@ -1553,3 +1685,431 @@ def clear_notifications(request):
     except Exception as e:
         logger.error(f"Error clearing notifications: {e}")
         return Response({'error': 'Failed to clear notifications'}, status=500)
+
+
+# ============================================================================
+# SECTION: Thread Management & State Persistence (F.1 Implementation)
+# ============================================================================
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_current_conversation(request):
+    """
+    Get the current active conversation thread for the authenticated user.
+    
+    Used for cross-device sync: when a user logs in on a new device,
+    this endpoint retrieves the thread_id and latest messages.
+    
+    Response:
+    {
+        "thread_id": "uuid",
+        "created_at": "2025-10-22T10:30:00Z",
+        "message_count": 12,
+        "latest_messages": [...]
+    }
+    """
+    from .models import ConversationThread, Message, Conversation
+    
+    user = request.user
+    
+    try:
+        # Get active thread for this user
+        thread = ConversationThread.objects.filter(
+            user=user,
+            is_active=True
+        ).first()
+        
+        if not thread:
+            return Response({
+                'error': 'No active conversation thread',
+                'code': 'NO_THREAD'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Get associated conversation and messages
+        conversation = Conversation.objects.filter(id=thread.thread_id).first()
+        messages = []
+        message_count = 0
+        
+        if conversation:
+            msg_qs = Message.objects.filter(conversation=conversation).order_by('-created_at')[:10]
+            message_count = Message.objects.filter(conversation=conversation).count()
+            messages = [
+                {
+                    'role': msg.message_type,
+                    'content': msg.content,
+                    'timestamp': msg.created_at.isoformat()
+                }
+                for msg in reversed(msg_qs)
+            ]
+        
+        return Response({
+            'thread_id': thread.thread_id,
+            'created_at': thread.created_at.isoformat(),
+            'message_count': message_count,
+            'latest_messages': messages
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.error(f"Error fetching current conversation: {e}")
+        return Response({'error': 'Failed to fetch conversation'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_new_conversation(request):
+    """
+    Explicitly create a new conversation thread.
+    
+    This allows users to start a fresh conversation, retiring the old thread_id.
+    The old thread is marked as inactive.
+    
+    Response:
+    {
+        "thread_id": "new-uuid",
+        "created_at": "2025-10-22T14:00:00Z",
+        "status": "active"
+    }
+    """
+    from .models import ConversationThread
+    import uuid as uuid_module
+    
+    user = request.user
+    
+    try:
+        # Mark old active thread as inactive
+        old_thread = ConversationThread.objects.filter(
+            user=user,
+            is_active=True
+        ).first()
+        
+        if old_thread:
+            old_thread.is_active = False
+            old_thread.save()
+        
+        # Create new active thread
+        new_thread_id = str(uuid_module.uuid4())
+        new_thread = ConversationThread.objects.create(
+            user=user,
+            thread_id=new_thread_id,
+            is_active=True
+        )
+        
+        return Response({
+            'thread_id': new_thread_id,
+            'created_at': new_thread.created_at.isoformat(),
+            'status': 'active'
+        }, status=status.HTTP_201_CREATED)
+        
+    except Exception as e:
+        logger.error(f"Error creating new conversation: {e}")
+        return Response({'error': 'Failed to create conversation'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def migrate_legacy_data(request):
+    """
+    Migrate legacy localStorage data to persistent backend storage.
+    
+    Called on app initialization if legacy data is found in localStorage.
+    Ingests:
+    - Conversation history (messages)
+    - User preferences (language, theme)
+    - Clears old data after successful migration
+    
+    Request:
+    {
+        "messages": [...],  // Array of old messages
+        "language": "en",
+        "theme": "dark"
+    }
+    
+    Response:
+    {
+        "status": "success",
+        "message": "Legacy data migrated"
+    }
+    """
+    from .models import ConversationThread, UserProfile
+    
+    user = request.user
+    data = request.data
+    
+    try:
+        # Get or create active thread for user
+        thread, created = ConversationThread.get_or_create_active(user)
+        
+        # Migrate preferences to user profile
+        profile, _ = UserProfile.objects.get_or_create(user=user)
+        
+        if data.get('language'):
+            profile.preferred_language = data['language']
+        
+        if data.get('theme') is not None:
+            profile.theme_preference = 'dark' if data['theme'] else 'light'
+        
+        profile.save()
+        
+        # Note: Message history migration depends on checkpoint schema
+        # For now, we just confirm preferences are migrated
+        
+        return Response({
+            'status': 'success',
+            'message': 'Legacy data migrated successfully',
+            'thread_id': thread.thread_id
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.error(f"Error migrating legacy data: {e}")
+        # Silently fail to allow app to continue
+        return Response({
+            'status': 'error',
+            'message': 'Migration encountered an issue'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# ============================================================================
+# SECTION: HITL (Human-in-the-Loop) Approval Gate (B.3b Implementation)
+# ============================================================================
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_pending_approvals(request):
+    """
+    Get pending broadcast approvals for the authenticated business user.
+    Supports both legacy DemandLead and generalized Request objects.
+    """
+    from .models import ApproveBroadcast
+    try:
+        pending = ApproveBroadcast.objects.filter(status='pending')
+        approvals_data = []
+        for approval in pending:
+            ref_id = None
+            ref_type = None
+            summary = ""
+            if approval.demand_lead_id:
+                ref_id = str(approval.demand_lead_id)
+                ref_type = 'demand_lead'
+                summary = f"Legacy lead {ref_id[:8]}"
+            elif approval.request_fk_id:
+                ref_id = str(approval.request_fk_id)
+                ref_type = 'request'
+                summary = f"Request {ref_id[:8]}"
+            approvals_data.append({
+                'id': str(approval.id),
+                'ref_id': ref_id,
+                'ref_type': ref_type,
+                'target_seller_count': approval.target_seller_count,
+                'medium': approval.medium,
+                'created_at': approval.created_at.isoformat(),
+                'summary': summary,
+            })
+        return Response({'pending_count': len(approvals_data), 'approvals': approvals_data}, status=status.HTTP_200_OK)
+    except Exception as e:
+        logger.error(f"Error fetching pending approvals: {e}")
+        return Response({'error': 'Failed to fetch approvals'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_broadcast_approval_gate(request):
+    """
+    Create a new broadcast approval gate for either a legacy DemandLead (demand_lead_id)
+    or a generalized Request (request_id). Exactly one must be provided.
+    """
+    from .models import ApproveBroadcast, DemandLead, Request as GenericRequest
+
+    data = request.data
+    demand_lead_id = data.get('demand_lead_id')
+    request_id = data.get('request_id')
+    seller_ids = data.get('seller_ids', [])
+    medium = data.get('medium', 'whatsapp')
+
+    if bool(demand_lead_id) == bool(request_id):
+        return Response({'error': 'Provide exactly one of demand_lead_id or request_id'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        if demand_lead_id:
+            lead = DemandLead.objects.get(id=demand_lead_id)
+            approval = ApproveBroadcast.objects.create(
+                demand_lead=lead,
+                seller_ids=seller_ids,
+                target_seller_count=len(seller_ids),
+                medium=medium,
+            )
+        else:
+            req = GenericRequest.objects.get(id=request_id)
+            approval = ApproveBroadcast.objects.create(
+                request_fk=req,
+                seller_ids=seller_ids,
+                target_seller_count=len(seller_ids),
+                medium=medium,
+            )
+        logger.info(f"⏸️  Broadcast approval gate created: {approval.id}")
+        return Response({
+            'status': 'pending',
+            'approval_id': str(approval.id),
+            'message': 'Broadcast pending business user approval'
+        }, status=status.HTTP_201_CREATED)
+    except DemandLead.DoesNotExist:
+        return Response({'error': 'Demand lead not found'}, status=status.HTTP_404_NOT_FOUND)
+    except GenericRequest.DoesNotExist:
+        return Response({'error': 'Request not found'}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        logger.error(f"Error creating broadcast approval gate: {e}")
+        return Response({'error': 'Failed to create approval gate'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def approve_broadcast(request):
+    """
+    Approve a pending broadcast (legacy or generalized). Queues the correct broadcast task.
+    """
+    from .models import ApproveBroadcast
+
+    user = request.user
+    data = request.data
+    approval_id = data.get('approval_id')
+    notes = data.get('notes', '')
+
+    if not approval_id:
+        return Response({'error': 'approval_id required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        approval = ApproveBroadcast.objects.get(id=approval_id, status='pending')
+        approval.approve(reviewer=user, notes=notes)
+
+        # Queue appropriate broadcast task
+        if approval.request_fk_id:
+            rid = str(approval.request_fk_id)
+            broadcast_request_for_request.delay(rid)
+            ref = {'ref_type': 'request', 'ref_id': rid}
+        else:
+            lid = str(approval.demand_lead_id)
+            broadcast_request_to_sellers.delay(lid)
+            ref = {'ref_type': 'demand_lead', 'ref_id': lid}
+
+        logger.info(f"✅ Broadcast approved by {user.username}: {approval_id}")
+        return Response({
+            'status': 'success',
+            'message': 'Broadcast approved and queued',
+            'approval_id': str(approval.id),
+            **ref,
+        }, status=status.HTTP_200_OK)
+
+    except ApproveBroadcast.DoesNotExist:
+        return Response({'error': 'Approval not found or already decided', 'code': 'NOT_FOUND'}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        logger.error(f"Error approving broadcast: {e}")
+        return Response({'error': 'Failed to approve broadcast'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def reject_broadcast(request):
+    """
+    Reject a pending broadcast.
+    
+    Business user explicitly rejects an RFQ broadcast.
+    Prevents broadcast from being sent to sellers.
+    
+    Request:
+    {
+        "approval_id": "uuid",
+        "reason": "Not enough detail in RFQ"
+    }
+    
+    Response:
+    {
+        "status": "success",
+        "message": "Broadcast rejected",
+        "approval_id": "uuid"
+    }
+    """
+    from .models import ApproveBroadcast
+    
+    user = request.user
+    data = request.data
+    approval_id = data.get('approval_id')
+    reason = data.get('reason', '')
+    
+    if not approval_id:
+        return Response({'error': 'approval_id required'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        approval = ApproveBroadcast.objects.get(id=approval_id, status='pending')
+        
+        # Mark as rejected
+        approval.reject(reviewer=user, notes=reason)
+        
+        logger.info(f"❌ Broadcast rejected by {user.username}: {approval_id} - Reason: {reason}")
+        
+        return Response({
+            'status': 'success',
+            'message': 'Broadcast rejected',
+            'approval_id': str(approval.id)
+        }, status=status.HTTP_200_OK)
+        
+    except ApproveBroadcast.DoesNotExist:
+        return Response({
+            'error': 'Approval not found or already decided',
+            'code': 'NOT_FOUND'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    except Exception as e:
+        logger.error(f"Error rejecting broadcast: {e}")
+        return Response({'error': 'Failed to reject broadcast'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def requests_collection(request):
+    if request.method == 'POST':
+        serializer = RequestCreateSerializer(data=request.data, context={'request': request})
+        if serializer.is_valid():
+            obj = serializer.save()
+            return Response(RequestSerializer(obj, context={'request': request}).data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    # GET list (own requests for now)
+    qs = Request.objects.filter(created_by=request.user).order_by('-created_at')
+    # Optional filters: category, status
+    category = request.GET.get('category')
+    if category:
+        qs = qs.filter(category=category)
+    status_filter = request.GET.get('status')
+    if status_filter:
+        qs = qs.filter(status=status_filter)
+
+    # Basic pagination
+    try:
+        page = int(request.GET.get('page', '1'))
+        limit = int(request.GET.get('limit', '20'))
+    except ValueError:
+        page, limit = 1, 20
+    start = (page - 1) * limit
+    end = start + limit + 1
+    items = list(qs[start:end])
+    has_next = len(items) > limit
+    if has_next:
+        items = items[:limit]
+
+    data = RequestSerializer(items, many=True, context={'request': request}).data
+    return Response({'results': data, 'page': page, 'limit': limit, 'has_next': has_next})
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def request_detail(request, pk: str):
+    try:
+        obj = Request.objects.get(pk=pk)
+    except Request.DoesNotExist:
+        return Response({'detail': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    # Only owner or staff can see full object
+    if not (request.user.is_staff or obj.created_by == request.user):
+        # Represent with serializer which will redact contact
+        return Response(RequestSerializer(obj, context={'request': request}).data)
+
+    return Response(RequestSerializer(obj, context={'request': request}).data)

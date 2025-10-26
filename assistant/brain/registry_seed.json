@@ -1,0 +1,122 @@
+[
+  {
+    "id": 1,
+    "market_id": "CY-NC",
+    "domain": "local_info",
+    "base_term": "customs",
+    "language": "en",
+    "localized_term": "customs office",
+    "route_target": "gov_services_agent",
+    "metadata": {
+      "category": "government"
+    }
+  },
+  {
+    "id": 2,
+    "market_id": "CY-NC",
+    "domain": "local_info",
+    "base_term": "customs",
+    "language": "tr",
+    "localized_term": "gümrük dairesi",
+    "route_target": "gov_services_agent",
+    "metadata": {
+      "category": "government"
+    }
+  },
+  {
+    "id": 3,
+    "market_id": "CY-NC",
+    "domain": "local_info",
+    "base_term": "police",
+    "language": "en",
+    "localized_term": "police station",
+    "route_target": "gov_services_agent",
+    "metadata": {
+      "category": "emergency"
+    }
+  },
+  {
+    "id": 4,
+    "market_id": "CY-NC",
+    "domain": "local_info",
+    "base_term": "police",
+    "language": "tr",
+    "localized_term": "polis karakolu",
+    "route_target": "gov_services_agent",
+    "metadata": {
+      "category": "emergency"
+    }
+  },
+  {
+    "id": 5,
+    "market_id": "CY-NC",
+    "domain": "local_info",
+    "base_term": "hospital",
+    "language": "en",
+    "localized_term": "hospital",
+    "route_target": "healthcare_agent",
+    "metadata": {
+      "category": "medical"
+    }
+  },
+  {
+    "id": 6,
+    "market_id": "CY-NC",
+    "domain": "local_info",
+    "base_term": "hospital",
+    "language": "tr",
+    "localized_term": "hastane",
+    "route_target": "healthcare_agent",
+    "metadata": {
+      "category": "medical"
+    }
+  },
+  {
+    "id": 7,
+    "market_id": "CY-NC",
+    "domain": "local_info",
+    "base_term": "pharmacy",
+    "language": "en",
+    "localized_term": "pharmacy",
+    "route_target": "healthcare_agent",
+    "metadata": {
+      "category": "medical"
+    }
+  },
+  {
+    "id": 8,
+    "market_id": "CY-NC",
+    "domain": "local_info",
+    "base_term": "pharmacy",
+    "language": "tr",
+    "localized_term": "eczane",
+    "route_target": "healthcare_agent",
+    "metadata": {
+      "category": "medical"
+    }
+  },
+  {
+    "id": 9,
+    "market_id": "CY-NC",
+    "domain": "local_info",
+    "base_term": "immigration",
+    "language": "en",
+    "localized_term": "immigration office",
+    "route_target": "gov_services_agent",
+    "metadata": {
+      "category": "government"
+    }
+  },
+  {
+    "id": 10,
+    "market_id": "CY-NC",
+    "domain": "local_info",
+    "base_term": "immigration",
+    "language": "tr",
+    "localized_term": "göçmenlik dairesi",
+    "route_target": "gov_services_agent",
+    "metadata": {
+      "category": "government"
+    }
+  }
+]

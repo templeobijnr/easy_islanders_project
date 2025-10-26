@@ -1,0 +1,182 @@
+{
+  "messages_list_response": {
+    "items": [
+      {
+        "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+        "type": "broadcast_request",
+        "sender": {
+          "id": 1,
+          "email": "agent@easyislanders.com",
+          "name": "EasyIslanders Agent",
+          "user_type": "service"
+        },
+        "recipient": {
+          "id": 5,
+          "email": "seller@example.com",
+          "name": "John Seller",
+          "user_type": "business"
+        },
+        "conversation_id": "conv-2025-10-23-abc123",
+        "content": "New request for 2BR apartment in Guirnell",
+        "created_at": "2025-10-23T14:30:00Z",
+        "updated_at": "2025-10-23T14:30:00Z",
+        "is_unread": true,
+        "read_at": null,
+        "demand_lead_id": "lead-001",
+        "broadcast_metadata": {
+          "demand_lead_id": "lead-001",
+          "location": "Guirnell",
+          "budget": 600,
+          "category": "Apartment",
+          "duration": "6 months"
+        },
+        "offer_metadata": null
+      },
+      {
+        "id": "a1b2c3d4-e5f6-47a8-b9c0-d1e2f3a4b5c6",
+        "type": "seller_response",
+        "sender": {
+          "id": 5,
+          "email": "seller@example.com",
+          "name": "John Seller",
+          "user_type": "business"
+        },
+        "recipient": {
+          "id": 3,
+          "email": "customer@example.com",
+          "name": "Jane Customer",
+          "user_type": "customer"
+        },
+        "conversation_id": "conv-2025-10-23-abc123",
+        "content": "I have a beautiful 2BR apartment available",
+        "created_at": "2025-10-23T15:00:00Z",
+        "updated_at": "2025-10-23T15:00:00Z",
+        "is_unread": false,
+        "read_at": "2025-10-23T15:05:00Z",
+        "demand_lead_id": "lead-001",
+        "broadcast_metadata": null,
+        "offer_metadata": {
+          "price": 550,
+          "availability": "Tomorrow",
+          "details": "2BR, 1BA, furnished, near metro",
+          "photos": [
+            "/media/listings/52/MM1.jpg",
+            "/media/listings/52/MM2.jpg"
+          ],
+          "links": [
+            "https://example.com/listing/52"
+          ],
+          "status": "active"
+        }
+      },
+      {
+        "id": "xyz789-user-msg",
+        "type": "user",
+        "sender": {
+          "id": 3,
+          "email": "customer@example.com",
+          "name": "Jane Customer",
+          "user_type": "customer"
+        },
+        "recipient": {
+          "id": 5,
+          "email": "seller@example.com",
+          "name": "John Seller",
+          "user_type": "business"
+        },
+        "conversation_id": "conv-2025-10-23-abc123",
+        "content": "Can you tell me more about the location?",
+        "created_at": "2025-10-23T15:30:00Z",
+        "updated_at": "2025-10-23T15:30:00Z",
+        "is_unread": true,
+        "read_at": null,
+        "demand_lead_id": "lead-001",
+        "broadcast_metadata": null,
+        "offer_metadata": null
+      }
+    ],
+    "unread_count": 2,
+    "total": 42,
+    "page": 1,
+    "limit": 20,
+    "next": "/api/v1/messages/?page=2&limit=20",
+    "previous": null,
+    "has_more": true
+  },
+  "unread_count_response": {
+    "unread_count": 3,
+    "last_updated": "2025-10-23T15:45:00Z"
+  },
+  "mark_as_read_response": {
+    "success": true,
+    "marked_count": 5,
+    "thread_id": "conv-2025-10-23-abc123",
+    "new_unread_count": 0
+  },
+  "requests_list_response": {
+    "items": [
+      {
+        "id": "lead-001",
+        "demand_lead_id": "lead-001",
+        "status": "broadcasted",
+        "category": "Apartment",
+        "location": "Guirnell",
+        "budget": 600,
+        "duration": "6 months",
+        "description": "2BR apartment, close to metro",
+        "created_at": "2025-10-23T10:00:00Z",
+        "updated_at": "2025-10-23T14:00:00Z",
+        "offers_count": 3,
+        "offers": [
+          {
+            "id": "offer-1",
+            "seller_name": "John Seller",
+            "price": 550,
+            "availability": "Tomorrow",
+            "status": "active",
+            "created_at": "2025-10-23T15:00:00Z"
+          }
+        ]
+      }
+    ],
+    "unread_count": 1,
+    "total": 5,
+    "page": 1,
+    "limit": 20,
+    "next": null
+  },
+  "create_request_response": {
+    "id": "lead-001",
+    "demand_lead_id": "lead-001",
+    "status": "created",
+    "created_at": "2025-10-23T14:30:00Z",
+    "message": "Request created successfully. Our team will review and contact you soon."
+  },
+  "reply_response": {
+    "success": true,
+    "message_id": "msg-abc123",
+    "status": "active",
+    "created_at": "2025-10-23T15:00:00Z",
+    "message": "Your offer has been sent to the customer."
+  },
+  "broadcasts_pending_response": {
+    "items": [
+      {
+        "id": "approval-001",
+        "demand_lead_id": "lead-001",
+        "status": "pending",
+        "target_seller_count": 10,
+        "seller_ids": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+        "medium": "whatsapp",
+        "created_at": "2025-10-23T10:00:00Z",
+        "customer_criteria": {
+          "location": "Guirnell",
+          "budget": 600,
+          "category": "Apartment"
+        }
+      }
+    ],
+    "total": 3,
+    "page": 1
+  }
+}

@@ -8,6 +8,7 @@ import Analytics from './Analytics';
 import Help from './Help';
 import Sales from './Sales';
 import Messages from './Messages';
+import SellerInbox from './SellerInbox';
 import { useAuth } from '../../contexts/AuthContext';
 
 const Dashboard = () => {
@@ -38,6 +39,7 @@ const Dashboard = () => {
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard/my-listings" replace />} />
             <Route path="/my-listings" element={<MyListings />} />
+            <Route path="/seller-inbox" element={<SellerInbox />} />
             <Route path="/sales" element={<Sales />} />
             <Route path="/messages" element={<Messages />} />
             <Route path="/profile" element={<BusinessProfile />} />

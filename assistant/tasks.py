@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 from django.utils import timezone as dt_timezone
 # REMOVED incorrect import: from .utils.outreach import check_for_new_images, graph_run_event
 from .twilio_client import TwilioWhatsAppClient
+from assistant.brain.resilience import resilient_api_call
 
 logger = logging.getLogger(__name__)
 
@@ -609,6 +610,183 @@ def send_market_updates(self) -> Dict[str, Any]:
 
 
 @shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_kwargs={"max_retries": 3})
+@resilient_api_call(
+    "seller_outreach",
+    max_retries=3,
+    initial_retry_delay_seconds=2,
+    max_retry_delay_seconds=8,
+)
+def broadcast_request_to_sellers(self, request_id: str) -> Dict[str, Any]:
+    """
+    Stub: Broadcast a DemandLead to candidate sellers.
+    Creates zero or more AgentBroadcast records (to be implemented fully later).
+    """
+    from .models import DemandLead, AgentBroadcast
+    from listings.models import Listing, Category
+    from users.models import BusinessProfile
+    try:
+        lead = DemandLead.objects.get(id=request_id)
+    except DemandLead.DoesNotExist:
+        return {"success": False, "error": "lead_not_found", "request_id": request_id}
+
+    extracted = lead.extracted_criteria or {}
+    target_listing_id = (
+        extracted.get('target_listing_id')
+        or extracted.get('listing_id')
+        or extracted.get('target')
+    )
+
+    candidates = []
+    seller_source_used = None
+
+    # 1) Prefer listing owner if a specific listing is provided
+    listing = None
+    if target_listing_id:
+        try:
+            listing = Listing.objects.get(id=target_listing_id)
+            if listing.owner_id:
+                candidates.append({
+                    'seller_id': str(listing.owner_id),
+                    'source': 'listing_owner',
+                    'medium': 'whatsapp',
+                })
+                seller_source_used = 'listing_owner'
+        except Exception:
+            listing = None
+
+    # 2) Fallback to providers by category/location if no owner candidate
+    if not candidates:
+        # Resolve category from lead.category (may be slug or name)
+        category_obj = None
+        if lead.category:
+            try:
+                category_obj = Category.objects.filter(slug__iexact=lead.category).first() or \
+                               Category.objects.filter(name__iexact=lead.category).first()
+            except Exception:
+                category_obj = None
+
+        qs = BusinessProfile.objects.all()
+        if category_obj:
+            qs = qs.filter(category=category_obj)
+        if lead.location:
+            qs = qs.filter(location__icontains=lead.location)
+
+        qs = qs.order_by('-is_verified_by_admin', 'business_name')[:10]
+        for bp in qs:
+            candidates.append({
+                'seller_id': str(bp.user_id),
+                'source': 'service_provider',
+                'medium': 'whatsapp',
+            })
+        seller_source_used = 'service_provider' if candidates else None
+
+    enqueued = 0
+    contacted_log = []
+    for c in candidates:
+        try:
+            AgentBroadcast.objects.create(
+                request=lead,
+                seller_id=c['seller_id'],
+                medium=c.get('medium', 'whatsapp'),
+                status='queued',
+            )
+            contacted_log.append({
+                'seller_id': c['seller_id'],
+                'medium': c.get('medium', 'whatsapp'),
+                'status': 'queued',
+                'source': c.get('source', 'unknown'),
+            })
+            enqueued += 1
+        except Exception as e:
+            logger.error(f"Failed to log AgentBroadcast for lead {lead.id}: {e}")
+            continue
+
+    if contacted_log:
+        try:
+            existing = lead.sellers_contacted or []
+            if not isinstance(existing, list):
+                existing = []
+            existing.extend(contacted_log)
+            lead.sellers_contacted = existing
+            lead.save(update_fields=['sellers_contacted'])
+        except Exception as e:
+            logger.warning(f"Failed updating sellers_contacted for lead {lead.id}: {e}")
+
+    summary = {
+        "success": True,
+        "request_id": str(lead.id),
+        "sellers_enqueued": enqueued,
+        "seller_source_used": seller_source_used or 'none',
+    }
+    logger.info(f"Broadcast executed for lead {lead.id}: {enqueued} sellers, source={seller_source_used}")
+    return summary
+
+@shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_kwargs={"max_retries": 3})
+def broadcast_request_for_request(self, request_id: str) -> Dict[str, Any]:
+    """
+    Broadcast a generalized Request to candidate sellers (business users) based on category/location.
+    Creates AgentBroadcastV2 audit entries and queues external outreach (future work).
+    """
+    from .models import Request as GenericRequest, AgentBroadcastV2
+    from users.models import BusinessProfile
+    try:
+        req = GenericRequest.objects.get(id=request_id)
+    except GenericRequest.DoesNotExist:
+        return {"success": False, "error": "request_not_found", "request_id": request_id}
+
+    candidates = []
+    # Select business profiles matching category and location (MVP)
+    qs = BusinessProfile.objects.all()
+    try:
+        if req.category:
+            qs = qs.filter(category__slug__iexact=req.category) | qs.filter(category__name__iexact=req.category)
+    except Exception:
+        # If schema differs, fallback to basic filter by name
+        qs = qs
+    if req.location:
+        qs = qs.filter(location__icontains=req.location)
+    qs = qs.order_by('-is_verified_by_admin', 'business_name')[:10]
+
+    for bp in qs:
+        candidates.append({
+            'seller_id': str(bp.user_id),
+            'medium': 'whatsapp',
+            'source': 'service_provider',
+        })
+
+    enqueued = 0
+    for c in candidates:
+        try:
+            AgentBroadcastV2.objects.create(
+                request=req,
+                seller_id=c['seller_id'],
+                medium=c.get('medium', 'whatsapp'),
+                status='queued',
+            )
+            enqueued += 1
+        except Exception as e:
+            logger.error(f"Failed to log AgentBroadcastV2 for request {req.id}: {e}")
+            continue
+
+    # Update status to broadcasted if any enqueued
+    if enqueued > 0 and req.status != 'broadcasted':
+        try:
+            req.status = 'broadcasted'
+            req.save(update_fields=['status'])
+        except Exception:
+            pass
+
+    summary = {
+        "success": True,
+        "request_id": str(req.id),
+        "sellers_enqueued": enqueued,
+        "category": req.category,
+    }
+    logger.info(f"BroadcastV2 executed for request {req.id}: {enqueued} sellers")
+    return summary
+
+
+@shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_kwargs={"max_retries": 3})
 def monitor_new_media_and_trigger_proactive(self) -> Dict[str, Any]:
     """
     Monitor for new media in listings and trigger proactive responses.
@@ -712,4 +890,106 @@ def monitor_new_media_and_trigger_proactive(self) -> Dict[str, Any]:
         
     except Exception as e:
         logger.error(f"Failed to monitor new media: {e}")
+        raise
+
+
+@shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_kwargs={"max_retries": 3})
+def index_listing_task(self, listing_id: str, action: str = 'create') -> Dict[str, Any]:
+    """
+    Asynchronously index a listing into ChromaDB with metadata.
+    Uses local sentence-transformers for embeddings (Phase A).
+    """
+    from listings.models import Listing
+    from langchain.text_splitter import RecursiveCharacterTextSplitter
+    from langchain.embeddings import HuggingFaceEmbeddings
+    from langchain.vectorstores import Chroma
+    from langchain.schema import Document
+    import json
+    
+    try:
+        listing = Listing.objects.get(id=listing_id)
+    except Listing.DoesNotExist:
+        logger.warning(f"Listing {listing_id} not found for indexing")
+        return {"success": False, "error": "listing_not_found", "listing_id": listing_id}
+    
+    try:
+        # Build content: title + description + dynamic_fields (stringified)
+        title = listing.title or f"Listing {listing_id}"
+        description = listing.description or ""
+        dynamic_fields_str = json.dumps(listing.dynamic_fields or {}, ensure_ascii=False)
+        content = f"{title}\n\n{description}\n\nDetails: {dynamic_fields_str}"
+        
+        # Create metadata dict
+        metadata = {
+            "listing_pk": str(listing.id),
+            "owner_id": str(listing.owner_id) if listing.owner_id else "",
+            "category": listing.category.slug if listing.category else "",
+            "location": listing.location or "",
+            "price": str(listing.price or ""),
+            "currency": listing.currency or "",
+            "status": listing.status,
+            "created_at": listing.created_at.isoformat(),
+            "updated_at": listing.updated_at.isoformat(),
+        }
+        
+        # Create Document
+        doc = Document(page_content=content, metadata=metadata)
+        
+        # Split text
+        splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+        chunks = splitter.split_documents([doc])
+        
+        # Embed and store in ChromaDB (SQLite backend)
+        embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+        db = Chroma(
+            collection_name="listings",
+            embedding_function=embeddings,
+            persist_directory="/tmp/chroma_db"  # SQLite backend persistence
+        )
+        
+        # Upsert chunks (using listing_id + chunk index as unique ID)
+        ids = [f"listing_{listing_id}_chunk_{i}" for i in range(len(chunks))]
+        db.add_documents(chunks, ids=ids)
+        
+        logger.info(f"Indexed listing {listing_id}: {len(chunks)} chunks")
+        return {
+            "success": True,
+            "listing_id": str(listing.id),
+            "chunks_indexed": len(chunks),
+            "action": action,
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to index listing {listing_id}: {e}")
+        raise
+
+
+@shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_kwargs={"max_retries": 2})
+def delete_listing_from_index(self, listing_id: str) -> Dict[str, Any]:
+    """
+    Asynchronously delete a listing from ChromaDB.
+    """
+    from langchain.embeddings import HuggingFaceEmbeddings
+    from langchain.vectorstores import Chroma
+    
+    try:
+        embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+        db = Chroma(
+            collection_name="listings",
+            embedding_function=embeddings,
+            persist_directory="/tmp/chroma_db"
+        )
+        
+        # Delete all chunks for this listing
+        ids = [f"listing_{listing_id}_chunk_{i}" for i in range(10)]  # Safe upper bound
+        db.delete(ids=ids)
+        
+        logger.info(f"Deleted listing {listing_id} from index")
+        return {
+            "success": True,
+            "listing_id": listing_id,
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to delete listing {listing_id} from index: {e}")
         raise

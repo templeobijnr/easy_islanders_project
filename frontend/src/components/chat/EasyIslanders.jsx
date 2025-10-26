@@ -369,6 +369,18 @@ const EasyIslanders = () => {
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || isLoading) return;
 
+    // ✅ SIMPLIFIED AUTHENTICATION CHECK
+    // Rely *only* on the presence of the token in localStorage.
+    // This avoids race conditions with React state updates.
+    const token = localStorage.getItem('token');
+    if (!token) {
+      // User not authenticated - show login modal instead
+      setShowAuthModal(true);
+      setAuthMode('login');
+      setAuthError('Please log in to send messages');
+      return;
+    }
+
     const userMessage = {
       type: 'user',
       content: inputMessage,
@@ -380,6 +392,7 @@ const EasyIslanders = () => {
     setIsLoading(true);
 
     try {
+      // ✅ Now uses global interceptor - automatically adds JWT
       const response = await axios.post(config.getApiUrl(config.ENDPOINTS.CHAT), {
         message: inputMessage,
         language: selectedLanguage,
@@ -406,17 +419,17 @@ const EasyIslanders = () => {
       if (apiData.notifications && apiData.notifications.length > 0) {
         apiData.notifications.forEach(notif => {
           if (notif.type === 'new_images') {
-            const listingId = notif.data.listing_id;  // From notif
-            // Re-fetch single listing
-            axios.get(`${config.API_BASE_URL}/listings/${listingId}/`)
+            const listingId = notif.data.listing_id;
+            // ✅ Now uses global interceptor - automatically adds JWT
+            axios.get(`${config.API_BASE_URL}/api/listings/${listingId}/`)
               .then(res => {
                 setListingsState(prev => ({...prev, [listingId]: res.data}));
                 setMessages(prev => [...prev, { type: 'assistant', content: 'Photos received!', recommendations: [res.data] }]);
               });
           }
         });
-        // Clear after process (your existing)
-        axios.post(`${config.API_BASE_URL}/clear-notifications/`, { conversation_id: conversationId });
+        // ✅ Now uses global interceptor - automatically adds JWT
+        axios.post(`${config.API_BASE_URL}/api/chat/clear-notifications/`, { conversation_id: conversationId });
       }
     } catch (error) {
       console.error('Error fetching AI response:', error);
@@ -436,6 +449,7 @@ const EasyIslanders = () => {
   // ✅ PRESERVE AUTHENTICATION FUNCTIONS
   const checkAuthStatus = async () => {
     try {
+      // ✅ Now uses global interceptor - automatically adds JWT
       const response = await axios.get(config.getApiUrl(config.ENDPOINTS.AUTH.STATUS));
       setIsAuthenticated(response.data.authenticated);
       if (response.data.authenticated) {
@@ -451,6 +465,7 @@ const EasyIslanders = () => {
 
   const handleLogin = async (credentials) => {
     try {
+      // ✅ Now uses global interceptor - automatically adds JWT
       const response = await axios.post(config.getApiUrl(config.ENDPOINTS.AUTH.LOGIN), credentials);
       setIsAuthenticated(true);
       setUser({
@@ -466,6 +481,7 @@ const EasyIslanders = () => {
 
   const handleRegister = async (userData) => {
     try {
+      // ✅ Now uses global interceptor - automatically adds JWT
       const response = await axios.post(config.getApiUrl(config.ENDPOINTS.AUTH.REGISTER), userData);
       setIsAuthenticated(true);
       setUser({

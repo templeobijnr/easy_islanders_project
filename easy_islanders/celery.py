@@ -1,5 +1,6 @@
 import os
 from celery import Celery
+from celery.schedules import crontab
 
 # Set the default Django settings module for the 'celery' program.
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'easy_islanders.settings.development')
@@ -31,11 +32,15 @@ app.conf.beat_schedule = {
         'schedule': 604800.0,  # 7 days in seconds
     },
 }
+if os.getenv("ENABLE_RAG_INGESTION_BEAT", "false").lower() == "true":
+    app.conf.beat_schedule['rag-ingestion-daily'] = {
+        'task': 'registry_service.rag_ingestion.jobs.run_pipeline',
+        'schedule': crontab(hour=3, minute=0),
+    }
 app.conf.timezone = 'UTC'
 
 @app.task(bind=True)
 def debug_task(self):
     print(f'Request: {self.request!r}')
-
 
 

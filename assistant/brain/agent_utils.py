@@ -6,9 +6,10 @@ Utilities used by the LangGraph agent for listing/context resolution.
 Pulled from legacy agent to avoid importing the sequential orchestrator.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 import logging
 import json
+import re
 
 from django.db.models import Q
 
@@ -314,3 +315,46 @@ def parse_and_correct_intent(
         f"[intent] final user='{user_text[:60]}', llm='{itype}', conf={confidence:.2f}, returned='{intent.get('intent_type')}'"
     )
     return intent if intent.get("intent_type") else {"intent_type": "general_chat", "confidence": 0.4}
+
+
+def check_pre_model_guardrails(user_text: str) -> Tuple[bool, str]:
+    """
+    Fast, low-cost guardrail to block clearly out-of-scope, abusive, or injection attempts
+    BEFORE invoking expensive LLM routing. Returns (allowed, reason_if_blocked).
+    """
+    if not user_text or not user_text.strip():
+        return False, "empty_input"
+
+    text = user_text.lower()
+
+    # Basic abuse/toxicity keywords (minimal viable set; expand with a classifier later)
+    abusive_keywords = [
+        'kill', 'suicide', 'hate speech', 'racial slur', 'terrorism', 'bomb',
+    ]
+    if any(k in text for k in abusive_keywords):
+        return False, "abusive_or_harmful"
+
+    # Dangerous or non-business topics (political persuasion, medical/financial advice)
+    disallowed_topics = [
+        'vote for', 'election', 'tax evasion', 'insider trading', 'diagnose me',
+        'prescribe', 'financial advice', 'investment advice', 'political campaign'
+    ]
+    if any(k in text for k in disallowed_topics):
+        return False, "out_of_scope_topic"
+
+    # Prompt injection heuristics
+    injection_patterns = [
+        r"ignore (all|previous) instructions",
+        r"disregard (all|previous) rules",
+        r"act as (.+) and (.+)",
+        r"you are now (.+) system",
+    ]
+    for pat in injection_patterns:
+        if re.search(pat, text):
+            return False, "prompt_injection_detected"
+
+    # Extremely long inputs (protect cost); threshold can be tuned
+    if len(user_text) > 8000:
+        return False, "input_too_long"
+
+    return True, "ok"

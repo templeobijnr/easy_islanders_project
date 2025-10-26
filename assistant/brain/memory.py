@@ -1,10 +1,7 @@
 from typing import Any, Dict, List, Optional
-import json
 import logging
-from datetime import timedelta
 
-from django.utils import timezone
-from ..models import Conversation, Message
+from ..models import Message
 
 logger = logging.getLogger(__name__)
 
@@ -13,11 +10,12 @@ def load_recent_messages(conversation_id: Optional[str], limit: int = 10) -> Lis
     if not conversation_id:
         return []
     try:
-        conv = Conversation.objects.get(id=conversation_id)
-    except Conversation.DoesNotExist:
+        # Query messages by conversation_id directly (no Conversation FK needed)
+        msgs = Message.objects.filter(conversation_id=conversation_id).order_by("-created_at")[:limit]
+    except Exception as e:
+        logger.error(f"Error loading messages: {e}")
         return []
-    msgs = conv.messages.order_by("-created_at")[:limit]
-    return [{"role": m.role, "content": m.content} for m in reversed(list(msgs))]
+    return [{"role": m.type, "content": m.content} for m in reversed(list(msgs))]
 
 
 def save_assistant_turn(
@@ -28,21 +26,17 @@ def save_assistant_turn(
 ) -> None:
     if not conversation_id:
         return
-    conv, _ = Conversation.objects.get_or_create(id=conversation_id)
+    # Create user message
     Message.objects.create(
-        conversation=conv,
-        role="user",
+        conversation_id=conversation_id,
+        type="user",
         content=user_text,
-        language="en",  # language detection handled elsewhere; optional refine
-        created_at=timezone.now(),
     )
+    # Create assistant message
     Message.objects.create(
-        conversation=conv,
-        role="assistant",
+        conversation_id=conversation_id,
+        type="assistant",
         content=assistant_text,
-        language="en",
-        created_at=timezone.now(),
-        message_context=message_context or {},
     )
 
 
@@ -53,67 +47,18 @@ def extract_pending_actions(conversation_id: Optional[str]) -> List[Dict]:
         return []
     
     try:
-        conv = Conversation.objects.get(id=conversation_id)
-        # Look for the most recent outreach message (regardless of time)
-        outreach_msgs = conv.messages.filter(
-            role='assistant',
-            message_context__intent_type='agent_outreach',
-            message_context__outreach_ok=True
-        ).order_by('-created_at')[:1]  # Get the most recent one
-        
-        pending = []
-        for msg in outreach_msgs:
-            if hasattr(msg, 'message_context') and msg.message_context:
-                ctx = msg.message_context
-                listing_id = ctx.get('contacted_listing')
-                if listing_id:
-                    # Pictures pending
-                    baseline_count = 0
-                    try:
-                        for a in ctx.get('pending_actions', []):
-                            if a.get('type') == 'outreach_pictures':
-                                baseline_count = int((a.get('context') or {}).get('baseline_image_count') or 0)
-                                break
-                    except Exception:
-                        baseline_count = 0
-                    is_completed = False
-                    try:
-                        from ..models import Listing
-                        lst = Listing.objects.get(id=listing_id)
-                        sd = lst.structured_data or {}
-                        cur_count = int(len(sd.get('image_urls', [])))
-                        is_completed = cur_count > baseline_count
-                    except Exception:
-                        is_completed = check_outreach_completed(listing_id)
-                    pending.append({
-                        'type': 'outreach_pictures',
-                        'listing_id': listing_id,
-                        'timestamp': msg.created_at.isoformat() if hasattr(msg, 'created_at') else msg.created_at,
-                        'status': 'completed' if is_completed else 'waiting',
-                        'baseline_image_count': baseline_count,
-                    })
-                    # Availability pending
-                    try:
-                        from ..models import Listing
-                        lst = Listing.objects.get(id=listing_id)
-                        sd = lst.structured_data or {}
-                        availability = (sd.get('availability') or 'unknown').lower()
-                        is_avl_done = availability in {'available', 'unavailable'}
-                        pending.append({
-                            'type': 'outreach_availability',
-                            'listing_id': listing_id,
-                            'timestamp': msg.created_at,
-                            'status': 'completed' if is_avl_done else 'waiting',
-                            'availability': availability,
-                        })
-                    except Exception:
-                        pending.append({
-                            'type': 'outreach_availability',
-                            'listing_id': listing_id,
-                            'timestamp': msg.created_at,
-                            'status': 'waiting'
-                        })
-        return pending
+        # Query messages by conversation_id directly
+        msgs = Message.objects.filter(conversation_id=conversation_id).order_by("-created_at")[:5]
+        # Filter for broadcast_request and seller_response types
+        action_messages = [m for m in msgs if m.type in ['broadcast_request', 'seller_response']]
+        return [
+            {
+                'type': m.type,
+                'content': m.content,
+                'timestamp': m.created_at.isoformat()
+            }
+            for m in reversed(list(action_messages))
+        ]
     except Exception as e:
         logger.error(f"Error extracting pending actions: {e}")
         return []
@@ -151,21 +96,21 @@ def check_outreach_completed(listing_id: int) -> bool:
 
 
 def load_recent_messages_with_context(conversation_id: Optional[str], limit: int = 10) -> List[Dict[str, Any]]:
-    """Enhanced version that includes message_context (optional for future use)."""
+    """Enhanced version that includes message context with timestamps."""
     if not conversation_id:
         return []
     try:
-        conv = Conversation.objects.get(id=conversation_id)
-    except Conversation.DoesNotExist:
+        # Query messages by conversation_id directly
+        msgs = Message.objects.filter(conversation_id=conversation_id).order_by("-created_at")[:limit]
+    except Exception as e:
+        logger.error(f"Error loading messages with context: {e}")
         return []
     
-    msgs = conv.messages.order_by("-created_at")[:limit]
     return [
         {
-            "role": m.role, 
+            "role": m.type, 
             "content": m.content,
-            "context": getattr(m, 'message_context', {}) or {},
-            "timestamp": m.created_at
+            "timestamp": m.created_at.isoformat()
         } 
         for m in reversed(list(msgs))
     ]

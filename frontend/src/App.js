@@ -1,18 +1,24 @@
 // frontend/src/App.js
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { Compass } from 'lucide-react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import EasyIslanders from './pages/EasyIslanders';
 import CreateListing from './pages/CreateListing';
 import Dashboard from './pages/dashboard/Dashboard';
+import Messages from './pages/Messages'; // F.3 - Import Messages page
+import Requests from './pages/Requests';   // F.3 - Import Requests page
+import Bookings from './pages/Bookings';   // F.3 - Import Bookings page
 import AuthModal from './components/auth/AuthModal';
+import useAuthMigration from './hooks/useAuthMigration';
+import UserMenu from './components/common/UserMenu'; // F.3 - Import UserMenu
+import { useUnreadCount } from './hooks/useMessages'; // F.3 - Lift state up
 import './index.css';
 
 // Navigation Bar Component
 function Navigation() {
   const location = useLocation();
-  const { isAuthenticated, user, openAuthModal, handleLogout } = useAuth();
+  const { isAuthenticated, user, openAuthModal, handleLogout, unreadCount } = useAuth(); // Get unreadCount from context
 
   const isCreateListingVisible = isAuthenticated && user?.user_type === 'business';
   const isDashboardVisible = isAuthenticated && user?.user_type === 'business';
@@ -63,18 +69,9 @@ function Navigation() {
 
             {/* Auth Buttons */}
             <div className="flex items-center gap-3 ml-4">
-              {isAuthenticated ? (
-                <>
-                  <button
-                    onClick={handleLogout}
-                    className="text-sm font-semibold text-gray-500 hover:text-gray-800"
-                  >
-                    Logout
-                  </button>
-                  <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center font-bold text-gray-600">
-                    {user?.username?.charAt(0).toUpperCase()}
-                  </div>
-                </>
+              {isAuthenticated && user ? (
+                // F.3 - Use the new UserMenu component when authenticated
+                <UserMenu user={user} onLogout={handleLogout} unreadCount={unreadCount} />
               ) : (
                 <>
                   <button
@@ -101,6 +98,14 @@ function Navigation() {
 
 // Main App Component
 function AppContent() {
+  const { isAuthenticated, setUnreadCount } = useAuth(); // Get setter for context
+  useAuthMigration(isAuthenticated);
+  const { unreadCount: fetchedCount } = useUnreadCount();
+
+  useEffect(() => {
+    setUnreadCount(fetchedCount);
+  }, [fetchedCount, setUnreadCount]);
+
   return (
     <div className="App min-h-screen bg-white flex flex-col">
       <Navigation />
@@ -108,6 +113,9 @@ function AppContent() {
       <div className="flex-1 overflow-y-auto">
         <Routes>
           <Route path="/" element={<EasyIslanders />} />
+          <Route path="/messages" element={<Messages />} /> {/* F.3 - Add Messages route */}
+          <Route path="/requests" element={<Requests />} /> {/* F.3 - Add Requests route */}
+          <Route path="/bookings" element={<Bookings />} /> {/* F.3 - Add Bookings route */}
           <Route path="/create-listing" element={<CreateListing />} />
           
           {/* Dashboard Routes */}
@@ -129,3 +137,4 @@ function App() {
 }
 
 export default App;
+

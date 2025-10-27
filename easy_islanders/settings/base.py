@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     'users',
     'listings',
     'assistant',
+    'router_service',
 ]
 
 MIDDLEWARE = [

@@ -3,7 +3,6 @@
 from django.urls import path
 from . import views  # Corrected from .import
 from .views import ListingDetailView, request_listing_photos, twilio_webhook
-from .views_router import route_intent, router_feedback, list_registered_agents
 # Phase 1 imports (auth moved to users app)
 from .views_listings import (
     CategoriesListView, SubcategoriesListView,
@@ -29,10 +28,6 @@ from .views import requests_collection, request_detail
 from assistant.monitoring.views import prometheus_metrics_view
 
 urlpatterns = [
-    # ===== INTENT ROUTER (MVP skeleton) =====
-    path('route/', route_intent, name='router-route'),
-    path('feedback/', router_feedback, name='router-feedback'),
-    path('registry/agents/', list_registered_agents, name='router-agents'),
     # ===== PHASE 1: CREATE LISTING (NEW) =====
     # Category management
     path('categories/', CategoriesListView.as_view(), name='categories_list'),

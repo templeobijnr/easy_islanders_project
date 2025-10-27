@@ -16,6 +16,7 @@ import logging
 import re
 from datetime import datetime
 import uuid
+import time
 
 from langchain_core.tools import BaseTool
 from langchain_core.prompts import ChatPromptTemplate
@@ -29,7 +30,14 @@ from .memory import save_assistant_turn, load_recent_messages
 from .tools import get_hybrid_rag_coordinator
 from .transactions import create_request_safe, approve_broadcast_safe
 from .guardrails import run_enterprise_guardrails, assess_enterprise_quality
-from assistant.monitoring.metrics import PerformanceTracker, extract_token_usage, record_turn_summary
+from assistant.monitoring.metrics import (
+    PerformanceTracker,
+    extract_token_usage,
+    record_turn_summary,
+    inc_agent_request,
+    observe_agent_latency,
+    inc_agent_degraded,
+)
 from assistant.monitoring.otel_instrumentation import create_agent_span
 from .resilience import safe_execute
 from .checkpointing import save_checkpoint, load_checkpoint
@@ -1523,6 +1531,7 @@ def run_enterprise_agent(user_input: str, conversation_id: str) -> Dict[str, Any
     """
     try:
         logger.info(f"[{conversation_id}] Enterprise agent: initializing state...")
+        inc_agent_request("enterprise_agent", "start")
         
         # Initialize state
         initial_state = EnterpriseAgentState(
@@ -1561,8 +1570,10 @@ def run_enterprise_agent(user_input: str, conversation_id: str) -> Dict[str, Any
             logger.debug("Checkpoint save failed; proceeding")
 
         # Execute graph with resilience wrapper and OTEL span
+        start_graph = time.time()
         with create_agent_span("enterprise_agent", "graph_invoke", request_id=conversation_id):
             result = safe_execute(graph.invoke, initial_state)
+        observe_agent_latency("enterprise_agent", "graph_invoke", time.time() - start_graph)
         
         logger.info(f"[{conversation_id}] Enterprise agent: success. Response={result.get('final_response', '')[:50]}...")
         
@@ -1574,7 +1585,7 @@ def run_enterprise_agent(user_input: str, conversation_id: str) -> Dict[str, Any
         except Exception:
             pass
 
-        return {
+        resp = {
             'message': result.get('final_response', ''),
             'language': result.get('output_language', 'en'),
             'recommendations': result.get('recommendations', []),
@@ -1582,6 +1593,9 @@ def run_enterprise_agent(user_input: str, conversation_id: str) -> Dict[str, Any
             'quality_score': result.get('self_evaluation_score'),
             'hitl_required': result.get('hitl_approval_required', False)
         }
+        if result.get('mode') == 'degraded':
+            inc_agent_degraded("enterprise_agent", result.get('reason') or 'unknown')
+        return resp
     
     except Exception as e:
         logger.error(f"[{conversation_id}] Enterprise agent failed: {e}", exc_info=True)
@@ -1649,8 +1663,10 @@ def run_supervisor_agent(user_input: str, thread_id: str) -> Dict[str, Any]:
             save_checkpoint(thread_id, dict(state))
         except Exception:
             pass
+        start_graph = time.time()
         with create_agent_span("supervisor", "graph_invoke", request_id=thread_id):
             result = safe_execute(graph.invoke, state, config={"configurable": {"thread_id": thread_id}})
+        observe_agent_latency("supervisor", "graph_invoke", time.time() - start_graph)
 
         # Return the actual response from the worker agent (normalize to string)
         raw_final = result.get('final_response')
@@ -1671,13 +1687,16 @@ def run_supervisor_agent(user_input: str, thread_id: str) -> Dict[str, Any]:
         except Exception:
             pass
 
-        return {
+        resp = {
             'message': final_message,
             'language': 'en',
             'recommendations': result.get('recommendations', []),
             'conversation_id': thread_id,
             'routed_to': routed_to,
         }
+        if result.get('mode') == 'degraded':
+            inc_agent_degraded("supervisor", result.get('reason') or 'unknown')
+        return resp
     
     except Exception as e:
         logger.error(f"[{thread_id}] Supervisor agent failed: {e}", exc_info=True)

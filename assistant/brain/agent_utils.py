@@ -12,6 +12,7 @@ import json
 import re
 
 from django.db.models import Q
+from assistant.monitoring.otel_instrumentation import create_tool_span
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +103,8 @@ def get_last_contacted_listing(conversation_id: Optional[str]) -> Optional[Dict[
 def check_for_new_images(listing_id: int) -> Dict:
     try:
         from listings.models import Listing
-        listing = Listing.objects.get(id=listing_id)
+        with create_tool_span("db_search", "query", request_id=str(conversation_id) if conversation_id else None):
+            listing = Listing.objects.get(id=listing_id)
         sd = listing.structured_data or {}
         baseline = sd.get('baseline_image_count', 0)
         current_urls = sd.get('image_urls', [])
@@ -182,7 +184,8 @@ def build_recommendation_card(listing_id: int) -> List[Dict[str, Any]]:
     try:
         from listings.models import Listing
         from assistant.utils.url_utils import normalize_image_list
-        listing = Listing.objects.get(id=listing_id)
+        with create_tool_span("db_search", "query", request_id=str(listing_id)):
+            listing = Listing.objects.get(id=listing_id)
         sd = listing.structured_data or {}
         
         # Get images directly from structured_data (same as notification system)

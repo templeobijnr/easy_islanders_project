@@ -305,3 +305,39 @@ ENABLE_OTEL_METRICS = config('ENABLE_OTEL_METRICS', default=True, cast=bool)
 # LLM Metrics Configuration
 LLM_METRICS_SAMPLE_RATE = float(OTEL_TRACES_SAMPLER_ARG)
 LLM_METRICS_ERROR_SAMPLE_RATE = 1.0  # Always sample errors
+
+# Structured JSON logging for assistant.* loggers
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'json': {
+            '()': 'assistant.monitoring.logging_utils.JSONFormatter',
+        },
+        'simple': {
+            'format': '[%(levelname)s] %(name)s: %(message)s'
+        },
+    },
+    'handlers': {
+        'console_json': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'json',
+        },
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+    },
+    'loggers': {
+        'assistant': {
+            'handlers': ['console_json'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'assistant.monitoring': {
+            'handlers': ['console_json'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+    },
+}

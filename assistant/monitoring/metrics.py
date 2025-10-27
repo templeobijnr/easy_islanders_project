@@ -229,6 +229,40 @@ if _PROMETHEUS_AVAILABLE:
         "Count of retries attempted by agent",
     )
 
+    # Sprint-2 observability: agent and LLM histograms/counters
+    AGENT_REQUESTS_TOTAL = Counter(
+        "agent_requests_total",
+        "Total agent requests by agent and status",
+        ["agent", "status"],
+    )
+    AGENT_DEGRADED_TOTAL = Counter(
+        "agent_degraded_total",
+        "Total degraded-mode responses by agent and reason",
+        ["agent", "reason"],
+    )
+    AGENT_LATENCY_SECONDS = Histogram(
+        "agent_latency_seconds",
+        "Agent latency histogram in seconds",
+        ["agent", "operation"],
+        buckets=(0.025, 0.05, 0.1, 0.2, 0.35, 0.5, 0.75, 1, 1.5, 2, 3, 5, 8, 13),
+    )
+    LLM_CALL_LATENCY_SECONDS = Histogram(
+        "llm_call_latency_seconds",
+        "LLM call latency histogram in seconds",
+        ["provider", "model"],
+        buckets=(0.025, 0.05, 0.1, 0.2, 0.35, 0.5, 0.75, 1, 1.5, 2, 3, 5, 8, 13),
+    )
+    CIRCUIT_EVENTS_TOTAL = Counter(
+        "circuit_events_total",
+        "Circuit breaker events by component and state",
+        ["component", "state"],
+    )
+    CIRCUIT_OPEN_TOTAL = Counter(
+        "circuit_open_total",
+        "Circuit breaker opens by component",
+        ["component"],
+    )
+
 
 @dataclass
 class LLMRequestMetrics:
@@ -256,6 +290,55 @@ class LLMRequestMetrics:
     cache_layer: Optional[str] = None
     retry_count: Optional[int] = None
     error_hash: Optional[str] = None
+
+
+# ---- Sprint-2 helper functions (no-ops if Prometheus missing) ----
+def inc_agent_request(agent: str, status: str) -> None:
+    try:
+        if _PROMETHEUS_AVAILABLE:
+            AGENT_REQUESTS_TOTAL.labels(agent=agent, status=status).inc()
+    except Exception:
+        pass
+
+
+def inc_agent_degraded(agent: str, reason: str) -> None:
+    try:
+        if _PROMETHEUS_AVAILABLE:
+            AGENT_DEGRADED_TOTAL.labels(agent=agent, reason=reason).inc()
+    except Exception:
+        pass
+
+
+def observe_agent_latency(agent: str, operation: str, seconds: float) -> None:
+    try:
+        if _PROMETHEUS_AVAILABLE:
+            AGENT_LATENCY_SECONDS.labels(agent=agent, operation=operation).observe(seconds)
+    except Exception:
+        pass
+
+
+def observe_llm_latency(provider: str, model: str, seconds: float) -> None:
+    try:
+        if _PROMETHEUS_AVAILABLE:
+            LLM_CALL_LATENCY_SECONDS.labels(provider=provider, model=model).observe(seconds)
+    except Exception:
+        pass
+
+
+def inc_circuit_event(component: str, state: str) -> None:
+    try:
+        if _PROMETHEUS_AVAILABLE:
+            CIRCUIT_EVENTS_TOTAL.labels(component=component, state=state).inc()
+    except Exception:
+        pass
+
+
+def inc_circuit_open(component: str) -> None:
+    try:
+        if _PROMETHEUS_AVAILABLE:
+            CIRCUIT_OPEN_TOTAL.labels(component=component).inc()
+    except Exception:
+        pass
 
 
 def _coerce_int(value: Any) -> int:

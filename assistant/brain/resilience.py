@@ -32,6 +32,31 @@ except Exception:  # pragma: no cover - optional
     RESILIENCE_RETRIES = None  # type: ignore
     RESILIENCE_FAILURES = None  # type: ignore
 
+# Optional Django cache for circuit breaker
+try:
+    from django.core.cache import cache as _cache  # type: ignore
+    from django.conf import settings as _settings  # type: ignore
+except Exception:  # pragma: no cover - optional
+    _cache = None
+    _settings = None
+
+# Optional Prometheus helpers
+try:
+    from assistant.monitoring.metrics import (
+        observe_llm_latency,
+        inc_circuit_event,
+        inc_circuit_open,
+    )
+except Exception:  # pragma: no cover - optional
+    def observe_llm_latency(*args, **kwargs):
+        return None
+
+    def inc_circuit_event(*args, **kwargs):
+        return None
+
+    def inc_circuit_open(*args, **kwargs):
+        return None
+
 try:  # Optional DB exception
     import psycopg2  # type: ignore
     _PG_OPER_ERR = psycopg2.OperationalError  # type: ignore
@@ -49,6 +74,112 @@ RESILIENCE_POLICY = {
         _PG_OPER_ERR,
     ),
 }
+
+
+# -----------------------
+# Minimal circuit breaker
+# -----------------------
+_CB_PREFIX = "cb"
+
+
+def _cb_key(component: str, name: str) -> str:
+    return f"{_CB_PREFIX}:{component}:{name}"
+
+
+def _cache_set(key: str, value, timeout: int) -> None:
+    try:
+        if _cache is not None:
+            _cache.set(key, value, timeout=timeout)
+    except Exception:
+        pass
+
+
+def _cache_get(key: str, default=None):
+    try:
+        if _cache is not None:
+            return _cache.get(key, default)
+    except Exception:
+        return default
+    return default
+
+
+def record_component_latency(component: str, seconds: float, window_seconds: int = 120) -> None:
+    data = _cache_get(_cb_key(component, "durations"), [])
+    try:
+        data = list(data) if isinstance(data, (list, tuple)) else []
+        data.append(float(seconds))
+        data = data[-200:]
+        _cache_set(_cb_key(component, "durations"), data, window_seconds)
+    except Exception:
+        pass
+
+
+def record_component_error(component: str, window_seconds: int = 120) -> None:
+    try:
+        key = _cb_key(component, "errors")
+        val = int(_cache_get(key, 0)) + 1
+        _cache_set(key, val, window_seconds)
+        inc_circuit_event(component, "error")
+    except Exception:
+        pass
+
+
+def record_component_total(component: str, window_seconds: int = 120) -> None:
+    try:
+        key = _cb_key(component, "total")
+        val = int(_cache_get(key, 0)) + 1
+        _cache_set(key, val, window_seconds)
+    except Exception:
+        pass
+
+
+def record_component_timeout(component: str, window_seconds: int = 60) -> None:
+    try:
+        key = _cb_key(component, "timeouts")
+        val = int(_cache_get(key, 0)) + 1
+        _cache_set(key, val, window_seconds)
+        inc_circuit_event(component, "timeout")
+    except Exception:
+        pass
+
+
+def _approx_p95(values: list[float]) -> float:
+    if not values:
+        return 0.0
+    vs = sorted(values)
+    idx = max(0, int(0.95 * len(vs)) - 1)
+    return vs[idx]
+
+
+def should_open_breaker(component: str, slo_seconds: float = 2.0) -> bool:
+    try:
+        total = int(_cache_get(_cb_key(component, "total"), 0))
+        errs = int(_cache_get(_cb_key(component, "errors"), 0))
+        to_cnt = int(_cache_get(_cb_key(component, "timeouts"), 0))
+        durations = _cache_get(_cb_key(component, "durations"), []) or []
+        err_rate = (errs / total) if total else 0.0
+        p95 = _approx_p95([float(x) for x in durations]) if durations else 0.0
+        if (err_rate >= 0.30 and p95 >= 2 * float(slo_seconds)) or to_cnt >= 5:
+            return True
+    except Exception:
+        return False
+    return False
+
+
+def is_breaker_open(component: str) -> bool:
+    try:
+        return bool(_cache_get(_cb_key(component, "open"), False))
+    except Exception:
+        return False
+
+
+def _open_breaker(component: str, cooldown_seconds: int = 60) -> None:
+    try:
+        _cache_set(_cb_key(component, "open"), True, cooldown_seconds)
+        inc_circuit_open(component)
+        inc_circuit_event(component, "open")
+    except Exception:
+        pass
 
 
 @retry(
@@ -129,9 +260,17 @@ def guarded_llm_call(callable_fn: Callable[[], Any]) -> Any:
     """
     start = time.time()
     try:
+        # Circuit breaker short-circuit (component: llm)
+        record_component_total("llm")
+        if is_breaker_open("llm") or should_open_breaker("llm"):
+            _open_breaker("llm")
+            logger.warning("LLM circuit breaker open; returning degraded fallback")
+            return {"error": "breaker_open", "fallback": True, "mode": "degraded"}
+
         result = callable_fn()
         return result
     except Exception as e:  # noqa: BLE001
+        record_component_error("llm")
         logger.exception("LLM call failed; returning fallback")
         return {"error": str(e), "fallback": True}
     finally:
@@ -140,6 +279,12 @@ def guarded_llm_call(callable_fn: Callable[[], Any]) -> Any:
                 _LLM_SUMMARY.observe(time.time() - start)
             except Exception:  # noqa: BLE001
                 pass
+        # Also emit histogram via Prometheus helper
+        try:
+            model = getattr(_settings, "OPENAI_MODEL", "unknown") if _settings else "unknown"
+            observe_llm_latency("openai", model, time.time() - start)
+        except Exception:
+            pass
 
 
 def safe_execute(fn: Callable[..., Any], *args, **kwargs) -> Any:

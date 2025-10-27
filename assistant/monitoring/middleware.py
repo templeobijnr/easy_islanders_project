@@ -34,6 +34,8 @@ class OpenTelemetryMiddleware(MiddlewareMixin):
             "http.url": request.build_absolute_uri(),
             "http.user_agent": request.META.get('HTTP_USER_AGENT', ''),
             "http.remote_addr": request.META.get('REMOTE_ADDR', ''),
+            "http.request_id": getattr(request, 'request_id', None) or request.META.get('HTTP_X_REQUEST_ID'),
+            "http.traceparent": request.META.get('HTTP_TRACEPARENT', ''),
             "django.view_name": getattr(request.resolver_match, 'view_name', '') if request.resolver_match else '',
         })
     

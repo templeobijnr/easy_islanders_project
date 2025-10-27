@@ -28,8 +28,33 @@ http.interceptors.request.use(
       if (token) {
         request.headers.Authorization = `Bearer ${token}`;
       }
+      // Correlate requests if we have a prior request id or traceparent
+      const reqId = localStorage.getItem('x_request_id');
+      if (reqId) {
+        request.headers['X-Request-ID'] = reqId;
+      }
+      const tp = localStorage.getItem('traceparent');
+      if (tp) {
+        request.headers['traceparent'] = tp;
+      }
     }
     return request;
+  },
+  (error) => Promise.reject(error)
+);
+
+// Capture correlation headers from responses for subsequent calls
+http.interceptors.response.use(
+  (response) => {
+    try {
+      const reqId = response.headers['x-request-id'] || response.headers['X-Request-ID'];
+      if (reqId) localStorage.setItem('x_request_id', reqId);
+      const tp = response.headers['traceparent'] || response.headers['Traceparent'];
+      if (tp) localStorage.setItem('traceparent', tp);
+    } catch (e) {
+      // noop
+    }
+    return response;
   },
   (error) => Promise.reject(error)
 );

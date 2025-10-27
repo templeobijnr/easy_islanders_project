@@ -21,13 +21,14 @@ def get_last_recommendations(conversation_id: Optional[str]) -> List[int]:
         return []
     try:
         from assistant.models import Message
-        messages = (
-            Message.objects.filter(conversation__id=conversation_id, role="assistant")
-            .order_by("-created_at")
-        )
+        messages = Message.objects.filter(
+            conversation_id=conversation_id, type="assistant"
+        ).order_by("-created_at")
         for msg in messages:
-            if msg.message_context and msg.message_context.get("last_recommendations"):
-                recs = msg.message_context.get("last_recommendations") or []
+            # message_context is not persisted in current Message model; be defensive
+            ctx = getattr(msg, "message_context", None) or {}
+            recs = ctx.get("last_recommendations") if isinstance(ctx, dict) else None
+            if recs:
                 return [int(x) for x in recs if isinstance(x, (int, str))]
     except Exception:
         return []
@@ -39,10 +40,9 @@ def get_last_contacted_listing(conversation_id: Optional[str]) -> Optional[Dict[
         return None
     try:
         from assistant.models import Message
-        messages = (
-            Message.objects.filter(conversation__id=conversation_id, role="assistant")
-            .order_by("-created_at")
-        )
+        messages = Message.objects.filter(
+            conversation_id=conversation_id, type="assistant"
+        ).order_by("-created_at")
         
         # DEBUG: Log all messages to see what's in the conversation
         logger.critical(f"DEBUG get_last_contacted_listing for conversation {conversation_id}:")
@@ -69,19 +69,20 @@ def get_last_contacted_listing(conversation_id: Optional[str]) -> Optional[Dict[
         
         # Return the most recent outreach message
         for msg in messages:
+            ctx = getattr(msg, "message_context", None) or {}
             if (
-                msg.message_context
-                and msg.message_context.get("intent_type") == "agent_outreach"
-                and msg.message_context.get("contacted_listing")
+                isinstance(ctx, dict)
+                and ctx.get("intent_type") == "agent_outreach"
+                and ctx.get("contacted_listing")
             ):
                 out = {
-                    "listing_id": msg.message_context.get("contacted_listing"),
-                    "outreach_ok": msg.message_context.get("outreach_ok", False),
+                    "listing_id": ctx.get("contacted_listing"),
+                    "outreach_ok": ctx.get("outreach_ok", False),
                     "contacted_at": msg.created_at.isoformat(),
                     "message": msg.content,
                 }
                 try:
-                    pacts = msg.message_context.get("pending_actions") or []
+                    pacts = ctx.get("pending_actions") or []
                     for a in pacts:
                         if a.get("type") == "outreach_pictures":
                             ctx = a.get("context") or {}
@@ -277,11 +278,11 @@ def parse_and_correct_intent(
                 if conversation_id:
                     from assistant.models import Message
                     last_assistant = (
-                        Message.objects.filter(conversation__id=conversation_id, role='assistant')
+                        Message.objects.filter(conversation_id=conversation_id, type='assistant')
                         .order_by('-created_at')
                         .first()
                     )
-                    if last_assistant and last_assistant.message_context and last_assistant.message_context.get('intent_type') == 'property_search':
+                    if last_assistant and 'property' in (last_assistant.content or '').lower():
                         return {"intent_type": "property_search", "confidence": 0.9, "needs_tool": True, "tool_name": "search_internal_listings"}
             except Exception:
                 # If we can't inspect DB, default to property_search for these phrases

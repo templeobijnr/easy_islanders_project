@@ -1,19 +1,23 @@
 # assistant/caching/__init__.py
 """
-Intelligent Response Caching for LLM Production
+Caching utilities for agent degraded-mode responses.
 
-Based on "LLMs in Production" Chapter 6: Caching and Optimization
+Exports simple helpers backed by Django cache. Advanced classes from
+earlier iterations (ResponseCache, CacheStrategy, SemanticCache) are not
+required for current usage and intentionally omitted to avoid import errors.
 """
 
-from .response_cache import ResponseCache, CacheStrategy
-from .semantic_cache import SemanticCache
+from .response_cache import (
+    get_fallback_response,
+    set_fallback_response,
+    prompt_hash,
+)
 
 __all__ = [
-    "ResponseCache",
-    "CacheStrategy", 
-    "SemanticCache"
+    "get_fallback_response",
+    "set_fallback_response",
+    "prompt_hash",
 ]
-
 
 
 

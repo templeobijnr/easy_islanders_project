@@ -627,20 +627,22 @@ def evaluate_synthesis_quality(synthesis_data: Dict, user_input: str, language: 
     
     return min(overlap / len(input_words), 1.0) if input_words else 0.0
 
-def classify_intent_structured(user_input: str, language: str, conversation_history: List[Dict]) -> IntentResult:
-    """Structured intent classification with Pydantic validation and legacy feature parity"""
+def classify_intent_structured(user_input: str, language: str, conversation_history: List[Dict]):
+    """Structured intent classification with Pydantic validation.
+
+    Uses the robust parser in intent_parser; falls back to legacy heuristics on error.
+    """
     try:
-        # First try the existing structured intent classification
-        from .structured_intent import run_structured_intent_classification
-        intent_result = run_structured_intent_classification(user_input, conversation_history)
-        
-        # Apply legacy feature parity enhancements
-        intent_result = _enhance_intent_with_legacy_features(intent_result, user_input, conversation_history)
-        
+        from .intent_parser import parse_intent_robust
+        ctx = {
+            "history_summary": "",
+            "language": language,
+            "conversation_id": None,
+        }
+        intent_result = parse_intent_robust(user_input, context=ctx, thread_id=None)
         return intent_result
     except Exception as e:
         logger.error(f"Intent classification failed: {e}")
-        # Fallback to legacy heuristic detection
         return _legacy_heuristic_intent_detection(user_input, language, conversation_history)
 
 def search_internal_listings(query: str, category: str, attributes: Dict, language: str) -> List[Dict]:

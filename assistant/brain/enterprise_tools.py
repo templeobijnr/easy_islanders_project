@@ -24,6 +24,7 @@ except Exception:  # noqa: BLE001
 from .resilience import safe_request
 
 from .enterprise_schemas import EnterpriseIntentResult
+from assistant.monitoring.otel_instrumentation import create_tool_span
 
 logger = logging.getLogger(__name__)
 
@@ -91,15 +92,16 @@ class InternalVectorStoreSearchTool(BaseTool):
             return self._fallback_database_search(query, category, attributes, language)
         
         try:
+            with create_tool_span("internal_vector_search", "run"):
             # Build metadata filters based on category and attributes
-            metadata_filters = self._build_metadata_filters(category, attributes)
+                metadata_filters = self._build_metadata_filters(category, attributes)
             
             # Perform vector search with metadata filtering
-            results = self.vector_store.similarity_search(
-                query=query,
-                k=limit,
-                filter=metadata_filters
-            )
+                results = self.vector_store.similarity_search(
+                    query=query,
+                    k=limit,
+                    filter=metadata_filters
+                )
             
             # Convert to standardized format
             formatted_results = []
@@ -184,7 +186,8 @@ class InternalVectorStoreSearchTool(BaseTool):
                     q_objects &= Q(dynamic_fields__property_type=attributes['property_type'])
             
             # Execute query
-            listings = Listing.objects.filter(q_objects)[:5]
+            with create_tool_span("db_fallback_search", "run"):
+                listings = Listing.objects.filter(q_objects)[:5]
             
             # Format results
             results = []
@@ -263,6 +266,7 @@ class ExternalWebSearchTool(BaseTool):
     def _search_tavily(self, query: str, search_type: str, language: str, limit: int) -> List[Dict[str, Any]]:
         """Search using Tavily API (preferred)"""
         try:
+            with create_tool_span("tavily", "search"):
             # Tavily API configuration
             url = "https://api.tavily.com/search"
             headers = {
@@ -315,6 +319,7 @@ class ExternalWebSearchTool(BaseTool):
     def _search_duckduckgo(self, query: str, search_type: str, language: str, limit: int) -> List[Dict[str, Any]]:
         """Search using DuckDuckGo (fallback)"""
         try:
+            with create_tool_span("duckduckgo", "search"):
             # Simple DuckDuckGo search implementation
             # In production, use a proper DuckDuckGo API wrapper
             url = "https://api.duckduckgo.com/"

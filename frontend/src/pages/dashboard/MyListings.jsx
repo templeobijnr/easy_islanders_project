@@ -95,10 +95,19 @@ const MyListings = () => {
   const handleDuplicate = async (listing) => {
     try {
       const token = localStorage.getItem('token');
-      // TODO: Implement duplicate endpoint on backend
-      // For now, show a placeholder message
-      showToast('Duplicate feature coming soon!');
+      await axios.post(
+        `${config.API_BASE_URL}/api/listings/${listing.id}/duplicate/`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      await fetchListings();
+      showToast('Listing duplicated successfully!');
     } catch (err) {
+      console.error('Error duplicating listing:', err);
       showToast('Failed to duplicate listing');
     }
   };

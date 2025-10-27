@@ -581,7 +581,17 @@ def handle_chat_event(request):
             if ENABLE_LANGGRAPH and graph_run_message:
                 lc_result = graph_run_message(message, conversation_id)
             else:
-                lc_result = lc_process_turn(message, conversation_id)
+                # Use enterprise agent path as default
+                try:
+                    from assistant.brain.agent import run_enterprise_agent
+                    lc_result = run_enterprise_agent(message, conversation_id)
+                except Exception as e:
+                    logger.error(f"Enterprise agent failed in handle_chat_event: {e}", exc_info=True)
+                    lc_result = {
+                        'message': 'I encountered an issue processing your request. Please try again.',
+                        'language': 'en',
+                        'recommendations': [],
+                    }
                 
             return Response({
                 'response': lc_result.get('message', ''),

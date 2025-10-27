@@ -6,7 +6,14 @@ from decouple import config
 # Security
 DEBUG = False
 SECRET_KEY = config('SECRET_KEY')
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='').split(',')
+ALLOWED_HOSTS = [h.strip() for h in config('ALLOWED_HOSTS', default='').split(',') if h.strip()]
+# Ensure Docker host alias is accepted for Prometheus/Grafana scraping from containers
+if 'host.docker.internal' not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append('host.docker.internal')
+if '127.0.0.1' not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append('127.0.0.1')
+if 'localhost' not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append('localhost')
 
 # Database - PostgreSQL for production
 DATABASES = {

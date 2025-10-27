@@ -133,6 +133,10 @@ Classify this message. Return a JSON response with:
 - attributes: extracted attributes (e.g., bedrooms, price range, location)
 - requires_hitl: true if this is a broadcast that needs human approval, false otherwise
 
+IMPORTANT:
+- Always include the fields "confidence" (float) and "requires_hitl" (boolean).
+- If unsure, set confidence=0.7 and requires_hitl=false.
+
 LOCAL LOOKUP RULES:
 - If the user explicitly mentions a city, set attributes.city to that value.
 - If the city is not explicitly stated, set attributes.city = null.
@@ -208,6 +212,65 @@ EXAMPLES (for disambiguation):
             # result may be a dict fallback from guarded_llm_call
             if isinstance(result, dict) and result.get("fallback"):
                 raise RuntimeError("LLM call failed (guarded fallback)")
+
+            # Normalize result to EnterpriseIntentResult if a dict is returned
+            if isinstance(result, dict):
+                # Map common category synonyms to schema values
+                cat = result.get("category")
+                if isinstance(cat, str):
+                    cat_up = cat.upper().strip()
+                    category_map = {
+                        "GENERAL": "CONVERSATION",
+                        "GENERAL_CONVERSATION": "CONVERSATION",
+                        "CONVERSATION": "CONVERSATION",
+                        "KNOWLEDGE": "KNOWLEDGE_QUERY",
+                        "KNOWLEDGE_QUERY": "KNOWLEDGE_QUERY",
+                    }
+                    normalized = category_map.get(cat_up)
+                    if normalized:
+                        result["category"] = normalized
+
+                # Ensure minimal schema compliance if LLM omitted fields
+                result.setdefault("confidence", 0.7)
+                result.setdefault("reasoning", "Default reasoning applied (missing from LLM response)")
+                result.setdefault("requires_hitl", False)
+                result.setdefault("attributes", {})
+                try:
+                    result = EnterpriseIntentResult(**result)
+                except Exception as e:
+                    raise RuntimeError(f"Invalid structured intent payload: {e}")
+
+            # Auto-normalize local_lookup attributes: city extraction heuristics
+            try:
+                if getattr(result, "intent_type", None) == "local_lookup":
+                    # Known TRNC locations (variants -> canonical)
+                    city_variants = {
+                        "kyrenia": ["kyrenia", "girne"],
+                        "nicosia": ["nicosia", "lefkosha", "lefkoşa"],
+                        "famagusta": ["famagusta", "gazimagusa", "gazimağusa"],
+                        "iskele": ["iskele", "trikomo"],
+                        "lapta": ["lapta"],
+                        "alsancak": ["alsancak"],
+                        "esentepe": ["esentepe"],
+                    }
+                    text_l = (user_input or "").lower().strip()
+                    # Ensure attributes dict exists
+                    result.attributes = result.attributes or {}
+                    # 1) Single-token exact match
+                    if not result.attributes.get("city") and text_l in {v for vs in city_variants.values() for v in vs}:
+                        for canon, variants in city_variants.items():
+                            if text_l in variants:
+                                result.attributes["city"] = canon
+                                break
+                    # 2) Substring-based heuristic for embedded city names
+                    if not result.attributes.get("city"):
+                        for canon, variants in city_variants.items():
+                            if any(v in text_l for v in variants):
+                                result.attributes["city"] = canon
+                                break
+            except Exception:
+                # Defensive: never break routing if normalization fails
+                pass
 
             intent_label = getattr(result, "intent_type", None) or getattr(result, "primary_domain", "unknown")
             confidence_raw = getattr(result, "confidence", None)

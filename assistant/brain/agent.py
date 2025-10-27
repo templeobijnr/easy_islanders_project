@@ -30,6 +30,7 @@ from .tools import get_hybrid_rag_coordinator
 from .transactions import create_request_safe, approve_broadcast_safe
 from .guardrails import run_enterprise_guardrails, assess_enterprise_quality
 from assistant.monitoring.metrics import PerformanceTracker, extract_token_usage, record_turn_summary
+from assistant.monitoring.otel_instrumentation import create_agent_span
 from .resilience import safe_execute
 from .checkpointing import save_checkpoint, load_checkpoint
 from assistant.caching.response_cache import (
@@ -728,7 +729,7 @@ IMPORTANT:
             except Exception:  # noqa: BLE001
                 logger.debug("Invalid retry_count in context data", exc_info=True)
 
-        with tracker as perf:
+        with tracker as perf, create_agent_span("enterprise_agent", "synthesis", request_id=conversation_id):
             response = guarded_llm_call(lambda: chain.invoke({"user_input": user_input}))
 
             usage_candidates = [
@@ -1559,8 +1560,9 @@ def run_enterprise_agent(user_input: str, conversation_id: str) -> Dict[str, Any
         except Exception:
             logger.debug("Checkpoint save failed; proceeding")
 
-        # Execute graph with resilience wrapper
-        result = safe_execute(graph.invoke, initial_state)
+        # Execute graph with resilience wrapper and OTEL span
+        with create_agent_span("enterprise_agent", "graph_invoke", request_id=conversation_id):
+            result = safe_execute(graph.invoke, initial_state)
         
         logger.info(f"[{conversation_id}] Enterprise agent: success. Response={result.get('final_response', '')[:50]}...")
         
@@ -1647,7 +1649,8 @@ def run_supervisor_agent(user_input: str, thread_id: str) -> Dict[str, Any]:
             save_checkpoint(thread_id, dict(state))
         except Exception:
             pass
-        result = safe_execute(graph.invoke, state, config={"configurable": {"thread_id": thread_id}})
+        with create_agent_span("supervisor", "graph_invoke", request_id=thread_id):
+            result = safe_execute(graph.invoke, state, config={"configurable": {"thread_id": thread_id}})
 
         # Return the actual response from the worker agent (normalize to string)
         raw_final = result.get('final_response')

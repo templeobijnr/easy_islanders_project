@@ -18,7 +18,8 @@ from langchain_openai import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser
 
-from .schemas import IntentResult
+# Use legacy IntentResult definition for compatibility
+from .schemas_old import IntentResult
 
 logger = logging.getLogger(__name__)
 

@@ -68,6 +68,59 @@ def safe_request(method: str, url: str, **kwargs) -> requests.Response:
     return resp
 
 
+def resilient_request(method: str, url: str, **kwargs) -> requests.Response:
+    """Alias helper for safe_request (retrying HTTP call)."""
+    return safe_request(method, url, **kwargs)
+
+
+def resilient_api_call_decorator(
+    name: str = "api_call",
+    max_retries: int = 3,
+    initial_retry_delay_seconds: float = 2.0,
+    max_retry_delay_seconds: float = 8.0,
+):
+    """Decorator factory to add retry + metrics around any callable.
+
+    Usage:
+        @resilient_api_call_decorator("seller_outreach", max_retries=3)
+        def task(...):
+            ...
+    """
+
+    def _decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
+        def _wrapped(*args, **kwargs):
+            attempt = 0
+            delay = float(initial_retry_delay_seconds)
+            while True:
+                try:
+                    return fn(*args, **kwargs)
+                except Exception as e:  # noqa: BLE001
+                    attempt += 1
+                    if RESILIENCE_RETRIES is not None:
+                        try:
+                            RESILIENCE_RETRIES.inc()
+                        except Exception:  # noqa: BLE001
+                            pass
+                    if attempt > max_retries:
+                        if RESILIENCE_FAILURES is not None:
+                            try:
+                                RESILIENCE_FAILURES.inc()
+                            except Exception:  # noqa: BLE001
+                                pass
+                        logger.warning("%s giving up after %s attempts: %s", name, attempt - 1, e)
+                        raise
+                    logger.warning("%s retry %s/%s after %s", name, attempt, max_retries, e)
+                    time.sleep(delay)
+                    delay = min(delay * 2, float(max_retry_delay_seconds))
+
+        return _wrapped
+
+    return _decorator
+
+# Backwards compatible alias for legacy decorator usage
+resilient_api_call = resilient_api_call_decorator  # type: ignore
+
+
 def guarded_llm_call(callable_fn: Callable[[], Any]) -> Any:
     """Execute an LLM call, returning a safe fallback on error.
 

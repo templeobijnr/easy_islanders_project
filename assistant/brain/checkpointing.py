@@ -8,8 +8,16 @@ Note: Phase A uses MemorySaver. PostgreSQL integration will be available
 in langgraph >= 0.2.0 via langgraph.checkpoint.postgres.PostgresSaver
 """
 
-from typing import Optional, Any
+from typing import Optional, Any, Dict
 import logging
+from datetime import datetime
+
+try:
+    from django.core.cache import cache  # type: ignore
+    _CACHE_AVAILABLE = True
+except Exception:  # pragma: no cover
+    cache = None
+    _CACHE_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -68,3 +76,41 @@ def test_connection(connection_string: str) -> bool:
     except Exception as e:
         logger.error(f"❌ PostgreSQL connection test failed: {e}")
         return False
+
+
+# === Phase B2: Lightweight checkpoint helpers (cache-based) ===
+
+_CKPT_TTL_SECONDS = 86400  # 24h
+
+
+def save_checkpoint(conversation_id: str, state: Dict[str, Any]) -> bool:
+    """Save a lightweight checkpoint to cache.
+
+    Returns True if stored, False otherwise.
+    """
+    if not conversation_id or not _CACHE_AVAILABLE:
+        return False
+    try:
+        key = f"ckpt:{conversation_id}"
+        envelope = {"state": state, "ts": datetime.utcnow().isoformat()}
+        cache.set(key, envelope, timeout=_CKPT_TTL_SECONDS)
+        logger.debug("Checkpoint saved: %s", key)
+        return True
+    except Exception as e:  # noqa: BLE001
+        logger.error("Failed to save checkpoint: %s", e)
+        return False
+
+
+def load_checkpoint(conversation_id: str) -> Optional[Dict[str, Any]]:
+    """Load last checkpoint from cache."""
+    if not conversation_id or not _CACHE_AVAILABLE:
+        return None
+    try:
+        key = f"ckpt:{conversation_id}"
+        envelope = cache.get(key)
+        if isinstance(envelope, dict):
+            return envelope.get("state")
+        return None
+    except Exception as e:  # noqa: BLE001
+        logger.error("Failed to load checkpoint: %s", e)
+        return None

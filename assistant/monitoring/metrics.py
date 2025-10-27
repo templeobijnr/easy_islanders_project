@@ -264,6 +264,24 @@ if _PROMETHEUS_AVAILABLE:
         ["component"],
     )
 
+    # Router metrics
+    ROUTER_REQUESTS_TOTAL = Counter(
+        "router_requests_total",
+        "Total router requests by status and domain",
+        ["status", "domain"],
+    )
+    ROUTER_UNCERTAIN_TOTAL = Counter(
+        "router_uncertain_total",
+        "Router uncertainty events by domain",
+        ["domain"],
+    )
+    ROUTER_LATENCY_SECONDS = Histogram(
+        "router_latency_seconds",
+        "Router latency histogram in seconds",
+        ["domain"],
+        buckets=(0.01, 0.025, 0.05, 0.1, 0.2, 0.35, 0.5, 0.75, 1, 1.5, 2, 3),
+    )
+
 
 @dataclass
 class LLMRequestMetrics:
@@ -337,7 +355,7 @@ def inc_circuit_event(component: str, state: str) -> None:
 def inc_circuit_open(component: str) -> None:
     try:
         if _PROMETHEUS_AVAILABLE:
-            CIRCUIT_OPEN_TOTAL.labels(component=component).inc()
+        CIRCUIT_OPEN_TOTAL.labels(component=component).inc()
     except Exception:
         pass
 
@@ -368,10 +386,41 @@ def warm_metrics() -> None:
         CIRCUIT_EVENTS_TOTAL.labels(component="llm", state="open").inc(0)
         CIRCUIT_OPEN_TOTAL.labels(component="llm").inc(0)
 
+        # Router warm-up
+        ROUTER_LATENCY_SECONDS.labels(domain="*").observe(0.0)
+        ROUTER_REQUESTS_TOTAL.labels(status="start", domain="*").inc(0)
+        ROUTER_REQUESTS_TOTAL.labels(status="dispatch", domain="*").inc(0)
+        ROUTER_REQUESTS_TOTAL.labels(status="clarify", domain="*").inc(0)
+        ROUTER_UNCERTAIN_TOTAL.labels(domain="*").inc(0)
+
         _WARMED = True
         logger.info("Prometheus metrics warmed with zero-value samples")
     except Exception:
         # never break startup
+        pass
+
+
+def inc_router_request(status: str, domain: str) -> None:
+    try:
+        if _PROMETHEUS_AVAILABLE:
+            ROUTER_REQUESTS_TOTAL.labels(status=status, domain=domain).inc()
+    except Exception:
+        pass
+
+
+def inc_router_uncertain(domain: str) -> None:
+    try:
+        if _PROMETHEUS_AVAILABLE:
+            ROUTER_UNCERTAIN_TOTAL.labels(domain=domain).inc()
+    except Exception:
+        pass
+
+
+def observe_router_latency(domain: str, seconds: float) -> None:
+    try:
+        if _PROMETHEUS_AVAILABLE:
+            ROUTER_LATENCY_SECONDS.labels(domain=domain).observe(seconds)
+    except Exception:
         pass
 
 

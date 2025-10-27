@@ -1634,6 +1634,7 @@ def run_supervisor_agent(user_input: str, thread_id: str) -> Dict[str, Any]:
     Includes robust error handling to prevent 500 errors.
     """
     try:
+        inc_agent_request("supervisor", "start")
         from .supervisor_graph import build_supervisor_graph
         from .supervisor_schemas import SupervisorState
 

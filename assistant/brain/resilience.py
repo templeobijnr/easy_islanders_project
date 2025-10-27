@@ -25,6 +25,31 @@ except Exception:  # pragma: no cover - optional
     _PROM_AVAILABLE = False
     _LLM_SUMMARY = None
 
+# Optional counters from our metrics module
+try:
+    from assistant.monitoring.metrics import RESILIENCE_RETRIES, RESILIENCE_FAILURES  # type: ignore
+except Exception:  # pragma: no cover - optional
+    RESILIENCE_RETRIES = None  # type: ignore
+    RESILIENCE_FAILURES = None  # type: ignore
+
+try:  # Optional DB exception
+    import psycopg2  # type: ignore
+    _PG_OPER_ERR = psycopg2.OperationalError  # type: ignore
+except Exception:  # pragma: no cover - optional
+    _PG_OPER_ERR = Exception
+
+
+RESILIENCE_POLICY = {
+    "max_retries": 3,
+    "retry_delay": 2,  # seconds
+    "retryable_exceptions": (
+        TimeoutError,
+        ConnectionError,
+        requests.exceptions.RequestException,
+        _PG_OPER_ERR,
+    ),
+}
+
 
 @retry(
     stop=stop_after_attempt(3),
@@ -63,3 +88,34 @@ def guarded_llm_call(callable_fn: Callable[[], Any]) -> Any:
             except Exception:  # noqa: BLE001
                 pass
 
+
+def safe_execute(fn: Callable[..., Any], *args, **kwargs) -> Any:
+    """Generic retry wrapper using RESILIENCE_POLICY.
+
+    Increments Prometheus counters for retries and failures when available.
+    """
+    max_retries = int(RESILIENCE_POLICY.get("max_retries", 3))
+    delay = float(RESILIENCE_POLICY.get("retry_delay", 2))
+    retryables = RESILIENCE_POLICY.get("retryable_exceptions") or (Exception,)
+
+    attempt = 0
+    while True:
+        try:
+            return fn(*args, **kwargs)
+        except retryables as e:  # type: ignore
+            attempt += 1
+            if RESILIENCE_RETRIES is not None:
+                try:
+                    RESILIENCE_RETRIES.inc()
+                except Exception:  # noqa: BLE001
+                    pass
+            if attempt > max_retries:
+                if RESILIENCE_FAILURES is not None:
+                    try:
+                        RESILIENCE_FAILURES.inc()
+                    except Exception:  # noqa: BLE001
+                        pass
+                logger.warning("safe_execute giving up after %s attempts: %s", attempt - 1, e)
+                raise
+            logger.warning("safe_execute retry %s/%s after %s", attempt, max_retries, e)
+            time.sleep(delay)

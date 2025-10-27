@@ -22,6 +22,7 @@ import re
 from dataclasses import dataclass, asdict
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
+from .resilience import guarded_llm_call
 
 logger = logging.getLogger(__name__)
 
@@ -118,8 +119,10 @@ Focus on concrete details: type, location, price, features.""")
 
 Listing:""")
             
-            response = self.llm.invoke([system_msg, user_msg])
-            hypothesis = response.content.strip()
+            response = guarded_llm_call(lambda: self.llm.invoke([system_msg, user_msg]))
+            if isinstance(response, dict) and response.get("fallback"):
+                return query
+            hypothesis = response.content.strip() if hasattr(response, 'content') else str(response).strip()
             
             # Ensure it's not too long
             if len(hypothesis) > 300:

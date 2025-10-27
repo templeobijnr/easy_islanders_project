@@ -219,6 +219,16 @@ if _PROMETHEUS_AVAILABLE:
         ["connection_type", "status"],
     )
 
+    # Resilience metrics
+    RESILIENCE_FAILURES = Counter(
+        "agent_resilience_failures",
+        "Count of failed recoveries in agent",
+    )
+    RESILIENCE_RETRIES = Counter(
+        "agent_resilience_retries",
+        "Count of retries attempted by agent",
+    )
+
 
 @dataclass
 class LLMRequestMetrics:

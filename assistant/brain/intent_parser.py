@@ -20,6 +20,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
 from assistant.monitoring.metrics import PerformanceTracker, extract_token_usage
+from .resilience import guarded_llm_call
 
 from .schemas import EnterpriseIntentResult
 
@@ -180,7 +181,7 @@ EXAMPLES (for disambiguation):
                     result = structured_llm.invoke(invoke_payload)
                 else:
                     chain = prompt | structured_llm
-                    result = chain.invoke(invoke_payload)
+                    result = guarded_llm_call(lambda: chain.invoke(invoke_payload))
 
                 usage_sources = [
                     getattr(structured_llm, "last_response", None),
@@ -204,6 +205,10 @@ EXAMPLES (for disambiguation):
                 except Exception:  # noqa: BLE001
                     logger.debug("Failed to record token usage for intent parsing", exc_info=True)
             
+            # result may be a dict fallback from guarded_llm_call
+            if isinstance(result, dict) and result.get("fallback"):
+                raise RuntimeError("LLM call failed (guarded fallback)")
+
             intent_label = getattr(result, "intent_type", None) or getattr(result, "primary_domain", "unknown")
             confidence_raw = getattr(result, "confidence", None)
             if confidence_raw is None:

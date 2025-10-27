@@ -30,6 +30,13 @@ from .tools import get_hybrid_rag_coordinator
 from .transactions import create_request_safe, approve_broadcast_safe
 from .guardrails import run_enterprise_guardrails, assess_enterprise_quality
 from assistant.monitoring.metrics import PerformanceTracker, extract_token_usage, record_turn_summary
+from .resilience import safe_execute
+from .checkpointing import save_checkpoint, load_checkpoint
+from assistant.caching.response_cache import (
+    set_fallback_response,
+    get_fallback_response,
+    prompt_hash as _prompt_hash,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -1546,11 +1553,25 @@ def run_enterprise_agent(user_input: str, conversation_id: str) -> Dict[str, Any
         graph = build_enterprise_graph()
         
         logger.info(f"[{conversation_id}] Enterprise agent: invoking with user_input={user_input[:50]}...")
-        result = graph.invoke(initial_state)
+        # Save checkpoint before execution
+        try:
+            save_checkpoint(conversation_id, dict(initial_state))
+        except Exception:
+            logger.debug("Checkpoint save failed; proceeding")
+
+        # Execute graph with resilience wrapper
+        result = safe_execute(graph.invoke, initial_state)
         
         logger.info(f"[{conversation_id}] Enterprise agent: success. Response={result.get('final_response', '')[:50]}...")
         
         # Return standardized response
+        # Cache successful response as fallback
+        try:
+            if result.get('final_response'):
+                set_fallback_response(_prompt_hash(user_input), str(result['final_response']))
+        except Exception:
+            pass
+
         return {
             'message': result.get('final_response', ''),
             'language': result.get('output_language', 'en'),
@@ -1562,13 +1583,27 @@ def run_enterprise_agent(user_input: str, conversation_id: str) -> Dict[str, Any
     
     except Exception as e:
         logger.error(f"[{conversation_id}] Enterprise agent failed: {e}", exc_info=True)
-        # Graceful degradation: return safe fallback message
+        # Try to restore last checkpoint
+        last_state = None
+        try:
+            last_state = load_checkpoint(conversation_id)
+        except Exception:
+            pass
+        # Try cached fallback response
+        fb = None
+        try:
+            fb = get_fallback_response(_prompt_hash(user_input))
+        except Exception:
+            pass
+        msg = fb or 'I encountered an issue processing your request. Please try again in a moment.'
         return {
-            'message': 'I encountered an issue processing your request. Please try again in a moment.',
+            'message': msg,
             'language': 'en',
             'recommendations': [],
             'conversation_id': conversation_id,
             'error': str(e),
+            'mode': 'degraded' if fb else 'fail-safe',
+            'restored_state': bool(last_state),
         }
 
 
@@ -1607,7 +1642,12 @@ def run_supervisor_agent(user_input: str, thread_id: str) -> Dict[str, Any]:
         graph = build_supervisor_graph()
         
         logger.info(f"[{thread_id}] Supervisor agent: invoking with user_input={user_input[:50]}...")
-        result = graph.invoke(state, config={"configurable": {"thread_id": thread_id}})
+        # Save lightweight checkpoint
+        try:
+            save_checkpoint(thread_id, dict(state))
+        except Exception:
+            pass
+        result = safe_execute(graph.invoke, state, config={"configurable": {"thread_id": thread_id}})
 
         # Return the actual response from the worker agent (normalize to string)
         raw_final = result.get('final_response')
@@ -1621,6 +1661,13 @@ def run_supervisor_agent(user_input: str, thread_id: str) -> Dict[str, Any]:
 
         logger.info(f"[{thread_id}] Supervisor agent: success. Routed to {routed_to}. Response={final_message[:50]}...")
         
+        # Cache final response as fallback
+        try:
+            if final_message:
+                set_fallback_response(_prompt_hash(user_input), str(final_message))
+        except Exception:
+            pass
+
         return {
             'message': final_message,
             'language': 'en',
@@ -1631,11 +1678,17 @@ def run_supervisor_agent(user_input: str, thread_id: str) -> Dict[str, Any]:
     
     except Exception as e:
         logger.error(f"[{thread_id}] Supervisor agent failed: {e}", exc_info=True)
-        # Graceful degradation: return safe fallback message
+        fb = None
+        try:
+            fb = get_fallback_response(_prompt_hash(user_input))
+        except Exception:
+            pass
+        msg = fb or 'I had trouble processing your request. Please try again.'
         return {
-            'message': 'I had trouble processing your request. Please try again.',
+            'message': msg,
             'language': 'en',
             'recommendations': [],
             'conversation_id': thread_id,
             'error': str(e),
+            'mode': 'degraded' if fb else 'fail-safe',
         }

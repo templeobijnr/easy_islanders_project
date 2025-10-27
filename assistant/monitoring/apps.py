@@ -16,6 +16,7 @@ class MonitoringConfig(AppConfig):
         """Initialize OpenTelemetry when Django starts."""
         try:
             from .otel_instrumentation import setup_otel_instrumentation
+            from .metrics import warm_metrics
             from django.conf import settings
             
             # Only setup OpenTelemetry if enabled
@@ -24,6 +25,11 @@ class MonitoringConfig(AppConfig):
                 logger.info("OpenTelemetry instrumentation initialized")
             else:
                 logger.info("OpenTelemetry instrumentation disabled")
+            # Warm Prometheus metric series so they are visible pre-traffic
+            try:
+                warm_metrics()
+            except Exception:
+                pass
                 
         except Exception as e:
             logger.error(f"Failed to initialize OpenTelemetry: {e}")

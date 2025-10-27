@@ -27,7 +27,10 @@ SECRET_KEY = config('SECRET_KEY', default='django-insecure-^8j$q^-8r2s=1)&etjdrk
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=True, cast=bool)
 
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='*').split(',')
+ALLOWED_HOSTS = [h.strip() for h in config('ALLOWED_HOSTS', default='*').split(',') if h.strip()]
+# Ensure Docker host alias is allowed (Prometheus scrape from containers)
+if 'host.docker.internal' not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append('host.docker.internal')
 
 
 # Application definition

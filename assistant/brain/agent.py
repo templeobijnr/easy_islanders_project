@@ -764,8 +764,13 @@ IMPORTANT:
         context_data['metrics_request_id'] = tracker.request_id
         context_data['cache_hit'] = tracker.cache_hit
         
-        # response may be a dict fallback; handle gracefully
+        # response may be a dict fallback; handle gracefully and mark degraded
         if isinstance(response, dict) and response.get("fallback"):
+            try:
+                from assistant.monitoring.metrics import inc_agent_degraded
+                inc_agent_degraded("enterprise_agent", str(response.get("reason") or "llm_fallback"))
+            except Exception:
+                pass
             return "I'm sorry, I encountered an error generating a response."
         return response.content if hasattr(response, 'content') else str(response)
         

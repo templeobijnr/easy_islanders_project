@@ -23,7 +23,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import PydanticOutputParser
 from pydantic import BaseModel, Field
 
-from .schemas import RequestPayload
+from .request_schemas import RequestPayload
 from .agent_utils import check_pre_model_guardrails
 from .memory import save_assistant_turn, load_recent_messages
 from .enterprise_tools import get_hybrid_rag_coordinator

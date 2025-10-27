@@ -62,7 +62,11 @@ class Migration(migrations.Migration):
         ),
         migrations.AddConstraint(
             model_name='approvebroadcast',
-            constraint=models.CheckConstraint(condition=models.Q(models.Q(('demand_lead__isnull', False), ('request_fk__isnull', True)), models.Q(('demand_lead__isnull', True), ('request_fk__isnull', False)), _connector='OR'), name='approve_one_fk_set'),
+            constraint=models.CheckConstraint(check=models.Q(
+            models.Q(('demand_lead__isnull', False), ('request_fk__isnull', True)),
+            models.Q(('demand_lead__isnull', True), ('request_fk__isnull', False)),
+            _connector='OR'
+            ), name='approve_one_fk_set'),
         ),
         migrations.AddField(
             model_name='agentbroadcastv2',

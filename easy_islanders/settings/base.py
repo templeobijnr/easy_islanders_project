@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 from decouple import config
+from corsheaders.defaults import default_headers
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -52,6 +53,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'assistant.monitoring.otel_instrumentation.RequestIDMiddleware',
     'assistant.monitoring.middleware.OpenTelemetryMiddleware',  # OpenTelemetry tracing
     'assistant.monitoring.middleware.MetricsMiddleware',  # Additional metrics
@@ -62,7 +64,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
+
 ]
 
 ROOT_URLCONF = 'easy_islanders.urls'
@@ -136,7 +138,7 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
 
 # Media (for uploaded/listing images)
 MEDIA_URL = '/media/'
@@ -155,7 +157,6 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework_simplejwt.authentication.JWTAuthentication',
         'rest_framework.authentication.TokenAuthentication',
-        'rest_framework.authentication.SessionAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
@@ -172,18 +173,31 @@ SIMPLE_JWT = {
 # When using withCredentials: true on frontend, cannot use wildcard '*'
 # Must specify exact allowed origins
 CORS_ALLOW_ALL_ORIGINS = False
-CORS_ALLOWED_ORIGINS = [
+
+# Base dev-friendly CORS origins
+_default_cors = {
     'http://localhost:3000',
     'http://127.0.0.1:3000',
     'http://localhost:8000',
     'http://127.0.0.1:8000',
-]
+}
+
+# Optionally extend via env (comma-separated)
+_cors_env = {o.strip() for o in config('CORS_ALLOWED_ORIGINS', default='').split(',') if o.strip()}
+CORS_ALLOWED_ORIGINS = sorted(_default_cors.union(_cors_env))
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    'authorization',
+]
+
+# CSRF trusted origins (needed if using session auth or admin from a different host)
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+]
 
 # --- DECOUPLE AND AI CONFIGURATION ---
 # This part is crucial for reading the .env file
-
-from decouple import config
 
 # AI ASSISTANT CONFIGURATION
 # The config() function reads the value from your .env file
@@ -257,36 +271,10 @@ LANGGRAPH_CHECKPOINT_CONNECTION_STRING = config(
     default='sqlite:///langgraph_checkpoints.db'
 )
 
-# Proactive Agent Limits
 MAX_PROACTIVE_MESSAGES_PER_DAY = config('MAX_PROACTIVE_MESSAGES_PER_DAY', default=3, cast=int)
 PROACTIVE_RATE_LIMIT_WINDOW = config('PROACTIVE_RATE_LIMIT_WINDOW', default=3600, cast=int)  # 1 hour
 
-CELERY_TASK_REJECT_ON_WORKER_LOST = True
-OPENAI_MODEL = config('OPENAI_MODEL', default='gpt-4-turbo-preview')
-
-# Proactive Agent Configuration
-PROACTIVE_AGENT_ENABLED = config('PROACTIVE_AGENT_ENABLED', default=False, cast=bool)
-ENABLE_PROACTIVE_PHOTOS = config('ENABLE_PROACTIVE_PHOTOS', default=False, cast=bool)
-ENABLE_PROACTIVE_REMINDERS = config('ENABLE_PROACTIVE_REMINDERS', default=False, cast=bool)
-ENABLE_PROACTIVE_QUESTIONS = config('ENABLE_PROACTIVE_QUESTIONS', default=False, cast=bool)
-ENABLE_PROACTIVE_PREDICTIONS = config('ENABLE_PROACTIVE_PREDICTIONS', default=False, cast=bool)
-
-# Auto-Response Configuration
-ENABLE_AUTO_RESPONSE = config('ENABLE_AUTO_RESPONSE', default=False, cast=bool)
-
-# LangGraph Agent Configuration (Phase A: Safe Rollout)
-ENABLE_LANGGRAPH_AGENT = config('ENABLE_LANGGRAPH_AGENT', default=False, cast=bool)
-
-# LangGraph Checkpointing Configuration (Phase A: In-memory with MemorySaver)
-# Phase B will upgrade to PostgreSQL when needed (> 50 concurrent users)
-LANGGRAPH_CHECKPOINT_CONNECTION_STRING = config(
-    'LANGGRAPH_CHECKPOINT_CONNECTION_STRING',
-    default='sqlite:///langgraph_checkpoints.db'
-)
-
-# Proactive Agent Limits
-MAX_PROACTIVE_MESSAGES_PER_DAY = config('MAX_PROACTIVE_MESSAGES_PER_DAY', default=3, cast=int)
-PROACTIVE_RATE_LIMIT_WINDOW = config('PROACTIVE_RATE_LIMIT_WINDOW', default=3600, cast=int)  # 1 hour
+# End Celery config
 
 # Enterprise Multi-Domain Agent Configuration (Phase B: Production Ready)
 ENABLE_ENTERPRISE_AGENT = config('ENABLE_ENTERPRISE_AGENT', default=True, cast=bool)

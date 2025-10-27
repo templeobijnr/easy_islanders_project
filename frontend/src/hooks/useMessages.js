@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import config from '../config';
+import { http } from '../api';
 
 /**
  * Custom hook to fetch and manage the unread message count.
@@ -26,7 +27,17 @@ export const useUnreadCount = () => {
   const fetchUnreadCount = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await axios.get(config.getApiUrl(config.ENDPOINTS.MESSAGES.UNREAD_COUNT));
+      // Only attempt if authenticated token exists
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setIsLoading(false);
+        setUnreadCount(0);
+        setError(null);
+        return;
+      }
+
+      // Use centralized axios client to include Authorization header
+      const response = await http.get(config.ENDPOINTS.MESSAGES.UNREAD_COUNT);
       setUnreadCount(response.data.unread_count || 0);
       setError(null);
     } catch (err) {
@@ -82,7 +93,8 @@ export const useMessages = (threadId) => {
 
     setIsLoading(true);
     try {
-      const response = await axios.get(config.getApiUrl(config.ENDPOINTS.MESSAGES.GET_MESSAGES), {
+      // Use centralized axios client to include Authorization header
+      const response = await http.get(config.ENDPOINTS.MESSAGES.GET_MESSAGES, {
         params: { thread_id: threadId, page: pageNum },
       });
       

@@ -317,13 +317,17 @@ def chat_with_assistant(request):
     thread_id = request.data.get('thread_id')
     
     try:
+        from .models import ConversationThread
         if thread_id:
-            # Validate that this thread belongs to the user
-            from .models import ConversationThread
-            thread = ConversationThread.objects.get(thread_id=thread_id, user=user, is_active=True)
+            # Try to fetch provided thread for this user; fall back if missing/stale
+            try:
+                thread = ConversationThread.objects.get(thread_id=thread_id, user=user, is_active=True)
+            except ConversationThread.DoesNotExist:
+                # Stale or foreign thread_id from localStorage; create/reuse active thread
+                thread, created = ConversationThread.get_or_create_active(user)
+                thread_id = thread.thread_id
         else:
             # Get or create active thread for this user
-            from .models import ConversationThread
             thread, created = ConversationThread.get_or_create_active(user)
             thread_id = thread.thread_id
             

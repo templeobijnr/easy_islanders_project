@@ -12,8 +12,16 @@ from datetime import datetime
 
 from langchain_core.tools import BaseTool
 from langchain_core.embeddings import Embeddings
-from langchain_community.vectorstores import Chroma
-from langchain_community.embeddings import SentenceTransformerEmbeddings
+
+# Optional LangChain community packages; gracefully degrade if unavailable
+try:  # pragma: no cover - optional dependency guard
+    from langchain_community.vectorstores import Chroma  # type: ignore
+    from langchain_community.embeddings import SentenceTransformerEmbeddings  # type: ignore
+except Exception:  # noqa: BLE001
+    Chroma = None  # type: ignore
+    SentenceTransformerEmbeddings = None  # type: ignore
+
+from .resilience import safe_request
 
 from .enterprise_schemas import EnterpriseIntentResult
 
@@ -29,8 +37,8 @@ class InternalVectorStoreSearchTool(BaseTool):
     Handles property listings, vehicle inventory, and internal knowledge base
     """
     
-    name = "internal_vector_search"
-    description = """
+    name: str = "internal_vector_search"
+    description: str = """
     Search internal proprietary database for properties, vehicles, services, and internal knowledge.
     Use this tool for:
     - Property listings (apartments, houses, villas)
@@ -41,13 +49,21 @@ class InternalVectorStoreSearchTool(BaseTool):
     
     def __init__(self):
         super().__init__()
-        self.embeddings = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
+        # Initialize embeddings if available; otherwise defer to DB fallback
+        self.embeddings = None
+        if SentenceTransformerEmbeddings is not None:
+            try:
+                self.embeddings = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
+            except Exception as e:  # pragma: no cover - optional dependency
+                logger.warning(f"SentenceTransformerEmbeddings unavailable: {e}")
         self.vector_store = None
         self._initialize_vector_store()
     
     def _initialize_vector_store(self):
         """Initialize the vector store with existing data"""
         try:
+            if Chroma is None or self.embeddings is None:
+                raise RuntimeError("Chroma or embeddings not available")
             # Initialize ChromaDB for internal data
             self.vector_store = Chroma(
                 collection_name="internal_knowledge",
@@ -56,7 +72,7 @@ class InternalVectorStoreSearchTool(BaseTool):
             )
             logger.info("Internal vector store initialized successfully")
         except Exception as e:
-            logger.error(f"Failed to initialize vector store: {e}")
+            logger.warning(f"Vector store disabled (fallback to DB search): {e}")
             self.vector_store = None
     
     def _run(self, 
@@ -203,8 +219,8 @@ class ExternalWebSearchTool(BaseTool):
     Handles knowledge queries, general products, and external information
     """
     
-    name = "external_web_search"
-    description = """
+    name: str = "external_web_search"
+    description: str = """
     Search external web for general knowledge, real-time information, and external products.
     Use this tool for:
     - General knowledge queries (how-to, what-is, explanations)
@@ -270,9 +286,7 @@ class ExternalWebSearchTool(BaseTool):
                 search_params["language"] = language
             
             # Execute search
-            response = requests.post(url, json=search_params, headers=headers, timeout=10)
-            response.raise_for_status()
-            
+            response = safe_request("post", url, json=search_params, headers=headers)
             data = response.json()
             
             # Format results
@@ -310,10 +324,8 @@ class ExternalWebSearchTool(BaseTool):
                 'no_html': '1',
                 'skip_disambig': '1'
             }
-            
-            response = requests.get(url, params=params, timeout=10)
-            response.raise_for_status()
-            
+
+            response = safe_request("get", url, params=params)
             data = response.json()
             
             # Format results

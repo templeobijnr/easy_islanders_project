@@ -58,8 +58,6 @@ from django.db.models import Q
 
 from assistant.models import KnowledgeBase, ServiceProvider
 from listings.models import Listing
-from assistant.scrapers.car_finder import sync_find_all_cars
-from assistant.scrapers.property_finder import sync_find_all_properties
 from assistant.serializers import KnowledgeBaseSerializer, ServiceProviderSerializer
 from assistant.twilio_client import TwilioWhatsAppClient
 from assistant.models import ContactIndex

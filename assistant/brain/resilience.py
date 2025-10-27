@@ -272,7 +272,8 @@ def guarded_llm_call(callable_fn: Callable[[], Any]) -> Any:
     except Exception as e:  # noqa: BLE001
         record_component_error("llm")
         logger.exception("LLM call failed; returning fallback")
-        return {"error": str(e), "fallback": True}
+        # Mark degraded for any LLM failure (not only breaker-open)
+        return {"error": str(e), "fallback": True, "mode": "degraded", "reason": "llm_error"}
     finally:
         if _PROM_AVAILABLE and _LLM_SUMMARY is not None:
             try:

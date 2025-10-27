@@ -44,7 +44,8 @@ SECURE_HSTS_PRELOAD = True
 
 # CORS settings for production
 CORS_ALLOW_ALL_ORIGINS = False
-CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', default='').split(',')
+_cors_origins = config('CORS_ALLOWED_ORIGINS', default='')
+CORS_ALLOWED_ORIGINS = [origin.strip() for origin in _cors_origins.split(',') if origin.strip()]
 
 # Logging
 LOGGING = {

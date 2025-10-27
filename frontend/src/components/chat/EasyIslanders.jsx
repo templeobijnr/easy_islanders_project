@@ -29,11 +29,10 @@ import {
   Sun,
   Moon,
 } from 'lucide-react';
-import axios from 'axios';
 import config from '../../config';
 import ImageGallery from '../common/ImageGallery';
 import ChatImageBubble from './ChatImageBubble';
-import api from '../../api'; // Import the centralized API functions
+import api, { http } from '../../api'; // Centralized API client
 import ListingCard from './ListingCard'; // The new UI component
 
 const EasyIslanders = () => {
@@ -133,7 +132,7 @@ const EasyIslanders = () => {
   
   const handleViewPhotos = async (listingId) => {
     try {
-      const res = await axios.get(config.getApiUrl(`${config.ENDPOINTS.LISTINGS.IMAGES}${listingId}/images/`));
+      const res = await http.get(`${config.ENDPOINTS.LISTINGS.IMAGES}${listingId}/images/`);
       const imgs = (res.data?.image_urls || []).map(u => u?.startsWith('http') ? u : `${config.API_BASE_URL}${u.startsWith('/') ? u : '/' + u}`);
       setGalleryImages(imgs);
       setGalleryListingId(listingId);
@@ -183,7 +182,7 @@ const EasyIslanders = () => {
         setFeaturedError(null);
         const categories = ['car_rental', 'accommodation', 'activities', 'dining'];
         const requests = categories.map(cat =>
-          axios.get(config.getApiUrl(`${config.ENDPOINTS.RECOMMENDATIONS}?category=${cat}&language=${selectedLanguage}`))
+          http.get(`${config.ENDPOINTS.RECOMMENDATIONS}?category=${cat}&language=${selectedLanguage}`)
         );
         const results = await Promise.allSettled(requests);
         const next = { car_rental: [], accommodation: [], activities: [], dining: [] };
@@ -234,10 +233,10 @@ const EasyIslanders = () => {
       pollingInterval = setInterval(async () => {
         try {
           console.log(`[POLLING] Checking notifications for conversation: ${conversationId}`);
-          const response = await axios.get(
-            `${config.getApiUrl()}/api/notifications/?conversation_id=${conversationId}`,
-            { timeout: 10000 }
-          );
+          const response = await http.get('/api/notifications/', {
+            params: { conversation_id: conversationId },
+            timeout: 10000,
+          });
           
           console.log(`[POLLING] API Response:`, response.data);
           const notifications = response.data.notifications || [];
@@ -332,8 +331,8 @@ const EasyIslanders = () => {
             
             // Clear notifications after processing
             try {
-              await axios.post(`${config.getApiUrl()}/api/notifications/clear/`, {
-                conversation_id: conversationId
+              await http.post('/api/notifications/clear/', {
+                conversation_id: conversationId,
               });
             } catch (clearError) {
               console.warn('Failed to clear notifications:', clearError);
@@ -392,14 +391,11 @@ const EasyIslanders = () => {
     setIsLoading(true);
 
     try {
-      // ✅ Now uses global interceptor - automatically adds JWT
-      const response = await axios.post(config.getApiUrl(config.ENDPOINTS.CHAT), {
-        message: inputMessage,
-        language: selectedLanguage,
-        conversation_id: conversationId,
-      });
-
-      const apiData = response.data;
+      const apiData = await api.sendChatMessage(
+        inputMessage,
+        selectedLanguage,
+        conversationId
+      );
       setConversationId(apiData.conversation_id);
 
       const assistantMessage = {
@@ -421,15 +417,14 @@ const EasyIslanders = () => {
           if (notif.type === 'new_images') {
             const listingId = notif.data.listing_id;
             // ✅ Now uses global interceptor - automatically adds JWT
-            axios.get(`${config.API_BASE_URL}/api/listings/${listingId}/`)
-              .then(res => {
-                setListingsState(prev => ({...prev, [listingId]: res.data}));
-                setMessages(prev => [...prev, { type: 'assistant', content: 'Photos received!', recommendations: [res.data] }]);
-              });
+            api.getListing(listingId).then(data => {
+              setListingsState(prev => ({ ...prev, [listingId]: data }));
+              setMessages(prev => [...prev, { type: 'assistant', content: 'Photos received!', recommendations: [data] }]);
+            });
           }
         });
         // ✅ Now uses global interceptor - automatically adds JWT
-        axios.post(`${config.API_BASE_URL}/api/chat/clear-notifications/`, { conversation_id: conversationId });
+        http.post('/api/chat/clear-notifications/', { conversation_id: conversationId });
       }
     } catch (error) {
       console.error('Error fetching AI response:', error);
@@ -450,7 +445,7 @@ const EasyIslanders = () => {
   const checkAuthStatus = async () => {
     try {
       // ✅ Now uses global interceptor - automatically adds JWT
-      const response = await axios.get(config.getApiUrl(config.ENDPOINTS.AUTH.STATUS));
+      const response = await http.get(config.ENDPOINTS.AUTH.STATUS);
       setIsAuthenticated(response.data.authenticated);
       if (response.data.authenticated) {
         setUser({
@@ -466,11 +461,19 @@ const EasyIslanders = () => {
   const handleLogin = async (credentials) => {
     try {
       // ✅ Now uses global interceptor - automatically adds JWT
-      const response = await axios.post(config.getApiUrl(config.ENDPOINTS.AUTH.LOGIN), credentials);
+      const response = await http.post(config.ENDPOINTS.AUTH.LOGIN, credentials);
+      const accessToken = response.data.token || response.data.access;
+      const refreshToken = response.data.refresh;
+      if (accessToken) {
+        localStorage.setItem('token', accessToken);
+      }
+      if (refreshToken) {
+        localStorage.setItem('refresh', refreshToken);
+      }
       setIsAuthenticated(true);
       setUser({
-        id: response.data.user_id,
-        username: response.data.username
+        id: response.data.user?.id,
+        username: response.data.user?.username,
       });
       setShowAuthModal(false);
       return { success: true };
@@ -482,11 +485,19 @@ const EasyIslanders = () => {
   const handleRegister = async (userData) => {
     try {
       // ✅ Now uses global interceptor - automatically adds JWT
-      const response = await axios.post(config.getApiUrl(config.ENDPOINTS.AUTH.REGISTER), userData);
+      const response = await http.post(config.ENDPOINTS.AUTH.REGISTER, userData);
+      const accessToken = response.data.token || response.data.access;
+      const refreshToken = response.data.refresh;
+      if (accessToken) {
+        localStorage.setItem('token', accessToken);
+      }
+      if (refreshToken) {
+        localStorage.setItem('refresh', refreshToken);
+      }
       setIsAuthenticated(true);
       setUser({
-        id: response.data.user_id,
-        username: response.data.username
+        id: response.data.user?.id,
+        username: response.data.user?.username,
       });
       setShowAuthModal(false);
       return { success: true };
@@ -497,9 +508,11 @@ const EasyIslanders = () => {
 
   const handleLogout = async () => {
     try {
-      await axios.post(config.getApiUrl(config.ENDPOINTS.AUTH.LOGOUT));
+      await http.post(config.ENDPOINTS.AUTH.LOGOUT);
       setIsAuthenticated(false);
       setUser(null);
+      localStorage.removeItem('token');
+      localStorage.removeItem('refresh');
     } catch (error) {
       console.error('Logout failed:', error);
     }
@@ -637,12 +650,12 @@ const EasyIslanders = () => {
       const maxAttempts = 24; // ~2 minutes at 5s interval
       
       // Get initial image count before polling
-      let initialResponse;
+      let initialData;
       try {
-        initialResponse = await axios.get(config.getApiUrl(`${config.ENDPOINTS.LISTINGS.DETAILS}${listingId}/`));
-        const initialImages = initialResponse.data?.images || [];
+        initialData = await api.getListing(listingId);
+        const initialImages = initialData?.images || [];
         const initialCount = initialImages.length;
-        const initialVerified = !!initialResponse.data?.verified_with_photos;
+        const initialVerified = !!initialData?.verified_with_photos;
         
         if (initialVerified && initialCount > 0) {
           // Already has verified photos, no need to poll
@@ -656,10 +669,10 @@ const EasyIslanders = () => {
         const intervalId = setInterval(async () => {
           attempts += 1;
           try {
-            const res = await axios.get(config.getApiUrl(`${config.ENDPOINTS.LISTINGS.DETAILS}${listingId}/`));
-            const images = res.data?.images || [];
+            const res = await api.getListing(listingId);
+            const images = res?.images || [];
             const currentCount = images.length;
-            const verified = !!res.data?.verified_with_photos;
+            const verified = !!res?.verified_with_photos;
             
             if (verified && currentCount > initialCount) {
               setCurrentImage(images[0]);
@@ -685,8 +698,10 @@ const EasyIslanders = () => {
 
     const openGallery = async (listingId) => {
       try {
-        const res = await axios.get(config.getApiUrl(`${config.ENDPOINTS.LISTINGS.IMAGES}${listingId}/images/`));
-        const raw = Array.isArray(res.data?.image_urls) ? res.data.image_urls : (res.data?.images || []);
+        const res = await http.get(`${config.ENDPOINTS.LISTINGS.IMAGES}${listingId}/images/`);
+        const raw = Array.isArray(res.data?.image_urls)
+          ? res.data.image_urls
+          : (res.data?.images || []);
         const imgs = raw.map(u => u?.startsWith('http') ? u : `${config.API_BASE_URL}${u.startsWith('/') ? u : '/' + u}`);
         setGalleryImages(imgs);
         setGalleryListingId(listingId);

@@ -5,6 +5,7 @@ from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model
+from django.db import models
 from .models import BusinessProfile
 import requests
 from google.auth.transport import requests as google_requests
@@ -16,6 +17,7 @@ User = get_user_model()
 class SignupView(APIView):
     """User signup endpoint"""
     permission_classes = [AllowAny]
+    authentication_classes = []
     
     def post(self, request):
         data = request.data
@@ -84,43 +86,45 @@ class SignupView(APIView):
 class LoginView(APIView):
     """User login endpoint"""
     permission_classes = [AllowAny]
-    
+    authentication_classes = []
+
     def post(self, request):
-        email = request.data.get('email')
-        password = request.data.get('password')
-        
-        if not email or not password:
+        identifier = (request.data.get('email') or request.data.get('username') or '').strip()
+        password = (request.data.get('password') or '').strip()
+
+        if not identifier or not password:
             return Response(
-                {'error': 'email and password are required'},
+                {'error': 'email/username and password are required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
-        # Try to authenticate with email
+
+        # Allow login by email or username (case-insensitive)
         try:
-            user = User.objects.get(email=email)
+            user = User.objects.filter(models.Q(email__iexact=identifier) | models.Q(username__iexact=identifier)).first()
+            if not user:
+                return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
+
+            if not user.is_active:
+                return Response({'error': 'Account disabled'}, status=status.HTTP_403_FORBIDDEN)
+
             if user.check_password(password):
                 refresh = RefreshToken.for_user(user)
-                
                 return Response({
                     'user': {
                         'id': user.id,
                         'username': user.username,
                         'email': user.email,
                         'user_type': user.user_type,
+                        'is_verified': getattr(user, 'is_verified', False),
+                        'business_verified': getattr(getattr(user, 'business_profile', None), 'is_verified_by_admin', False),
                     },
                     'token': str(refresh.access_token),
                     'refresh': str(refresh)
                 }, status=status.HTTP_200_OK)
-            else:
-                return Response(
-                    {'error': 'Invalid credentials'},
-                    status=status.HTTP_401_UNAUTHORIZED
-                )
-        except User.DoesNotExist:
-            return Response(
-                {'error': 'Invalid credentials'},
-                status=status.HTTP_401_UNAUTHORIZED
-            )
+
+            return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
+        except Exception as e:
+            return Response({'error': 'Login failed'}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class LogoutView(APIView):
@@ -162,6 +166,7 @@ class UserProfileView(APIView):
 class GoogleAuthView(APIView):
     """Google OAuth2 authentication endpoint"""
     permission_classes = [AllowAny]
+    authentication_classes = []
     
     def post(self, request):
         token = request.data.get('token')
@@ -242,6 +247,7 @@ class GoogleAuthView(APIView):
 class FacebookAuthView(APIView):
     """Facebook OAuth2 authentication endpoint"""
     permission_classes = [AllowAny]
+    authentication_classes = []
     
     def post(self, request):
         access_token = request.data.get('access_token')

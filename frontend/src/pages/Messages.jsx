@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useUnreadCount } from '../hooks/useMessages';
 import { useAuth } from '../contexts/AuthContext';
 import { Send } from 'lucide-react';
-import api from '../api';
-import axios from 'axios';
+import api, { http } from '../api';
 import config from '../config';
 
 const MessageView = ({ threadId, fetchUnreadCount }) => {
@@ -50,6 +49,14 @@ const Messages = () => {
   const loadThreads = async (pageNum = 1) => {
     try {
       setLoading(true);
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setThreads([]);
+        setHasNext(false);
+        setPage(1);
+        setError(null);
+        return;
+      }
       const data = await api.getThreads(pageNum, 20);
       setThreads(prev => (pageNum === 1 ? data.results : [...prev, ...data.results]));
       setHasNext(data.has_next);
@@ -65,9 +72,10 @@ const Messages = () => {
   // Mark thread as read on selection
   useEffect(() => {
     const markSelectedThreadRead = async () => {
-      if (!activeThreadId) return;
+      const token = localStorage.getItem('token');
+      if (!activeThreadId || !token) return;
       try {
-        await axios.post(config.getApiUrl(config.ENDPOINTS.MESSAGES.MARK_READ(activeThreadId)));
+        await http.put(config.ENDPOINTS.MESSAGES.MARK_READ(activeThreadId), { mark_as_read: true });
         // Refresh unread badge and reload first page to update counts
         fetchUnreadCount();
         loadThreads(1);

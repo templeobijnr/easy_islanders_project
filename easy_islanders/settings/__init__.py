@@ -4,7 +4,9 @@ import os
 
 # Get the environment setting
 # This defaults to 'development' if the DJANGO_ENV variable is not set
-environment = os.environ.get('DJANGO_ENV', 'development')
+environment = os.environ.get('DJANGO_ENV')
+if not environment:
+    environment = os.environ.get('ENVIRONMENT', 'development')
 
 print(f"--- Loading settings for environment: '{environment}' ---")
 

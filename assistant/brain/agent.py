@@ -21,6 +21,7 @@ from langchain_core.tools import BaseTool
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import PydanticOutputParser
+from .resilience import guarded_llm_call
 from pydantic import BaseModel, Field
 
 from .schemas import EnterpriseIntentResult, EnterpriseRequestPayload
@@ -721,7 +722,7 @@ IMPORTANT:
                 logger.debug("Invalid retry_count in context data", exc_info=True)
 
         with tracker as perf:
-            response = chain.invoke({"user_input": user_input})
+            response = guarded_llm_call(lambda: chain.invoke({"user_input": user_input}))
 
             usage_candidates = [
                 response,
@@ -747,6 +748,9 @@ IMPORTANT:
         context_data['metrics_request_id'] = tracker.request_id
         context_data['cache_hit'] = tracker.cache_hit
         
+        # response may be a dict fallback; handle gracefully
+        if isinstance(response, dict) and response.get("fallback"):
+            return "I'm sorry, I encountered an error generating a response."
         return response.content if hasattr(response, 'content') else str(response)
         
     except Exception as e:

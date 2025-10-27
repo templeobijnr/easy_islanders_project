@@ -1,6 +1,6 @@
 import React, { createContext, useState, useCallback, useEffect } from 'react';
-import axios from 'axios';
 import config from '../config';
+import { http } from '../api';
 
 export const AuthContext = createContext();
 
@@ -19,21 +19,21 @@ export const AuthProvider = ({ children }) => {
     try {
       setAuthLoading(true);
       setAuthError(null);
-      const response = await axios.post(config.getApiUrl(config.ENDPOINTS.AUTH.LOGIN), credentials);
+      const response = await http.post(config.ENDPOINTS.AUTH.LOGIN, credentials);
       
       // Store JWT token
-      if (response.data.token) {
-        localStorage.setItem('token', response.data.token);
-        localStorage.setItem('refresh', response.data.refresh);
-      }
+      const { token, access, refresh, user: userData } = response.data;
+      const accessToken = token || access;
+      if (accessToken) localStorage.setItem('token', accessToken);
+      if (refresh) localStorage.setItem('refresh', refresh);
       
       setIsAuthenticated(true);
-      setUser({
-        id: response.data.user.id,
-        username: response.data.user.username,
-        email: response.data.user.email,
-        user_type: response.data.user.user_type || 'consumer'
-      });
+      setUser(userData ? {
+        id: userData.id,
+        username: userData.username,
+        email: userData.email,
+        user_type: userData.user_type || 'consumer'
+      } : null);
       setShowAuthModal(false);
       setAuthStep('type');
       setSelectedUserType(null);
@@ -47,30 +47,30 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  const handleRegister = useCallback(async (userData) => {
+  const handleRegister = useCallback(async (formValues) => {
     try {
       setAuthLoading(true);
       setAuthError(null);
       // Include user_type from selectedUserType
       const payload = {
-        ...userData,
+        ...formValues,
         user_type: selectedUserType || 'consumer'
       };
-      const response = await axios.post(config.getApiUrl(config.ENDPOINTS.AUTH.REGISTER), payload);
+      const response = await http.post(config.ENDPOINTS.AUTH.REGISTER, payload);
       
       // Store JWT token
-      if (response.data.token) {
-        localStorage.setItem('token', response.data.token);
-        localStorage.setItem('refresh', response.data.refresh);
-      }
+      const { token, access, refresh, user: userPayload } = response.data;
+      const accessToken = token || access;
+      if (accessToken) localStorage.setItem('token', accessToken);
+      if (refresh) localStorage.setItem('refresh', refresh);
       
       setIsAuthenticated(true);
-      setUser({
-        id: response.data.user.id,
-        username: response.data.user.username,
-        email: response.data.user.email,
-        user_type: response.data.user.user_type || selectedUserType || 'consumer'
-      });
+      setUser(userPayload ? {
+        id: userPayload.id,
+        username: userPayload.username,
+        email: userPayload.email,
+        user_type: userPayload.user_type || selectedUserType || 'consumer'
+      } : null);
       setShowAuthModal(false);
       setAuthStep('type');
       setSelectedUserType(null);
@@ -86,7 +86,7 @@ export const AuthProvider = ({ children }) => {
 
   const handleLogout = useCallback(async () => {
     try {
-      await axios.post(config.getApiUrl(config.ENDPOINTS.AUTH.LOGOUT));
+      await http.post(config.ENDPOINTS.AUTH.LOGOUT);
       // Clear JWT tokens
       localStorage.removeItem('token');
       localStorage.removeItem('refresh');
@@ -122,7 +122,6 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
-      // Set authenticated state but don't fetch user data yet
       // User data will be fetched when needed
       setIsAuthenticated(true);
     }

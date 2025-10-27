@@ -63,3 +63,9 @@ media/
 # Temporary files
 tmp/
 temp/
+
+# Development files (keep locally, don't track in Git)
+node_modules/
+media/
+celerybeat-schedule.db
+auth-ui.plan.md

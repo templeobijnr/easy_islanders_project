@@ -23,6 +23,18 @@ from .resilient_network import (
 
 logger = logging.getLogger(__name__)
 
+# Optional OpenTelemetry span helper
+try:
+    from assistant.monitoring.otel_instrumentation import create_tool_span  # type: ignore
+except Exception:  # pragma: no cover - optional
+    class _NoopSpan:
+        def __enter__(self):
+            return self
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            return False
+    def create_tool_span(*args, **kwargs):  # type: ignore
+        return _NoopSpan()
+
 BASE_URL = "https://www.cyprus-faq.com"
 REQUEST_TIMEOUT = 10
 HEADERS = {"User-Agent": "EasyIslanders-RAG-Bot/1.0"}
@@ -186,22 +198,24 @@ def fetch_faq_links() -> List[str]:
     """Collect FAQ article links using resilient crawling with checkpointing."""
     
     logger.info("Starting resilient FAQ link collection")
+    # Instrument ingestion run
+    with create_tool_span("rag", "ingest_run", request_id="faq_links"):
     
     # Try sitemap first (simplified version)
     sitemap_url = f"{BASE_URL}/sitemap.xml"
     html = safe_fetch_with_cache(sitemap_url, timeout=SITEMAP_TIMEOUT)
     
-    if html:
-        try:
-            sitemap_urls = list(_parse_sitemap_xml(html))
-            if sitemap_urls:
-                logger.info(f"Found {len(sitemap_urls)} URLs in sitemap")
-                filtered = _filter_sitemap_urls(sitemap_urls)
-                if filtered:
-                    logger.info(f"Filtered to {len(filtered)} FAQ URLs from sitemap")
-                    return _paths_to_urls(filtered)
-        except Exception as e:
-            logger.warning(f"Failed to parse sitemap: {e}")
+        if html:
+            try:
+                sitemap_urls = list(_parse_sitemap_xml(html))
+                if sitemap_urls:
+                    logger.info(f"Found {len(sitemap_urls)} URLs in sitemap")
+                    filtered = _filter_sitemap_urls(sitemap_urls)
+                    if filtered:
+                        logger.info(f"Filtered to {len(filtered)} FAQ URLs from sitemap")
+                        return _paths_to_urls(filtered)
+            except Exception as e:
+                logger.warning(f"Failed to parse sitemap: {e}")
     
     # Fall back to resilient crawling
     logger.warning("Sitemap unavailable or empty; using resilient fallback crawl")
@@ -248,7 +262,8 @@ def extract_qa(link: str) -> Dict[str, str]:
     url = link if link.startswith("http") else f"{BASE_URL}{link}"
     
     # Use resilient fetch with cache fallback
-    html = safe_fetch_with_cache(url, timeout=REQUEST_TIMEOUT)
+    with create_tool_span("rag", "ingest_fetch", request_id=url):
+        html = safe_fetch_with_cache(url, timeout=REQUEST_TIMEOUT)
     if not html:
         logger.warning(f"Failed to fetch FAQ page {url}")
         return {"question": "", "answer": "", "source": url}

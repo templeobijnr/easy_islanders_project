@@ -75,6 +75,7 @@ except Exception:  # noqa: BLE001
 _PER_REQUEST_TTL = 86400 * 7  # 7 days for symmetry with daily rollups
 _DAILY_TTL = 86400 * 30  # retain daily aggregates for 30 days
 _TURN_DEDUPE_PREFIX = "llm_turn_dedupe"
+_WARMED = False
 
 def _get_sample_rate() -> float:
     """Get sample rate, with fallback if Django not available."""
@@ -338,6 +339,39 @@ def inc_circuit_open(component: str) -> None:
         if _PROMETHEUS_AVAILABLE:
             CIRCUIT_OPEN_TOTAL.labels(component=component).inc()
     except Exception:
+        pass
+
+
+def warm_metrics() -> None:
+    """Register zero-value samples so key metrics appear before first event.
+
+    Safe to call multiple times; guarded by module-level flag.
+    """
+    global _WARMED
+    if _WARMED or not _PROMETHEUS_AVAILABLE:
+        return
+    try:
+        # Histograms: observe 0 to register series
+        try:
+            model = getattr(settings, 'OPENAI_MODEL', 'unknown') if _DJANGO_AVAILABLE and settings else 'unknown'
+        except Exception:
+            model = 'unknown'
+        LLM_CALL_LATENCY_SECONDS.labels(provider="openai", model=str(model)).observe(0.0)
+        AGENT_LATENCY_SECONDS.labels(agent="supervisor", operation="graph_invoke").observe(0.0)
+        AGENT_LATENCY_SECONDS.labels(agent="enterprise_agent", operation="graph_invoke").observe(0.0)
+
+        # Counters: inc(0) to register series without changing totals
+        AGENT_REQUESTS_TOTAL.labels(agent="supervisor", status="start").inc(0)
+        AGENT_REQUESTS_TOTAL.labels(agent="enterprise_agent", status="start").inc(0)
+        AGENT_DEGRADED_TOTAL.labels(agent="supervisor", reason="llm_error").inc(0)
+        AGENT_DEGRADED_TOTAL.labels(agent="enterprise_agent", reason="llm_error").inc(0)
+        CIRCUIT_EVENTS_TOTAL.labels(component="llm", state="open").inc(0)
+        CIRCUIT_OPEN_TOTAL.labels(component="llm").inc(0)
+
+        _WARMED = True
+        logger.info("Prometheus metrics warmed with zero-value samples")
+    except Exception:
+        # never break startup
         pass
 
 

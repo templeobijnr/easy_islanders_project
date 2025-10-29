@@ -23,12 +23,15 @@ if '.fly.dev' not in ALLOWED_HOSTS:
 # Database - PostgreSQL for production
 # Support both DATABASE_URL (Fly.io/Heroku style) and individual DB_* variables
 import dj_database_url
+import os
 
-DATABASE_URL = config('DATABASE_URL', default=None)
+# Check for DATABASE_URL from environment (Fly.io sets this)
+DATABASE_URL = os.environ.get('DATABASE_URL') or config('DATABASE_URL', default=None)
 if DATABASE_URL:
     # Use DATABASE_URL if provided (Fly.io, Heroku, etc.)
+    # Parse the DATABASE_URL environment variable
     DATABASES = {
-        'default': dj_database_url.config(default=DATABASE_URL, conn_max_age=600)
+        'default': dj_database_url.parse(DATABASE_URL, conn_max_age=600)
     }
 else:
     # Fall back to individual database config variables

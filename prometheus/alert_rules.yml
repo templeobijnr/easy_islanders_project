@@ -1,0 +1,47 @@
+groups:
+  - name: router_performance
+    rules:
+      - alert: RouterHighLatency
+        expr: histogram_quantile(0.95, rate(router_latency_seconds_bucket[5m])) > 0.12
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Router latency P95 above threshold"
+          description: "Router P95 latency is {{ $value }}s for domain {{ $labels.domain }}"
+
+      - alert: RouterLowAccuracy
+        expr: rate(router_accuracy_total{correct="true"}[5m]) / rate(router_accuracy_total[5m]) < 0.92
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Router accuracy below threshold"
+          description: "Router accuracy is {{ $value }} for domain {{ $labels.domain }}"
+
+      - alert: RouterHighECE
+        expr: router_calibration_ece > 0.05
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Router calibration error too high"
+          description: "Expected Calibration Error is {{ $value }} for domain {{ $labels.domain }}"
+
+      - alert: RouterHighUncertainRatio
+        expr: router_uncertain_ratio > 0.3
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Too many uncertain router predictions"
+          description: "Uncertain prediction ratio is {{ $value }} for domain {{ $labels.domain }}"
+
+      - alert: RouterCalibrationStale
+        expr: time() - router_calibration_ece > 86400 * 7
+        for: 1h
+        labels:
+          severity: info
+        annotations:
+          summary: "Router calibration parameters are stale"
+          description: "Calibration parameters for domain {{ $labels.domain }} haven't been updated in 7+ days"

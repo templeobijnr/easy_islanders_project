@@ -56,6 +56,12 @@ jobs:
       run: |
         python -m pytest --cov=. --cov-report=xml --cov-report=term-missing
 
+    - name: Router eval gate
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/easy_islanders_test
+      run: |
+        python scripts/eval_router.py --corpus scripts/router_eval_corpus.json
+
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
       with:

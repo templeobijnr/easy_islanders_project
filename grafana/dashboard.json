@@ -1,288 +1,121 @@
 {
   "dashboard": {
     "id": null,
-    "title": "Easy Islanders - Production Monitoring",
-    "tags": ["easy-islanders", "production", "monitoring"],
-    "style": "dark",
-    "timezone": "browser",
+    "title": "Easy Islanders - Router Performance",
+    "tags": ["easy-islanders", "router", "ml"],
+    "timezone": "UTC",
     "panels": [
       {
         "id": 1,
-        "title": "Request Rate (RPS)",
-        "type": "stat",
+        "title": "Router Request Rate",
+        "type": "graph",
         "targets": [
           {
-            "expr": "sum(rate(http_requests_total[5m]))",
-            "legendFormat": "Requests/sec"
+            "expr": "rate(router_requests_total[5m])",
+            "legendFormat": "{{status}} - {{domain}}"
           }
         ],
-        "fieldConfig": {
-          "defaults": {
+        "yAxes": [
+          {
             "unit": "reqps",
-            "color": {
-              "mode": "palette-classic"
-            }
+            "min": 0
           }
-        },
-        "gridPos": {
-          "h": 8,
-          "w": 12,
-          "x": 0,
-          "y": 0
-        }
+        ]
       },
       {
         "id": 2,
-        "title": "Error Rate",
-        "type": "stat",
+        "title": "Router Confidence Distribution",
+        "type": "heatmap",
         "targets": [
           {
-            "expr": "sum(rate(error_rate_total[5m]))",
-            "legendFormat": "Errors/sec"
+            "expr": "rate(router_confidence_histogram_bucket[5m])",
+            "legendFormat": "{{domain}} - {{le}}"
           }
-        ],
-        "fieldConfig": {
-          "defaults": {
-            "unit": "reqps",
-            "color": {
-              "mode": "thresholds"
-            },
-            "thresholds": {
-              "steps": [
-                {"color": "green", "value": 0},
-                {"color": "yellow", "value": 0.1},
-                {"color": "red", "value": 1}
-              ]
-            }
-          }
-        },
-        "gridPos": {
-          "h": 8,
-          "w": 12,
-          "x": 12,
-          "y": 0
-        }
+        ]
       },
       {
         "id": 3,
-        "title": "Response Time P95",
-        "type": "stat",
+        "title": "Expected Calibration Error (ECE)",
+        "type": "graph",
         "targets": [
           {
-            "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
-            "legendFormat": "P95 Latency"
+            "expr": "router_calibration_ece",
+            "legendFormat": "{{domain}}"
           }
         ],
-        "fieldConfig": {
-          "defaults": {
-            "unit": "s",
-            "color": {
-              "mode": "thresholds"
-            },
-            "thresholds": {
-              "steps": [
-                {"color": "green", "value": 0},
-                {"color": "yellow", "value": 1},
-                {"color": "red", "value": 5}
-              ]
-            }
+        "thresholds": [
+          {
+            "value": 0.05,
+            "colorMode": "critical",
+            "op": "gt"
           }
-        },
-        "gridPos": {
-          "h": 8,
-          "w": 12,
-          "x": 0,
-          "y": 8
-        }
+        ]
       },
       {
         "id": 4,
-        "title": "Cache Hit Rate",
-        "type": "stat",
+        "title": "Router Accuracy",
+        "type": "graph",
         "targets": [
           {
-            "expr": "sum(rate(cache_operations_total{status=\"hit\"}[5m])) / sum(rate(cache_operations_total[5m])) * 100",
-            "legendFormat": "Cache Hit Rate %"
+            "expr": "rate(router_accuracy_total{correct=\"true\"}[5m]) / rate(router_accuracy_total[5m])",
+            "legendFormat": "{{domain}}"
           }
         ],
-        "fieldConfig": {
-          "defaults": {
-            "unit": "percent",
-            "color": {
-              "mode": "thresholds"
-            },
-            "thresholds": {
-              "steps": [
-                {"color": "red", "value": 0},
-                {"color": "yellow", "value": 70},
-                {"color": "green", "value": 90}
-              ]
-            }
+        "yAxes": [
+          {
+            "unit": "percentunit",
+            "min": 0,
+            "max": 1
           }
-        },
-        "gridPos": {
-          "h": 8,
-          "w": 12,
-          "x": 12,
-          "y": 8
-        }
+        ]
       },
       {
         "id": 5,
-        "title": "HTTP Request Duration",
-        "type": "timeseries",
+        "title": "Router Latency P95",
+        "type": "graph",
         "targets": [
           {
-            "expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket[5m]))",
-            "legendFormat": "P50"
-          },
-          {
-            "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
-            "legendFormat": "P95"
-          },
-          {
-            "expr": "histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m]))",
-            "legendFormat": "P99"
+            "expr": "histogram_quantile(0.95, rate(router_latency_seconds_bucket[5m]))",
+            "legendFormat": "{{domain}}"
           }
         ],
-        "fieldConfig": {
-          "defaults": {
-            "unit": "s"
+        "yAxes": [
+          {
+            "unit": "seconds",
+            "min": 0
           }
-        },
-        "gridPos": {
-          "h": 8,
-          "w": 24,
-          "x": 0,
-          "y": 16
-        }
+        ],
+        "thresholds": [
+          {
+            "value": 0.12,
+            "colorMode": "warning",
+            "op": "gt"
+          }
+        ]
       },
       {
         "id": 6,
-        "title": "Agent Execution Duration",
-        "type": "timeseries",
+        "title": "Uncertain Predictions Ratio",
+        "type": "graph",
         "targets": [
           {
-            "expr": "histogram_quantile(0.50, rate(agent_execution_duration_seconds_bucket[5m]))",
-            "legendFormat": "P50"
-          },
-          {
-            "expr": "histogram_quantile(0.95, rate(agent_execution_duration_seconds_bucket[5m]))",
-            "legendFormat": "P95"
-          },
-          {
-            "expr": "histogram_quantile(0.99, rate(agent_execution_duration_seconds_bucket[5m]))",
-            "legendFormat": "P99"
+            "expr": "router_uncertain_ratio",
+            "legendFormat": "{{domain}}"
           }
         ],
-        "fieldConfig": {
-          "defaults": {
-            "unit": "s"
-          }
-        },
-        "gridPos": {
-          "h": 8,
-          "w": 12,
-          "x": 0,
-          "y": 24
-        }
-      },
-      {
-        "id": 7,
-        "title": "Registry Operations",
-        "type": "timeseries",
-        "targets": [
+        "yAxes": [
           {
-            "expr": "sum(rate(registry_operations_total[5m])) by (operation)",
-            "legendFormat": "{{operation}}"
+            "unit": "percentunit",
+            "min": 0,
+            "max": 1
           }
-        ],
-        "fieldConfig": {
-          "defaults": {
-            "unit": "ops"
-          }
-        },
-        "gridPos": {
-          "h": 8,
-          "w": 12,
-          "x": 12,
-          "y": 24
-        }
-      },
-      {
-        "id": 8,
-        "title": "Fallback Counts",
-        "type": "timeseries",
-        "targets": [
-          {
-            "expr": "sum(rate(fallback_total[5m])) by (kind)",
-            "legendFormat": "{{kind}}"
-          }
-        ],
-        "fieldConfig": {
-          "defaults": {
-            "unit": "ops"
-          }
-        },
-        "gridPos": {
-          "h": 8,
-          "w": 12,
-          "x": 0,
-          "y": 32
-        }
-      },
-      {
-        "id": 9,
-        "title": "LLM Token Usage",
-        "type": "timeseries",
-        "targets": [
-          {
-            "expr": "sum(rate(llm_tokens_total[5m])) by (type)",
-            "legendFormat": "{{type}}"
-          }
-        ],
-        "fieldConfig": {
-          "defaults": {
-            "unit": "tokens/sec"
-          }
-        },
-        "gridPos": {
-          "h": 8,
-          "w": 12,
-          "x": 12,
-          "y": 32
-        }
-      },
-      {
-        "id": 10,
-        "title": "Error Rate by Service",
-        "type": "timeseries",
-        "targets": [
-          {
-            "expr": "sum(rate(error_rate_total[5m])) by (service)",
-            "legendFormat": "{{service}}"
-          }
-        ],
-        "fieldConfig": {
-          "defaults": {
-            "unit": "ops"
-          }
-        },
-        "gridPos": {
-          "h": 8,
-          "w": 24,
-          "x": 0,
-          "y": 40
-        }
+        ]
       }
     ],
     "time": {
       "from": "now-1h",
       "to": "now"
     },
-    "refresh": "5s",
-    "schemaVersion": 27,
-    "version": 1,
-    "links": []
+    "refresh": "30s"
   }
 }

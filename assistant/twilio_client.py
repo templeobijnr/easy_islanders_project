@@ -30,11 +30,17 @@ class TwilioWhatsAppClient:
             logger.warning("Twilio credentials not configured. Outreach will be logged but not sent.")
     
     def _normalize_phone(self, number: str) -> str:
+        # ISSUE-008 FIX: Handle dict safely with empty check
         if isinstance(number, dict):
             logger.info(f"Normalizing dict contact: {number}")
-            number = number.get('whatsapp') or number.get('phone') or number.get('contact_number') or list(number.values())[0] if number else ''
+            number = (
+                number.get('whatsapp') or 
+                number.get('phone') or 
+                number.get('contact_number') or 
+                (list(number.values())[0] if number else '')  # Safe: check if dict not empty
+            )
         if not number:
-            return number
+            return ''  # Return empty string instead of None
         n = number.strip()
         # Remove leading 'whatsapp:' if present; we'll add it later
         if n.startswith('whatsapp:'):

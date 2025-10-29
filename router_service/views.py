@@ -9,6 +9,7 @@ from typing import Any, Dict
 import uuid
 
 from .graph import run_router
+from .models import RouterEvent
 from assistant.monitoring.metrics import (
     observe_router_latency,
     inc_router_request,
@@ -37,6 +38,21 @@ def route_intent(request):
             inc_router_uncertain(domain=decision.get('domain_choice', {}).get('domain', '*'))
     except Exception:
         pass
+    # Persist router event for later evaluation/calibration (best effort)
+    try:
+        RouterEvent.objects.create(
+            thread_id=thread_id,
+            utterance=utterance,
+            context_hint=context_hint,
+            stage1_safe=(decision.get('stage1') or {}).get('safe', True),
+            domain_pred=(decision.get('domain_choice') or {}).get('domain', ''),
+            domain_conf=float((decision.get('domain_choice') or {}).get('calibrated') or 0.0),
+            in_domain_intent=decision.get('in_domain_intent') or '',
+            action=decision.get('action') or 'dispatch',
+            latency_ms=int(decision.get('latency_ms') or 0),
+        )
+    except Exception:
+        pass
     return Response(decision, status=status.HTTP_200_OK)
 
 
@@ -59,4 +75,3 @@ def list_registered_agents(request):
         {"agent_id": "local_info_agent", "domain": "local_info", "description": "Local lookup (pharmacies, clinics)", "coverage": {"tools": ["tavily"], "locales": ["en"], "sla_ms": 1200}, "version": "v1"},
     ]
     return Response({"results": agents}, status=status.HTTP_200_OK)
-

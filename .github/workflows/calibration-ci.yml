@@ -1,0 +1,127 @@
+name: Router Calibration CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'router_service/**'
+      - 'scripts/eval_router.py'
+      - 'scripts/router_eval_corpus.json'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'router_service/**'
+      - 'scripts/eval_router.py'
+      - 'scripts/router_eval_corpus.json'
+
+jobs:
+  test-router:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install scikit-learn
+
+    - name: Run migrations
+      run: |
+        python manage.py migrate
+      env:
+        DATABASE_URL: postgres://postgres:postgres@localhost:5432/test
+
+    - name: Run router evaluation
+      run: |
+        python scripts/eval_router.py
+      env:
+        DATABASE_URL: postgres://postgres:postgres@localhost:5432/test
+
+  calibrate-models:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    needs: test-router
+
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:6
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install scikit-learn celery
+
+    - name: Run migrations
+      run: |
+        python manage.py migrate
+      env:
+        DATABASE_URL: postgres://postgres:postgres@localhost:5432/test
+
+    - name: Seed initial data
+      run: |
+        python manage.py seed_intent_exemplars
+        python scripts/update_centroids.py
+      env:
+        DATABASE_URL: postgres://postgres:postgres@localhost:5432/test
+        USE_REDIS_CACHE: 'true'
+        REDIS_URL: redis://localhost:6379
+
+    - name: Backfill router events
+      run: |
+        python scripts/backfill_router_events.py --log-file /dev/null --dry-run
+      env:
+        DATABASE_URL: postgres://postgres:postgres@localhost:5432/test
+
+    - name: Update calibration parameters
+      run: |
+        python manage.py update_calibration_params --evaluate-only
+      env:
+        DATABASE_URL: postgres://postgres:postgres@localhost:5432/test
+
+    - name: Retrain calibration models
+      run: |
+        python manage.py update_calibration_params
+      env:
+        DATABASE_URL: postgres://postgres:postgres@localhost:5432/test

@@ -14,18 +14,34 @@ if '127.0.0.1' not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append('127.0.0.1')
 if 'localhost' not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append('localhost')
+# Add Fly.io domain
+if 'easyislanders-router-temple-staging.fly.dev' not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append('easyislanders-router-temple-staging.fly.dev')
+if '.fly.dev' not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append('.fly.dev')
 
 # Database - PostgreSQL for production
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': config('DB_NAME'),
-        'USER': config('DB_USER'),
-        'PASSWORD': config('DB_PASSWORD'),
-        'HOST': config('DB_HOST', default='localhost'),
-        'PORT': config('DB_PORT', default='5432'),
+# Support both DATABASE_URL (Fly.io/Heroku style) and individual DB_* variables
+import dj_database_url
+
+DATABASE_URL = config('DATABASE_URL', default=None)
+if DATABASE_URL:
+    # Use DATABASE_URL if provided (Fly.io, Heroku, etc.)
+    DATABASES = {
+        'default': dj_database_url.config(default=DATABASE_URL, conn_max_age=600)
     }
-}
+else:
+    # Fall back to individual database config variables
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': config('DB_NAME'),
+            'USER': config('DB_USER'),
+            'PASSWORD': config('DB_PASSWORD'),
+            'HOST': config('DB_HOST', default='localhost'),
+            'PORT': config('DB_PORT', default='5432'),
+        }
+    }
 
 # Static files
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')

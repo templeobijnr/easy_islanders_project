@@ -1,0 +1,67 @@
+name: Deploy Router (Staging)
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - '**/*.py'
+      - 'Dockerfile'
+      - 'fly.toml'
+      - 'requirements.txt'
+      - '.github/workflows/deploy-staging.yml'
+
+env:
+  FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+  FLY_APP: easyislanders-router-temple-staging
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Install Flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+      
+      - name: Authenticate with Fly registry
+        run: |
+          flyctl auth docker
+      
+      - name: Build and push Docker image
+        run: |
+          SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+          docker buildx build \
+            --platform linux/amd64 \
+            --build-arg GIT_SHA=${{ github.sha }} \
+            -t registry.fly.io/${{ env.FLY_APP }}:${SHORT_SHA} \
+            -t registry.fly.io/${{ env.FLY_APP }}:latest \
+            --push \
+            .
+      
+      - name: Deploy to Fly.io
+        run: |
+          SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+          flyctl deploy \
+            --app ${{ env.FLY_APP }} \
+            --image registry.fly.io/${{ env.FLY_APP }}:${SHORT_SHA}} \
+            --strategy immediate
+      
+      - name: Run migrations
+        run: |
+          flyctl ssh console --app ${{ env.FLY_APP }} -C "python manage.py migrate --noinput"
+      
+      - name: Verify health
+        run: |
+          sleep 10
+          curl -f https://${{ env.FLY_APP }}.fly.dev/api/health/ || exit 1
+      
+      - name: Deployment summary
+        run: |
+          echo "✅ Deployed to https://${{ env.FLY_APP }}.fly.dev"
+          echo "📊 Image: registry.fly.io/${{ env.FLY_APP }}:$(echo ${{ github.sha }} | cut -c1-7)"
+          flyctl status --app ${{ env.FLY_APP }}

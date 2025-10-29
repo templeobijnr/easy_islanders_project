@@ -22,6 +22,12 @@ except Exception:  # pragma: no cover
 logger = logging.getLogger(__name__)
 
 
+# ISSUE-006 FIX: Custom exception for checkpoint failures
+class CheckpointError(Exception):
+    """Raised when checkpoint operations fail."""
+    pass
+
+
 def get_checkpoint_saver(
     connection_string: str,
     namespace: str = "langgraph",
@@ -86,31 +92,51 @@ _CKPT_TTL_SECONDS = 86400  # 24h
 def save_checkpoint(conversation_id: str, state: Dict[str, Any]) -> bool:
     """Save a lightweight checkpoint to cache.
 
-    Returns True if stored, False otherwise.
+    ISSUE-006 FIX: Now raises CheckpointError on failure instead of silently returning False.
+    Returns True if stored successfully.
+    
+    Raises:
+        CheckpointError: If checkpoint save fails
     """
-    if not conversation_id or not _CACHE_AVAILABLE:
-        return False
+    if not conversation_id:
+        raise CheckpointError("conversation_id is required for checkpoint save")
+    
+    if not _CACHE_AVAILABLE:
+        raise CheckpointError("Cache backend not available for checkpoint storage")
+    
     try:
         key = f"ckpt:{conversation_id}"
         envelope = {"state": state, "ts": datetime.utcnow().isoformat()}
         cache.set(key, envelope, timeout=_CKPT_TTL_SECONDS)
         logger.debug("Checkpoint saved: %s", key)
         return True
-    except Exception as e:  # noqa: BLE001
-        logger.error("Failed to save checkpoint: %s", e)
-        return False
+    except Exception as e:
+        logger.error("Failed to save checkpoint %s: %s", conversation_id, e, exc_info=True)
+        raise CheckpointError(f"Failed to save checkpoint {conversation_id}: {e}") from e
 
 
 def load_checkpoint(conversation_id: str) -> Optional[Dict[str, Any]]:
-    """Load last checkpoint from cache."""
-    if not conversation_id or not _CACHE_AVAILABLE:
-        return None
+    """Load last checkpoint from cache.
+    
+    ISSUE-006 FIX: Now raises CheckpointError on critical failures.
+    Returns None if checkpoint doesn't exist (not an error).
+    
+    Raises:
+        CheckpointError: If cache backend fails or conversation_id invalid
+    """
+    if not conversation_id:
+        raise CheckpointError("conversation_id is required for checkpoint load")
+    
+    if not _CACHE_AVAILABLE:
+        logger.warning("Cache backend not available - checkpoint load skipped")
+        return None  # Gracefully degrade
+    
     try:
         key = f"ckpt:{conversation_id}"
         envelope = cache.get(key)
         if isinstance(envelope, dict):
             return envelope.get("state")
-        return None
-    except Exception as e:  # noqa: BLE001
-        logger.error("Failed to load checkpoint: %s", e)
-        return None
+        return None  # Checkpoint doesn't exist (not an error)
+    except Exception as e:
+        logger.error("Failed to load checkpoint %s: %s", conversation_id, e, exc_info=True)
+        raise CheckpointError(f"Failed to load checkpoint {conversation_id}: {e}") from e

@@ -103,7 +103,8 @@ def get_last_contacted_listing(conversation_id: Optional[str]) -> Optional[Dict[
 def check_for_new_images(listing_id: int) -> Dict:
     try:
         from listings.models import Listing
-        with create_tool_span("db_search", "query", request_id=str(conversation_id) if conversation_id else None):
+        # Correlate span with listing_id (conversation_id not available in this scope)
+        with create_tool_span("db_search", "query", request_id=str(listing_id)):
             listing = Listing.objects.get(id=listing_id)
         sd = listing.structured_data or {}
         baseline = sd.get('baseline_image_count', 0)

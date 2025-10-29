@@ -1,0 +1,37 @@
+[
+  {"utterance": "hi there", "expected_domain": "general_conversation"},
+  {"utterance": "hello", "expected_domain": "general_conversation"},
+  {"utterance": "good morning", "expected_domain": "general_conversation"},
+  {"utterance": "how are you", "expected_domain": "general_conversation"},
+  {"utterance": "what can you help me with", "expected_domain": "general_conversation"},
+
+  {"utterance": "apartment in kyrenia", "expected_domain": "real_estate"},
+  {"utterance": "looking for a villa to rent", "expected_domain": "real_estate"},
+  {"utterance": "house for sale in famagusta", "expected_domain": "real_estate"},
+  {"utterance": "property listings", "expected_domain": "real_estate"},
+  {"utterance": "real estate in cyprus", "expected_domain": "real_estate"},
+  {"utterance": "find me an apartment", "expected_domain": "real_estate"},
+  {"utterance": "rent a house", "expected_domain": "real_estate"},
+
+  {"utterance": "used car for sale", "expected_domain": "marketplace"},
+  {"utterance": "buy a second hand phone", "expected_domain": "marketplace"},
+  {"utterance": "electronics for sale", "expected_domain": "marketplace"},
+  {"utterance": "looking for a car", "expected_domain": "marketplace"},
+  {"utterance": "sell my laptop", "expected_domain": "marketplace"},
+  {"utterance": "marketplace items", "expected_domain": "marketplace"},
+  {"utterance": "buy used furniture", "expected_domain": "marketplace"},
+
+  {"utterance": "pharmacy in nicosia", "expected_domain": "local_info"},
+  {"utterance": "hospital near me", "expected_domain": "local_info"},
+  {"utterance": "doctor appointment", "expected_domain": "local_info"},
+  {"utterance": "find a pharmacy", "expected_domain": "local_info"},
+  {"utterance": "emergency room", "expected_domain": "local_info"},
+  {"utterance": "dentist in kyrenia", "expected_domain": "local_info"},
+  {"utterance": "local services", "expected_domain": "local_info"},
+
+  {"utterance": "what's the weather like", "expected_domain": "general_conversation"},
+  {"utterance": "tell me a joke", "expected_domain": "general_conversation"},
+  {"utterance": "I need help with something", "expected_domain": "general_conversation"},
+  {"utterance": "can you assist me", "expected_domain": "general_conversation"}
+]
+

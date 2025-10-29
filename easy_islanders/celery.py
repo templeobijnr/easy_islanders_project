@@ -1,8 +1,15 @@
+"""
+Celery configuration for Easy Islanders.
+
+This module configures Celery for background task processing,
+including router calibration updates and other periodic jobs.
+"""
+
 import os
 from celery import Celery
 from celery.schedules import crontab
 
-# Set the default Django settings module for the 'celery' program.
+# Set the default Django settings module
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'easy_islanders.settings.development')
 
 app = Celery('easy_islanders')
@@ -14,33 +21,29 @@ app.config_from_object('django.conf:settings', namespace='CELERY')
 # Load task modules from all registered Django apps.
 app.autodiscover_tasks()
 
-app.conf.beat_schedule = {
-    'monitor-outreaches-every-15-mins': {
-        'task': 'assistant.tasks.monitor_pending_outreaches',
-        'schedule': 900.0,  # 15 minutes in seconds
-    },
-    'monitor-new-media-every-5-mins': {
-        'task': 'assistant.tasks.monitor_new_media_and_trigger_proactive',
-        'schedule': 300.0,  # 5 minutes in seconds
-    },
-    'send-proactive-reminders-daily': {
-        'task': 'assistant.tasks.send_proactive_reminders',
-        'schedule': 86400.0,  # 24 hours in seconds
-    },
-    'send-market-updates-weekly': {
-        'task': 'assistant.tasks.send_market_updates',
-        'schedule': 604800.0,  # 7 days in seconds
-    },
-}
-if os.getenv("ENABLE_RAG_INGESTION_BEAT", "false").lower() == "true":
-    app.conf.beat_schedule['rag-ingestion-daily'] = {
-        'task': 'registry_service.rag_ingestion.jobs.run_pipeline',
-        'schedule': crontab(hour=3, minute=0),
-    }
-app.conf.timezone = 'UTC'
 
 @app.task(bind=True)
 def debug_task(self):
     print(f'Request: {self.request!r}')
 
 
+# Periodic tasks
+app.conf.beat_schedule = {
+    # Router calibration tasks
+    'update-router-centroids-nightly': {
+        'task': 'router_service.tasks.update_router_centroids',
+        'schedule': crontab(hour=2, minute=0),  # Daily at 2 AM
+    },
+    'retrain-router-calibration-weekly': {
+        'task': 'router_service.tasks.retrain_router_calibration',
+        'schedule': crontab(day_of_week=0, hour=3, minute=0),  # Sunday at 3 AM
+    },
+
+    # Monitoring and health checks
+    'cleanup-old-router-events': {
+        'task': 'router_service.tasks.cleanup_old_router_events',
+        'schedule': crontab(hour=4, minute=0),  # Daily at 4 AM
+    },
+}
+
+app.conf.timezone = 'UTC'

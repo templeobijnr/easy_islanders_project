@@ -4,6 +4,7 @@ import uuid
 import logging
 import json
 import os
+import time
 from typing import Optional, List
 
 from django.conf import settings
@@ -29,12 +30,18 @@ from .brain.config import ENABLE_LANGGRAPH
 graph_run_message = None
 graph_run_event = None
 from listings.models import Listing
-from .models import DemandLead, ServiceProvider, KnowledgeBase, Conversation, Booking
+from .models import DemandLead, ServiceProvider, KnowledgeBase, Conversation, Booking, Request
 from .auth import (
     register_user, login_user, logout_user, 
     get_user_profile, update_user_profile, check_auth_status
 )
-from .serializers import ServiceProviderSerializer, KnowledgeBaseSerializer, ListingSerializer
+from .serializers import (
+    ServiceProviderSerializer,
+    KnowledgeBaseSerializer,
+    ListingSerializer,
+    RequestSerializer,
+    RequestCreateSerializer,
+)
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
@@ -311,7 +318,7 @@ def chat_with_assistant(request):
             'requires_phone': False,
         }, status=status.HTTP_200_OK)
     
-    # Step 1: Resolve thread_id
+    # Step 1: Resolve thread_id (ATOMIC - ISSUE-001 FIX)
     # - If provided in request, validate it
     # - If not provided, retrieve/create active thread for user
     thread_id = request.data.get('thread_id')
@@ -324,11 +331,31 @@ def chat_with_assistant(request):
                 thread = ConversationThread.objects.get(thread_id=thread_id, user=user, is_active=True)
             except ConversationThread.DoesNotExist:
                 # Stale or foreign thread_id from localStorage; create/reuse active thread
-                thread, created = ConversationThread.get_or_create_active(user)
+                with transaction.atomic():
+                    thread = ConversationThread.objects.select_for_update().filter(
+                        user=user, is_active=True
+                    ).first()
+                    if not thread:
+                        ConversationThread.objects.filter(user=user, is_active=True).update(is_active=False)
+                        thread = ConversationThread.objects.create(
+                            user=user,
+                            thread_id=str(uuid.uuid4()),
+                            is_active=True
+                        )
                 thread_id = thread.thread_id
         else:
-            # Get or create active thread for this user
-            thread, created = ConversationThread.get_or_create_active(user)
+            # Get or create active thread for this user (ATOMIC)
+            with transaction.atomic():
+                thread = ConversationThread.objects.select_for_update().filter(
+                    user=user, is_active=True
+                ).first()
+                if not thread:
+                    ConversationThread.objects.filter(user=user, is_active=True).update(is_active=False)
+                    thread = ConversationThread.objects.create(
+                        user=user,
+                        thread_id=str(uuid.uuid4()),
+                        is_active=True
+                    )
             thread_id = thread.thread_id
             
         # Step 2: Process message through agent with robust error handling
@@ -974,14 +1001,12 @@ def twilio_webhook(request):
     - From: Sender's WhatsApp number
     - MessageSid: Unique message ID
     """
-    # --- AGGRESSIVE LOGGING FOR DEBUGGING ---
-    # Using logger.critical to make it highly visible in the terminal
-    logger.critical("!!! TWILIO WEBHOOK HIT !!!")
+    # ISSUE-012 FIX: Use appropriate log level (INFO, not CRITICAL)
+    logger.info("Twilio webhook received")
     if request.method == "POST":
-        logger.critical(f"RAW POST DATA: {request.POST.dict()}")
+        logger.debug(f"Webhook POST data: {request.POST.dict()}")  # DEBUG level for detailed data
     else:
-        logger.critical("Received GET request for webhook verification.")
-    # --- END OF AGGRESSIVE LOGGING ---
+        logger.info("Webhook verification request (GET)")
 
     try:
         # Handle GET requests (webhook verification)
@@ -1045,31 +1070,41 @@ def twilio_webhook(request):
                 logger.error(f"Received media from {from_number} but could not resolve a listing_id.")
                 return JsonResponse({"success": False, "error": "Could not identify the listing for this media."}, status=400)
 
-            # Process media (photos)
+            # Process media (photos) - ATOMIC TRANSACTION (ISSUE-002 FIX)
             stored_urls = []
-            for media_url in media_urls:
-                # Extract media ID from URL or use MessageSid
-                media_id = webhook_data.get('MessageSid', str(uuid.uuid4()))
-                
-                # Download and store media
-                processor = MediaProcessor()
-                permanent_url = processor.download_and_store_media(media_url, listing_id, media_id)
-                
-                if permanent_url:
-                    stored_urls.append(permanent_url)
+            try:
+                with transaction.atomic():
+                    for media_url in media_urls:
+                        # Extract media ID from URL or use MessageSid
+                        media_id = webhook_data.get('MessageSid', str(uuid.uuid4()))
+                        
+                        # Download and store media
+                        processor = MediaProcessor()
+                        permanent_url = processor.download_and_store_media(media_url, listing_id, media_id)
+                        
+                        if permanent_url:
+                            stored_urls.append(permanent_url)
+                    
+                    if stored_urls:
+                        logger.info(f"Stored {len(stored_urls)} media items for listing {listing_id}")
+                        
+                        # Trigger notification to frontend that new images are available
+                        _notify_new_images(listing_id, stored_urls)
+                        
+                        # Automatically trigger image display (simulates GET request)
+                        auto_display_data = _auto_trigger_image_display(listing_id, stored_urls, conversation_id)
+                        
+                        # Commit transaction before triggering async tasks
+                        transaction.on_commit(
+                            lambda: trigger_get_and_prepare_card_task.delay(listing_id, conversation_id=conversation_id)
+                        )
+            except Exception as media_error:
+                logger.error(f"Transaction rolled back due to media processing error: {media_error}")
+                return JsonResponse({"success": False, "error": "Failed to process media atomically"}, status=500)
             
             if stored_urls:
-                logger.info(f"Stored {len(stored_urls)} media items for listing {listing_id}")
-                
-                # Trigger notification to frontend that new images are available
-                _notify_new_images(listing_id, stored_urls)
-                
-                # Automatically trigger image display (simulates GET request)
-                auto_display_data = _auto_trigger_image_display(listing_id, stored_urls, conversation_id)
-                
-                # Trigger Celery task for background processing with conversation context
+                # Import here to avoid circular dependency
                 from .tasks import trigger_get_and_prepare_card_task
-                trigger_get_and_prepare_card_task.delay(listing_id, conversation_id=conversation_id)
                 
                 # AUTO-RESPONSE: Trigger intelligent agent response (feature flag controlled)
                 logger.critical(f"AUTO-RESPONSE CHECK: ENABLE_AUTO_RESPONSE={getattr(settings, 'ENABLE_AUTO_RESPONSE', False)}")
@@ -1641,8 +1676,9 @@ def get_conversation_notifications(request):
         
         # Get general notifications (including proactive updates)
         general_notifications = get_notification_data(conversation_id)
-        logger.critical(f"DEBUG get_conversation_notifications: conversation_id={conversation_id}")
-        logger.critical(f"DEBUG general_notifications retrieved: {general_notifications}")
+        # ISSUE-012 FIX: Use DEBUG level for debugging info
+        logger.debug(f"Getting notifications for conversation: {conversation_id}")
+        logger.debug(f"General notifications retrieved: {general_notifications}")
         if general_notifications:
             notif_type = general_notifications.get('type')
             # Normalize legacy/alt types to the UI-supported 'proactive_update'
@@ -1660,8 +1696,9 @@ def get_conversation_notifications(request):
                     'timestamp': timezone.now().isoformat()
                 })
         
-        logger.critical(f"DEBUG get_conversation_notifications FINAL: returning {len(notifications)} notifications")
-        logger.critical(f"DEBUG notifications details: {notifications}")
+        # ISSUE-012 FIX: Use DEBUG level for debugging info
+        logger.debug(f"Returning {len(notifications)} notifications for conversation {conversation_id}")
+        logger.debug(f"Notification details: {notifications}")
         
         return Response({
             'notifications': notifications,

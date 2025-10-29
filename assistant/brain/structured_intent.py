@@ -95,7 +95,7 @@ User message:
 {message}
 """
         """
-    )
+        )
     
     chain = prompt_template | structured_llm
     

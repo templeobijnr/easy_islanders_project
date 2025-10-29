@@ -55,9 +55,10 @@ primary_region = "fra"                   # e.g., FRA/CDG/AMS
     tls_skip_verify = false
     [services.http_checks.headers]
 
-# Define gunicorn command for production deployment
-[processes]
-  app = "gunicorn easy_islanders.wsgi:application -b 0.0.0.0:8000 -w 2 --timeout 120"
+# Gunicorn command is in Dockerfile entrypoint.sh (with migrations)
+# Comment out to use Dockerfile CMD instead
+# [processes]
+#   app = "gunicorn easy_islanders.wsgi:application -b 0.0.0.0:8000 -w 2 --timeout 120"
 
 # Increase memory allocation for ML models
 [vm]

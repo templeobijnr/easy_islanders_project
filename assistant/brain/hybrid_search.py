@@ -14,8 +14,7 @@ Expected Performance:
   - Recall@10: 0.90+
 """
 
-from typing import Dict, List, Any, Optional, Tuple
-import json
+from typing import Dict, List, Any, Optional
 import logging
 from dataclasses import dataclass
 from enum import Enum

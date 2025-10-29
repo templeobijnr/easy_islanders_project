@@ -1,45 +1,11 @@
 # assistant/tools/__init__.py
 """
-Easy Islanders — Tools Module
-=============================
+Easy Islanders — Tools Module (No Scrapers)
+===========================================
 
-These are the “bridge” functions the AI brain (assistant/ai_assistant.py) can call
-via OpenAI function-calling. Each tool connects the model’s intent to a concrete
-backend capability (DB query, web scraping, outreach, etc.).
-
-Design principles:
-- **Privacy-safe, source-agnostic UI**: Never leak where we found a listing. We only
-  return neutral, internal-friendly fields that your frontend cards already use.
-- **Fast path first**: `search_internal_listings` is the primary tool. It hits our
-  Listing DB (fed by Devi AI webhook + scrapers).
-- **Live hunt second**: If internal search is empty (or user asks for fresh),
-  the AI may call `find_rental_property` / `find_used_car` (slower).
-- **Knowledge & services**: Curated KB and vetted service providers.
-- **Outreach**: `initiate_contact_with_seller` stubs a platform-agnostic contact flow.
-
-Return shape:
--------------
-All tools return a dict. For search tools:
-
-{
-  "success": bool,
-  "count": int,
-  "data": [ { ...items suitable for RecommendationCard... } ]
-}
-
-Where each item for property/car cards is intentionally **platform-agnostic** and
-may include (depending on data availability):
-
-- id: str (internal listing id)
-- title: str
-- description: str
-- location: str
-- price: str (e.g., "550 GBP")
-- image_url: str | None
-- details_url: str (internal route, e.g., "/listings/<id>")
-- features: list[str]
-
-IMPORTANT: We **omit** any external “source/provider” field by design.
+This module provides bridge functions for the AI assistant to access internal listings,
+services, knowledge base, outreach, and Google search. All live scrapers (e.g., rental/car)
+have been removed.
 """
 
 from __future__ import annotations
@@ -130,15 +96,6 @@ _DURATION_LONG = ["long term", "uzun dönem", "uzun donem", "langfristig", "dłu
 
 
 
-__all__ = [
-    "search_internal_listings",
-    "search_services",
-    "get_knowledge",
-    "find_rental_property",
-    "find_used_car",
-    "perform_google_search",
-    "initiate_contact_with_seller",
-]
 
 # -------------------------------------------------------------------
 # Helpers
@@ -146,7 +103,7 @@ __all__ = [
 
 
 def _ua_headers() -> Dict[str, str]:
-    """Generate simple random-ish headers for polite scraping."""
+    """Generate simple random-ish headers for polite scraping (used by Google search)."""
     uas = [
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
         "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
@@ -468,7 +425,8 @@ def search_internal_listings(
                 cond |= Q(raw_text__icontains=kw) | Q(structured_data__description__icontains=kw)
             qs = qs.filter(cond)
 
-        qs = qs.order_by("-last_seen_at")[:25]
+        # ISSUE-007 FIX: Add select_related to prevent N+1 queries
+        qs = qs.select_related('category', 'owner').order_by("-last_seen_at")[:25]
 
         # Filter out listings without contact information
         listings_with_contact = []
@@ -658,89 +616,6 @@ def get_knowledge(topic: str, language: str = "en", **kwargs) -> Dict[str, Any]:
         return {"success": False, "error": str(e), "count": 0, "data": []}
 
 
-# -------------------------------------------------------------------
-# Live hunts (scrapers)
-# -------------------------------------------------------------------
-
-
-def find_rental_property(
-    location: str,
-    property_type: str,
-    beds: Optional[int] = None,
-    max_rent: Optional[int] = None,
-    language: str = "en",
-) -> Dict[str, Any]:
-    """
-    Trigger live scraping for rentals (e.g., 101evler).
-    `sync_find_all_properties` should return a list[dict] with reasonable fields.
-
-    NOTE: Keep return shape consistent with frontend. If scrapers return raw shape,
-    we pass it through. You can transform to card shape here if needed.
-    """
-    try:
-        norm_loc = _normalize_location(location) or location
-        # Your scraper likely expects "rent"/"sale" instead of "apartment/villa" etc.
-        # Here we bias to rentals since the tool is 'find_rental_property'.
-        scraped = sync_find_all_properties(location=norm_loc, property_type="rent")
-
-        if not scraped:
-            return {"success": True, "count": 0, "data": []}
-
-        # Optional: apply beds/max_rent client-side filtering if scraper returns price & bedrooms
-        filtered = []
-        for it in scraped:
-            keep = True
-            if beds is not None:
-                b = it.get("bedrooms") or it.get("beds")
-                if b is not None and str(b).isdigit() and int(b) != int(beds):
-                    keep = False
-            if keep and max_rent is not None:
-                p = it.get("price")
-                try:
-                    if isinstance(p, (int, float)) and float(p) > float(max_rent):
-                        keep = False
-                except Exception:
-                    pass
-            if keep:
-                filtered.append(it)
-
-        return {"success": True, "count": len(filtered), "data": filtered}
-    except Exception as e:
-        logger.exception("find_rental_property failed")
-        return {"success": False, "error": str(e), "count": 0, "data": []}
-
-
-def find_used_car(
-    make: Optional[str] = None,
-    model: Optional[str] = None,
-    budget: Optional[int] = None,
-    language: str = "en",
-) -> Dict[str, Any]:
-    """
-    Trigger live scraping for used cars in TRNC.
-    """
-    try:
-        scraped = sync_find_all_cars(make=make, model=model)  # your scraper handles filters
-        if not scraped:
-            return {"success": True, "count": 0, "data": []}
-
-        # Optional: budget filter
-        if budget is not None:
-            filtered = []
-            for it in scraped:
-                p = it.get("price")
-                try:
-                    if p is None or float(p) <= float(budget):
-                        filtered.append(it)
-                except Exception:
-                    # if unparsable, keep it
-                    filtered.append(it)
-            scraped = filtered
-
-        return {"success": True, "count": len(scraped), "data": scraped}
-    except Exception as e:
-        logger.exception("find_used_car failed")
-        return {"success": False, "error": str(e), "count": 0, "data": []}
 
 
 # -------------------------------------------------------------------
@@ -1023,9 +898,7 @@ __all__ = [
     "search_internal_listings",
     "search_services",
     "get_knowledge",
-    "find_rental_property",
-    "find_used_car",
     "perform_google_search",
     "initiate_contact_with_seller",
-    "check_for_new_images",  # NEW: Add to exports
+    "check_for_new_images",
 ]

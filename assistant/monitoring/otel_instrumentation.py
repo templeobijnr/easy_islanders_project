@@ -226,9 +226,14 @@ def set_span_error(span, error: Exception):
     """Mark a span as failed with error details."""
     if span is None:
         return
-    status = Status(StatusCode.ERROR, str(error))
-    if hasattr(span, "set_status"):
-        span.set_status(status)
+    # In environments without OpenTelemetry, Status/StatusCode may be None
+    if Status is not None and StatusCode is not None:
+        try:
+            status = Status(StatusCode.ERROR, str(error))
+            if hasattr(span, "set_status"):
+                span.set_status(status)
+        except Exception:
+            pass
     if hasattr(span, "set_attribute"):
         span.set_attribute("error", True)
         span.set_attribute("error.message", str(error))

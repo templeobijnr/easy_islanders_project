@@ -10,6 +10,7 @@ import time
 import logging
 from typing import List, Dict, Any, Optional
 from django.conf import settings
+from django.db import transaction  # ISSUE-004 FIX: Import for atomic transactions
 from listings.models import Listing
 from .utils.notifications import put_card_display, put_auto_display
 from .twilio_client import MediaProcessor
@@ -22,31 +23,48 @@ from assistant.brain.resilience import resilient_api_call
 logger = logging.getLogger(__name__)
 
 
-def _check_proactive_rate_limit(conversation_id: str) -> bool:
-    """Check if user has exceeded proactive message rate limit"""
+def _check_and_increment_rate_limit(conversation_id: str) -> bool:
+    """
+    Atomically check and increment rate limit counter.
+    
+    Uses Redis INCR for atomic increment, preventing race conditions.
+    Returns True if within limit, False if exceeded.
+    
+    ISSUE-003 FIX: Replaces separate check/update with atomic operation.
+    Handles both Redis and LocMem cache backends.
+    """
     from django.core.cache import cache
     from django.conf import settings
     
     cache_key = f"proactive_rate_limit:{conversation_id}"
-    current_count = cache.get(cache_key, 0)
     max_messages = getattr(settings, 'MAX_PROACTIVE_MESSAGES_PER_DAY', 3)
+    window_seconds = getattr(settings, 'PROACTIVE_RATE_LIMIT_WINDOW', 3600)
     
-    logger.info(f"Rate limit check for {conversation_id}: {current_count}/{max_messages}")
-    return current_count < max_messages
-
-
-def _update_proactive_rate_limit(conversation_id: str) -> None:
-    """Update proactive message rate limit counter"""
-    from django.core.cache import cache
-    from django.conf import settings
-    
-    cache_key = f"proactive_rate_limit:{conversation_id}"
-    current_count = cache.get(cache_key, 0)
-    window_seconds = getattr(settings, 'PROACTIVE_RATE_LIMIT_WINDOW', 3600)  # 1 hour
-    
-    new_count = current_count + 1
-    cache.set(cache_key, new_count, timeout=window_seconds)
-    logger.info(f"Updated rate limit for {conversation_id}: {new_count}")
+    try:
+        # Atomic increment - returns new value
+        new_count = cache.incr(cache_key)
+        
+        # Set expiry only on first increment (when count becomes 1)
+        if new_count == 1:
+            # Redis supports .expire(), LocMem doesn't - handle both
+            if hasattr(cache, 'expire'):
+                cache.expire(cache_key, window_seconds)
+            else:
+                # LocMem doesn't support expire after incr, use touch as fallback
+                try:
+                    cache.touch(cache_key, timeout=window_seconds)
+                except AttributeError:
+                    # If touch not available, best effort: no-op
+                    pass
+        
+        logger.info(f"Rate limit for {conversation_id}: {new_count}/{max_messages}")
+        return new_count <= max_messages
+        
+    except (ValueError, AttributeError):
+        # Key doesn't exist yet or incr not supported - initialize it
+        cache.set(cache_key, 1, timeout=window_seconds)
+        logger.info(f"Rate limit initialized for {conversation_id}: 1/{max_messages}")
+        return True
 
 
 @shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_kwargs={"max_retries": 3})
@@ -393,12 +411,12 @@ def trigger_proactive_agent_response(self, listing_id: int, conversation_id: str
             # If no user profile exists, allow proactive messages (default behavior)
             pass
         
-        # Check rate limiting
+        # Check and increment rate limiting (ATOMIC - ISSUE-003 FIX)
         logger.info(f"Checking rate limit for conversation {conversation_id}")
-        if not _check_proactive_rate_limit(conversation_id):
+        if not _check_and_increment_rate_limit(conversation_id):
             logger.info(f"Rate limit exceeded for conversation {conversation_id}")
             return {"success": False, "reason": "rate_limit"}
-        logger.info(f"Rate limit check passed for conversation {conversation_id}")
+        logger.info(f"Rate limit check passed and incremented for conversation {conversation_id}")
         
         # Generate proactive response (simplified, avoids graph dependency)
         response = {
@@ -421,8 +439,7 @@ def trigger_proactive_agent_response(self, listing_id: int, conversation_id: str
         # Store notification for frontend polling to pick up (use conversation_id as key)
         put_notification(conversation_id, notification)
         
-        # Update rate limiting counter
-        _update_proactive_rate_limit(conversation_id)
+        # Note: Rate limiting already incremented in _check_and_increment_rate_limit above
         
         logger.info(f"Proactive agent response completed for listing {listing_id}")
         
@@ -474,8 +491,8 @@ def send_proactive_reminders(self) -> Dict[str, Any]:
             last_interaction__lt=cutoff_time
         ):
             try:
-                # Check rate limiting
-                if not _check_proactive_rate_limit(profile.user_id):
+                # Check and increment rate limiting (ATOMIC - ISSUE-003 FIX)
+                if not _check_and_increment_rate_limit(profile.user_id):
                     logger.info(f"Rate limit exceeded for user {profile.user_id}")
                     continue
                 
@@ -496,8 +513,7 @@ def send_proactive_reminders(self) -> Dict[str, Any]:
                 # Store notification
                 put_notification(profile.user_id, notification)
                 
-                # Update rate limiting
-                _update_proactive_rate_limit(profile.user_id)
+                # Note: Rate limiting already incremented in _check_and_increment_rate_limit above
                 
                 # Save message to conversation
                 try:
@@ -570,8 +586,8 @@ def send_market_updates(self) -> Dict[str, Any]:
             proactive_predictions=True
         ):
             try:
-                # Check rate limiting
-                if not _check_proactive_rate_limit(profile.user_id):
+                # Check and increment rate limiting (ATOMIC - ISSUE-003 FIX)
+                if not _check_and_increment_rate_limit(profile.user_id):
                     continue
                 
                 # Generate market update message
@@ -590,7 +606,8 @@ def send_market_updates(self) -> Dict[str, Any]:
                 
                 # Store notification
                 put_notification(profile.user_id, notification)
-                _update_proactive_rate_limit(profile.user_id)
+                
+                # Note: Rate limiting already incremented in _check_and_increment_rate_limit above
                 
                 updates_sent += 1
                 logger.info(f"Sent market update to user {profile.user_id}")
@@ -681,45 +698,80 @@ def broadcast_request_to_sellers(self, request_id: str) -> Dict[str, Any]:
             })
         seller_source_used = 'service_provider' if candidates else None
 
+    # ISSUE-004 FIX: Wrap broadcast creation in atomic transaction
+    # Track failures and raise if >50% fail
     enqueued = 0
+    failed = 0
     contacted_log = []
-    for c in candidates:
-        try:
-            AgentBroadcast.objects.create(
-                request=lead,
-                seller_id=c['seller_id'],
-                medium=c.get('medium', 'whatsapp'),
-                status='queued',
-            )
-            contacted_log.append({
-                'seller_id': c['seller_id'],
-                'medium': c.get('medium', 'whatsapp'),
-                'status': 'queued',
-                'source': c.get('source', 'unknown'),
-            })
-            enqueued += 1
-        except Exception as e:
-            logger.error(f"Failed to log AgentBroadcast for lead {lead.id}: {e}")
-            continue
+    failed_sellers = []
+    
+    with transaction.atomic():
+        for c in candidates:
+            try:
+                AgentBroadcast.objects.create(
+                    request=lead,
+                    seller_id=c['seller_id'],
+                    medium=c.get('medium', 'whatsapp'),
+                    status='queued',
+                )
+                contacted_log.append({
+                    'seller_id': c['seller_id'],
+                    'medium': c.get('medium', 'whatsapp'),
+                    'status': 'queued',
+                    'source': c.get('source', 'unknown'),
+                })
+                enqueued += 1
+            except Exception as e:
+                failed += 1
+                failed_sellers.append({
+                    'seller_id': c['seller_id'],
+                    'error': str(e),
+                })
+                logger.error(f"Failed to log AgentBroadcast for lead {lead.id}, seller {c['seller_id']}: {e}")
+                continue
+        
+        # Check failure rate - rollback if >50% failed
+        total = enqueued + failed
+        if total > 0:
+            failure_rate = failed / total
+            if failure_rate > 0.5:
+                logger.error(
+                    f"Broadcast failure rate ({failure_rate:.1%}) exceeds 50% threshold. "
+                    f"Enqueued: {enqueued}, Failed: {failed}. Rolling back transaction."
+                )
+                raise Exception(f"Broadcast failed for {failed}/{total} sellers (>{50}% threshold)")
+        
+        # Update lead with contacted sellers
+        if contacted_log:
+            try:
+                existing = lead.sellers_contacted or []
+                if not isinstance(existing, list):
+                    existing = []
+                existing.extend(contacted_log)
+                lead.sellers_contacted = existing
+                lead.save(update_fields=['sellers_contacted'])
+            except Exception as e:
+                logger.warning(f"Failed updating sellers_contacted for lead {lead.id}: {e}")
+                raise  # Re-raise to trigger rollback
 
-    if contacted_log:
-        try:
-            existing = lead.sellers_contacted or []
-            if not isinstance(existing, list):
-                existing = []
-            existing.extend(contacted_log)
-            lead.sellers_contacted = existing
-            lead.save(update_fields=['sellers_contacted'])
-        except Exception as e:
-            logger.warning(f"Failed updating sellers_contacted for lead {lead.id}: {e}")
-
+    # Log failure rate for metrics
+    total = enqueued + failed
+    failure_rate = failed / total if total > 0 else 0
+    logger.info(
+        f"Broadcast completed for lead {lead.id}: "
+        f"{enqueued} enqueued, {failed} failed ({failure_rate:.1%} failure rate), "
+        f"source={seller_source_used}"
+    )
+    
     summary = {
         "success": True,
         "request_id": str(lead.id),
         "sellers_enqueued": enqueued,
+        "sellers_failed": failed,
+        "failure_rate": failure_rate,
+        "failed_sellers": failed_sellers,
         "seller_source_used": seller_source_used or 'none',
     }
-    logger.info(f"Broadcast executed for lead {lead.id}: {enqueued} sellers, source={seller_source_used}")
     return summary
 
 @shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_kwargs={"max_retries": 3})
@@ -857,8 +909,8 @@ def monitor_new_media_and_trigger_proactive(self) -> Dict[str, Any]:
                 
                 conversation_id = conv.conversation_id
                 
-                # Check rate limiting
-                if not _check_proactive_rate_limit(conversation_id):
+                # Check and increment rate limiting (ATOMIC - ISSUE-003 FIX)
+                if not _check_and_increment_rate_limit(conversation_id):
                     logger.info(f"Rate limit exceeded for conversation {conversation_id}")
                     continue
                 
@@ -872,7 +924,7 @@ def monitor_new_media_and_trigger_proactive(self) -> Dict[str, Any]:
                 if result.get("success"):
                     # Mark as sent to avoid duplicates
                     cache.set(cache_key, True, timeout=3600)  # 1 hour
-                    _update_proactive_rate_limit(conversation_id)
+                    # Note: Rate limiting already incremented in _check_and_increment_rate_limit above
                     proactive_responses_triggered += 1
                     logger.info(f"Triggered proactive response for listing {listing.id}")
                 else:
@@ -940,12 +992,26 @@ def index_listing_task(self, listing_id: str, action: str = 'create') -> Dict[st
         splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
         chunks = splitter.split_documents([doc])
         
+        # ISSUE-011 FIX: Use configured path instead of hardcoded /tmp
+        from django.conf import settings
+        import os
+        
+        # Get persist directory from settings or use default in BASE_DIR
+        persist_dir = getattr(
+            settings, 
+            'CHROMA_PERSIST_DIR', 
+            os.path.join(settings.BASE_DIR, 'data', 'chroma_db')
+        )
+        
+        # Ensure directory exists
+        os.makedirs(persist_dir, exist_ok=True)
+        
         # Embed and store in ChromaDB (SQLite backend)
         embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
         db = Chroma(
             collection_name="listings",
             embedding_function=embeddings,
-            persist_directory="/tmp/chroma_db"  # SQLite backend persistence
+            persist_directory=persist_dir  # Use configured path
         )
         
         # Upsert chunks (using listing_id + chunk index as unique ID)
@@ -972,7 +1038,7 @@ def delete_listing_from_index(self, listing_id: str) -> Dict[str, Any]:
     """
     from langchain.embeddings import HuggingFaceEmbeddings
     from langchain.vectorstores import Chroma
-    
+
     try:
         embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
         db = Chroma(
@@ -980,17 +1046,57 @@ def delete_listing_from_index(self, listing_id: str) -> Dict[str, Any]:
             embedding_function=embeddings,
             persist_directory="/tmp/chroma_db"
         )
-        
+
         # Delete all chunks for this listing
         ids = [f"listing_{listing_id}_chunk_{i}" for i in range(10)]  # Safe upper bound
         db.delete(ids=ids)
-        
+
         logger.info(f"Deleted listing {listing_id} from index")
         return {
             "success": True,
             "listing_id": listing_id,
         }
-        
+
     except Exception as e:
         logger.error(f"Failed to delete listing {listing_id} from index: {e}")
+        raise
+
+
+@shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_kwargs={"max_retries": 3})
+def update_calibration_params() -> Dict[str, Any]:
+    """
+    Periodic task to update router calibration parameters using recent router events.
+    This task runs nightly to retrain the calibration models and update parameters.
+    """
+    try:
+        from router_service.calibration import retrain_calibration_models, get_calibration_metrics
+
+        logger.info("Starting periodic calibration parameter update")
+
+        # Retrain models using recent router events
+        training_results = retrain_calibration_models()
+
+        if not training_results:
+            logger.info("No calibration models were updated (insufficient data)")
+            return {
+                "success": True,
+                "message": "No models updated - insufficient training data",
+                "models_updated": 0
+            }
+
+        # Get updated metrics
+        metrics = get_calibration_metrics()
+
+        logger.info(f"Successfully updated calibration for {len(training_results)} domains")
+
+        return {
+            "success": True,
+            "models_updated": len(training_results),
+            "domains": list(training_results.keys()),
+            "metrics": metrics,
+            "message": f"Updated calibration parameters for {len(training_results)} domains"
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to update calibration parameters: {e}")
         raise

@@ -32,6 +32,10 @@ ALLOWED_HOSTS = [h.strip() for h in config('ALLOWED_HOSTS', default='*').split('
 if 'host.docker.internal' not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append('host.docker.internal')
 
+# Add Fly.io internal network for health checks
+if '172.19.0.0/16' not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append('172.19.0.0/16')
+
 
 # Application definition
 
@@ -143,10 +147,14 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'  # Required for collectstatic
 
 # Media (for uploaded/listing images)
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# ISSUE-011 FIX: ChromaDB persistence directory (configurable, not hardcoded)
+CHROMA_PERSIST_DIR = config('CHROMA_PERSIST_DIR', default=str(BASE_DIR / 'data' / 'chroma_db'))
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -205,7 +213,15 @@ CSRF_TRUSTED_ORIGINS = [
 
 # AI ASSISTANT CONFIGURATION
 # The config() function reads the value from your .env file
+# ISSUE-005 FIX: Validate critical env vars in production
 OPENAI_API_KEY = config('OPENAI_API_KEY', default='')
+
+# Validate required env vars for production (not in DEBUG mode)
+if not DEBUG and not OPENAI_API_KEY:
+    from django.core.exceptions import ImproperlyConfigured
+    raise ImproperlyConfigured(
+        "OPENAI_API_KEY is required in production. Set it in your environment variables."
+    )
 
 # Enhanced Agent Context - Feature Flag (default: disabled for safety)
 ENABLE_AGENT_CONTEXT = config('ENABLE_AGENT_CONTEXT', default='false').lower() == 'true'
@@ -309,6 +325,18 @@ ENABLE_OTEL_METRICS = config('ENABLE_OTEL_METRICS', default=True, cast=bool)
 # LLM Metrics Configuration
 LLM_METRICS_SAMPLE_RATE = float(OTEL_TRACES_SAMPLER_ARG)
 LLM_METRICS_ERROR_SAMPLE_RATE = 1.0  # Always sample errors
+
+# Router Configuration (Sprint 5)
+ROUTER_FUSION_WEIGHTS = {
+    'embed_score': 0.15,
+    'clf_prob': 0.7,
+    'rule_vote': 0.15,
+}
+ROUTER_TAU_DEFAULT = 0.72
+ROUTER_TAU_MIN = 0.60
+ROUTER_DELTA_TOP2 = 0.08
+ROUTER_CALIBRATION_VERSION = "v1.5"
+ROUTER_ENABLE_AB = False
 
 # Structured JSON logging for assistant.* loggers
 LOGGING = {

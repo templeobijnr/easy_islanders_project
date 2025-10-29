@@ -58,11 +58,14 @@ def _safe_cache_add(key: str, value: Any, timeout: int = None):
         return True
 
 try:  # Optional Prometheus exposure
-    from prometheus_client import Counter, Histogram
+    from prometheus_client import Counter, Histogram, Gauge
 
     _PROMETHEUS_AVAILABLE = True
 except Exception:  # noqa: BLE001
     _PROMETHEUS_AVAILABLE = False
+    Counter = None
+    Histogram = None
+    Gauge = None
 
 try:  # Optional OpenTelemetry span emission
     from opentelemetry import trace as _ot_trace  # type: ignore
@@ -282,6 +285,24 @@ if _PROMETHEUS_AVAILABLE:
         buckets=(0.01, 0.025, 0.05, 0.1, 0.2, 0.35, 0.5, 0.75, 1, 1.5, 2, 3),
     )
 
+    # Calibration metrics (Sprint 5)
+    ROUTER_CONFIDENCE_HISTOGRAM = Histogram(
+        "router_confidence_histogram",
+        "Router confidence score distribution",
+        ["domain"],
+        buckets=(0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0),
+    )
+    ROUTER_ECE_VALUE = Gauge(
+        "router_ece_value",
+        "Expected Calibration Error by domain",
+        ["domain"],
+    )
+    ROUTER_ACCURACY_TOTAL = Counter(
+        "router_accuracy_total",
+        "Router prediction accuracy counters",
+        ["domain", "status"],
+    )
+
 
 @dataclass
 class LLMRequestMetrics:
@@ -355,7 +376,7 @@ def inc_circuit_event(component: str, state: str) -> None:
 def inc_circuit_open(component: str) -> None:
     try:
         if _PROMETHEUS_AVAILABLE:
-        CIRCUIT_OPEN_TOTAL.labels(component=component).inc()
+            CIRCUIT_OPEN_TOTAL.labels(component=component).inc()
     except Exception:
         pass
 
@@ -420,6 +441,43 @@ def observe_router_latency(domain: str, seconds: float) -> None:
     try:
         if _PROMETHEUS_AVAILABLE:
             ROUTER_LATENCY_SECONDS.labels(domain=domain).observe(seconds)
+    except Exception:
+        pass
+
+
+# Sprint 5 calibration metrics functions
+def observe_router_confidence(domain: str, confidence: float) -> None:
+    """Record router confidence score."""
+    try:
+        if _PROMETHEUS_AVAILABLE:
+            ROUTER_CONFIDENCE_HISTOGRAM.labels(domain=domain).observe(confidence)
+    except Exception:
+        pass
+
+
+def set_router_calibration_ece(domain: str, ece: float) -> None:
+    """Set Expected Calibration Error for domain."""
+    try:
+        if _PROMETHEUS_AVAILABLE:
+            ROUTER_ECE_VALUE.labels(domain=domain).set(ece)
+    except Exception:
+        pass
+
+
+def inc_router_accuracy(domain: str, correct: bool) -> None:
+    """Increment router accuracy counter."""
+    try:
+        if _PROMETHEUS_AVAILABLE:
+            ROUTER_ACCURACY_TOTAL.labels(domain=domain, correct=str(correct).lower()).inc()
+    except Exception:
+        pass
+
+
+def set_router_uncertain_ratio(domain: str, ratio: float) -> None:
+    """Set ratio of uncertain predictions."""
+    try:
+        if _PROMETHEUS_AVAILABLE:
+            ROUTER_UNCERTAIN_RATIO.labels(domain=domain).set(ratio)
     except Exception:
         pass
 

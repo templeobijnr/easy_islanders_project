@@ -1,25 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, DollarSign, ShoppingCart, Calendar } from 'lucide-react';
+import { DollarSign, ShoppingCart, Calendar } from 'lucide-react';
 import DashboardHeader from '../../components/dashboard/DashboardHeader';
-import { useAuth } from '../../contexts/AuthContext';
-import axios from 'axios';
-import config from '../../config';
+// import { useAuth } from '../../contexts/AuthContext'; // Unused
+// import axios from 'axios'; // Unused
 
 const Sales = () => {
-  const { user } = useAuth();
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [timeRange, setTimeRange] = useState('30d');
 
   useEffect(() => {
     fetchSales();
-  }, [timeRange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fetchSales = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('access_token');
       // Mock sales data for now
       const mockSales = [
         {

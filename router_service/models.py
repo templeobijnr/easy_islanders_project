@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from django.db import models
+from typing import Optional
 import uuid
 
 
@@ -36,6 +37,8 @@ class RouterEvent(models.Model):
             models.Index(fields=["created_at"]),
             models.Index(fields=["domain_pred"]),
             models.Index(fields=["split"]),
+            models.Index(fields=['-created_at'], name='router_evt_created_idx'),
+            models.Index(fields=['domain_pred', '-created_at'], name='router_evt_domain_idx'),
         ]
 
 

@@ -43,32 +43,6 @@ export const SPOTLIGHT_BY_TAB: Record<Tab, FeaturedItem[]> = {
   ],
 };
 
-// Mock data for recommendations
-export const MOCK_RESULTS: Record<JobId, Array<any>> = {
-  place: [
-    { id: "apt-1", title: "2+1 • Kyrenia Center • Furnished", reason: "400m from Harbor • ₺19,800 • Available Fri 18:00", price: "₺19,800/mo", location: "Kyrenia Center" },
-    { id: "apt-2", title: "1+1 • Near EMU • New Build", reason: "1.1km • ₺16,500 • No prepay", price: "₺16,500/mo", location: "Near EMU" },
-    { id: "apt-3", title: "2+1 • Zeytinlik", reason: "8 min walk • ₺20,200 • Pets OK", price: "₺20,200/mo", location: "Zeytinlik" },
-  ],
-  car: [
-    { id: "car-1", title: "Compact • Automatic", reason: "Pickup Fri 10:00 • 1.2km • Deposit ₺0", price: "₺1,100/day", location: "Kyrenia Center" },
-    { id: "car-2", title: "SUV 5-seat", reason: "Airport pickup • Sat 09:00", price: "₺1,800/day", location: "Airport" },
-  ],
-  night: [
-    { id: "n1", title: "Harbor Jazz Bar", reason: "Live jazz 20:30 • 450m • Avg ₺2,100 for two", price: "Table 20:00", location: "Harbor" },
-    { id: "n2", title: "Seaview Meze House", reason: "Quiet terrace • 650m • Avg ₺1,600", price: "Table 20:15", location: "Harbor" },
-  ],
-  help: [
-    { id: "h1", title: "Deep Clean (2 cleaners)", reason: "Tomorrow 09:00 • Brings supplies • 2h", price: "₺850", location: "Kyrenia" },
-  ],
-  transfer: [
-    { id: "t1", title: "Airport → Kyrenia (Sedan)", reason: "Meet at arrivals • 2 bags • 35min", price: "₺750", location: "Airport" },
-  ],
-  weekend: [
-    { id: "w1", title: "Karpaz Guesthouse", reason: "Breakfast • Free cancel • 28km", price: "₺1,900/night", location: "Karpaz" },
-  ],
-};
-
 // Lane data
 export const EVENTS = [
   { id: "e1", title: "Live Jazz Night", meta: "Harbor • Thu 20:30", emoji: "🎷" },
@@ -87,3 +61,34 @@ export const DEALS = [
   { id: "d2", title: "Harbor Boutique — 2 nights", meta: "Late checkout • Breakfast", emoji: "🏨" },
   { id: "d3", title: "Meze Tasting for 2", meta: "Near harbor • Set menu", emoji: "🥗" },
 ];
+
+// Mock recommendation results for each job type
+export const MOCK_RESULTS: Record<JobId, Array<{id:string; title:string; reason?:string; price?:string; rating?:number; location?:string}>> = {
+  place: [
+    { id: 'p1', title: 'Harbor Boutique — 2 nights', reason: 'Late checkout • Breakfast', price: '₺2,300', rating: 4.8, location: 'Kyrenia Harbor' },
+    { id: 'p2', title: 'Olive Grove Suites', reason: 'Walk to old town', price: '₺1,950', rating: 4.6, location: 'Zeytinlik' },
+    { id: 'p3', title: 'Seaside Villa', reason: 'Private beach access', price: '₺3,500', rating: 4.9, location: 'Escape Beach' },
+  ],
+  car: [
+    { id: 'c1', title: 'Compact Automatic', reason: 'Deposit ₺0 • Airport pickup', price: '₺900/day', rating: 4.7 },
+    { id: 'c2', title: 'SUV 5-seat', reason: 'Child seat on request', price: '₺1,450/day', rating: 4.5 },
+    { id: 'c3', title: 'Convertible Special', reason: 'Weekend rates available', price: '₺1,200/day', rating: 4.8 },
+  ],
+  night: [
+    { id: 'n1', title: 'Harbor Jazz Bar', reason: 'Live at 20:30', price: 'Table ₺2,100', rating: 4.6, location: 'Harbor' },
+    { id: 'n2', title: 'Meze House', reason: 'Quiet terrace', price: 'Avg ₺1,600', rating: 4.7, location: 'Old Town' },
+    { id: 'n3', title: 'Rooftop Lounge', reason: 'Sunset views', price: 'Entry free', rating: 4.5, location: 'Kyrenia Center' },
+  ],
+  help: [
+    { id: 'h1', title: 'Deep clean (2 cleaners)', reason: 'Tomorrow 09:00 • Brings supplies', price: '₺850', rating: 4.8 },
+    { id: 'h2', title: 'Handyman Service', reason: 'Same day available', price: '₺600/hour', rating: 4.6 },
+  ],
+  transfer: [
+    { id: 't1', title: 'Airport → Kyrenia (Sedan)', reason: 'Meet at arrivals • 2 bags', price: '₺600', rating: 4.9 },
+    { id: 't2', title: 'Airport → Kyrenia (Van)', reason: '6 passengers • 4 bags', price: '₺900', rating: 4.7 },
+  ],
+  weekend: [
+    { id: 'w1', title: 'Karpaz Guesthouse', reason: 'Breakfast • Free cancel', price: '₺1,900/night', rating: 4.7, location: 'Karpaz' },
+    { id: 'w2', title: 'Beach Resort Package', reason: 'All meals included', price: '₺3,200', rating: 4.8, location: 'Golden Beach' },
+  ],
+};

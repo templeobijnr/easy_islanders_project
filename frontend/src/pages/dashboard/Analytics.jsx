@@ -1,22 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import { Loader2, TrendingUp, Eye, Heart, MessageCircle, Users, DollarSign, Calendar } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Loader2, TrendingUp, Eye, Heart, MessageCircle, Users, DollarSign } from 'lucide-react';
 import DashboardHeader from '../../components/dashboard/DashboardHeader';
-import { useAuth } from '../../contexts/AuthContext';
+// import { useAuth } from '../../contexts/AuthContext'; // Unused
 import axios from 'axios';
 import config from '../../config';
 
+// Valid ranges used by the UI. Adjust if you support other ranges.
+const DEFAULT_RANGE = '30d';
+
 const Analytics = () => {
-  const { user } = useAuth();
-  const [analytics, setAnalytics] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [analytics, setAnalytics] = useState(null); // Placeholder for when API is connected
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [timeRange, setTimeRange] = useState('30d');
+  const [timeRange, setTimeRange] = useState(DEFAULT_RANGE);
 
-  useEffect(() => {
-    fetchAnalytics();
-  }, [timeRange]);
-
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = useCallback(async () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('access_token');
@@ -33,47 +31,24 @@ const Analytics = () => {
     } finally {
       setLoading(false);
     }
+  }, [timeRange]);
+
+  // useEffect(() => {
+  //   fetchAnalytics();
+  // }, [fetchAnalytics]);
+
+  // Mock data for now - replace with real data when API is connected
+  const stats = {
+    total_views: 0,
+    total_likes: 0,
+    total_messages: 0,
+    total_revenue: 0,
+    views_growth: 0,
+    likes_growth: 0,
+    messages_growth: 0,
+    revenue_growth: 0
   };
-
-  if (loading) {
-    return (
-      <div className="flex flex-col h-full">
-        <DashboardHeader title="Analytics" subtitle="Track your listing performance" />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="flex items-center gap-3 text-gray-600">
-            <Loader2 className="w-6 h-6 animate-spin" />
-            <span>Loading analytics...</span>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex flex-col h-full">
-        <DashboardHeader title="Analytics" subtitle="Track your listing performance" />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <TrendingUp className="w-8 h-8 text-red-600" />
-            </div>
-            <h3 className="text-lg font-semibold text-gray-800 mb-2">Failed to Load Analytics</h3>
-            <p className="text-gray-600 mb-4">{error}</p>
-            <button 
-              onClick={fetchAnalytics}
-              className="px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-dark transition-colors"
-            >
-              Try Again
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const stats = analytics?.stats || {};
-  const listings = analytics?.listings || [];
+  const listings = [];
 
   return (
     <div className="flex flex-col h-full">

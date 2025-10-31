@@ -4,6 +4,6 @@
 
 @layer base {
   body {
-    @apply font-sans antialiased text-gray-800;
+    @apply font-sans antialiased text-ink-700 bg-gradient-to-b from-emerald-50 to-slate-50;
   }
 }

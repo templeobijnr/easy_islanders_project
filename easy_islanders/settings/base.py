@@ -52,6 +52,8 @@ INSTALLED_APPS = [
     'rest_framework.authtoken',
     'rest_framework_simplejwt',
     'corsheaders',
+    'drf_spectacular',
+    'drf_spectacular_sidecar',
 
     # Local apps - users must come before assistant
     'users',
@@ -172,7 +174,8 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
-    ]
+    ],
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
 
 SIMPLE_JWT = {
@@ -325,6 +328,19 @@ ENABLE_OTEL_METRICS = config('ENABLE_OTEL_METRICS', default=True, cast=bool)
 # LLM Metrics Configuration
 LLM_METRICS_SAMPLE_RATE = float(OTEL_TRACES_SAMPLER_ARG)
 LLM_METRICS_ERROR_SAMPLE_RATE = 1.0  # Always sample errors
+
+# DRF Spectacular Configuration
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Easy Islanders API",
+    "DESCRIPTION": "Public/Private endpoints for chat, listings, bookings, messages, agents.",
+    "VERSION": "1.0.0",
+    # If you use JWT/Bearer across most endpoints, set global security:
+    "SECURITY": [{"bearerAuth": []}],
+    "COMPONENT_SPLIT_REQUEST": True,  # better request/response separation in UI
+    "SERVERS": [{"url": "/api/", "description": "Default API root"}],
+    # Optional: show extensions like x-codeSamples if you add them
+    # "POSTPROCESSING_HOOKS": [],
+}
 
 # Router Configuration (Sprint 5)
 ROUTER_FUSION_WEIGHTS = {

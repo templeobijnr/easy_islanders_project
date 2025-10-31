@@ -292,7 +292,7 @@ def monitor_pending_outreaches(self) -> Dict[str, Any]:
     Checks for responses, sends follow-ups if overdue, and updates agent state.
     """
     # Best Practice: Import dependencies locally within the task
-    from ..tools import check_for_new_images
+    from assistant.tools import check_for_new_images
     # Graph event trigger is optional; not available in current build
     graph_run_event = None
 

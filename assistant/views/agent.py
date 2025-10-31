@@ -4,14 +4,14 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 
-from .permissions import IsAgentService, IsBusinessUser
+from ..permissions import IsAgentService, IsBusinessUser
 from listings.models import Listing
-from .models import DemandLead, AgentBroadcast
-from .tasks import broadcast_request_to_sellers
+from ..models import DemandLead, AgentBroadcast
+from ..tasks import broadcast_request_to_sellers
 # from .brain.schemas import SearchCriteria  # DELETED - not available in new schemas
 
 # NEW imports for generalized requests
-from .models import Request as GenericRequest, AgentBroadcastV2, ApproveBroadcast
+from ..models import Request as GenericRequest, AgentBroadcastV2, ApproveBroadcast
 
 
 @api_view(['POST'])

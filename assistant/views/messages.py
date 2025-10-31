@@ -20,8 +20,8 @@ from rest_framework.response import Response
 from django.db.models import Q, Max, Count, Subquery, OuterRef, IntegerField
 from django.db.models.functions import Coalesce
 from django.utils import timezone
-from .models import Message, ConversationThread
-from .serializers_messages import MessageSerializer, ThreadSerializer, UserSerializer
+from ..models import Message, ConversationThread
+from ..serializers_messages import MessageSerializer, ThreadSerializer, UserSerializer
 import logging
 from django.contrib.auth import get_user_model
 

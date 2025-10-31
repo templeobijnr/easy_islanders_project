@@ -50,6 +50,8 @@ def test_registry_service():
             timeout=10
         )
         print(f"✓ Search test: {response.status_code}")
+        if response.status_code != 200:
+            print(f"  Error: {response.text}")
         if response.status_code == 200:
             data = response.json()
             print(f"  Found {len(data)} terms")

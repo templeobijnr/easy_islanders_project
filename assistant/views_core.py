@@ -5,7 +5,7 @@ import logging
 import json
 import os
 import time
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 
 from django.conf import settings
 from django.db import models, transaction
@@ -20,6 +20,8 @@ from rest_framework import generics, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from drf_spectacular.utils import extend_schema, OpenApiExample, OpenApiResponse, OpenApiTypes, inline_serializer
+from rest_framework import serializers
 
 from openai import OpenAI
 
@@ -71,74 +73,11 @@ from .utils.notifications import (
 )
 
 from .tasks import broadcast_request_to_sellers, broadcast_request_for_request
-
-
-def _notify_new_images(listing_id: int, media_urls: List[str]):
-    """Notify that new images are available for a listing."""
-    try:
-        # Get the updated listing with all images
-        listing = Listing.objects.get(id=listing_id)
-        sd = listing.structured_data or {}
-        
-        # Get all current images (not just the new ones)
-        all_image_urls = sd.get('image_urls', [])
-        
-        notification = {
-            "listing_id": listing_id,
-            "media_urls": media_urls,
-            "image_urls": all_image_urls,  # All images, not just new ones
-            "verified_with_photos": sd.get('verified_with_photos', False),
-            "type": "new_images"
-        }
-        put_notification(listing_id, notification)
-        logger.info(f"Notification created for listing {listing_id} with {len(media_urls)} new images, {len(all_image_urls)} total images")
-    except Exception as e:
-        logger.error(f"Failed to create notification for listing {listing_id}: {e}")
-        # Fallback to basic notification
-        notification = {
-            "listing_id": listing_id,
-            "media_urls": media_urls,
-            "image_urls": media_urls,  # Fallback to just new images
-            "verified_with_photos": False,
-            "type": "new_images"
-        }
-        put_notification(listing_id, notification)
-
-
-def _auto_trigger_image_display(listing_id: int, media_urls: List[str], conversation_id: Optional[str] = None):
-    """Automatically trigger image display after processing images via POST."""
-    try:
-        # Get the updated listing with all images
-        listing = Listing.objects.get(id=listing_id)
-        sd = listing.structured_data or {}
-        from .utils.url_utils import normalize_image_list
-        all_image_urls = normalize_image_list(sd.get('image_urls', []))
-        
-        # Create a comprehensive response that includes the images for immediate display
-        response_data = {
-            "listing_id": listing_id,
-            "conversation_id": conversation_id,
-            "image_count": len(all_image_urls),
-            "image_urls": all_image_urls,
-            "new_images": media_urls,
-            "last_photo_update": sd.get('last_photo_update'),
-            "verified_with_photos": sd.get('verified_with_photos', False),
-            "auto_display": True,  # Flag to indicate this was auto-triggered
-            "message": f"New images received and ready for display! {len(media_urls)} new image(s) added to listing {listing_id}."
-        }
-        
-        # Store this as a special notification for immediate display
-        # Use conversation_id as key if available, otherwise fallback to listing_id
-        display_key = conversation_id or str(listing_id)
-        put_auto_display(display_key, response_data)
-        
-        logger.info(f"Auto-triggered image display for listing {listing_id} (conversation: {conversation_id}) with {len(all_image_urls)} total images")
-        
-        return response_data
-        
-    except Exception as e:
-        logger.exception(f"Failed to auto-trigger image display for listing {listing_id}")
-        return None
+from assistant.views._helpers import (
+    _normalize_chat_result, _safe_chat_response, _notify_new_images,
+    _auto_trigger_image_display, _is_https, _ensure_conversation,
+    _resolve_thread_id, _validate_twilio_webhook, _record_outreach_attempt
+)
 
 
 # Old thread-based functions removed - now using Celery tasks
@@ -256,41 +195,64 @@ except Exception as e:
     openai_client = None
 
 
-def _ensure_conversation(conversation_id: Optional[str]) -> str:
-    """Ensure a conversation exists and return its ID."""
-    if conversation_id:
-        # Validate if conversation_id is a valid UUID
-        try:
-            uuid.UUID(conversation_id)
-            Conversation.objects.get_or_create(id=conversation_id)
-            return conversation_id
-        except ValueError:
-            # If not a valid UUID, create a new one
-            pass
-    
-    # Create new conversation with valid UUID
-    new_id = str(uuid.uuid4())
-    Conversation.objects.get_or_create(id=new_id)
-    return new_id
+class ChatRequestSerializer(serializers.Serializer):
+    message = serializers.CharField()
+    thread_id = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
+class ChatResponseSerializer(serializers.Serializer):
+    thread_id = serializers.CharField()
+    response = serializers.CharField()
+    language = serializers.CharField(required=False)
+    recommendations = serializers.ListField(child=serializers.DictField(), required=False)
 
+@extend_schema(
+    tags=["Chat"],
+    operation_id="chat_with_assistant",
+    request=ChatRequestSerializer,
+    responses={
+        200: OpenApiResponse(ChatResponseSerializer, description="Successful chat turn"),
+        400: OpenApiResponse(
+            inline_serializer(
+                name="ChatBadRequest",
+                fields={"error": serializers.CharField()}
+            ),
+            description="Validation error"
+        ),
+    },
+    examples=[
+        OpenApiExample(
+            "Basic chat",
+            value={"message": "Hello, I'm looking for 2BR near the beach."},
+            request_only=True,
+        ),
+        OpenApiExample(
+            "Success response",
+            value={
+                "thread_id": "abc123",
+                "response": "I found a few 2BR options near the beach...",
+                "language": "en",
+            },
+            response_only=True,
+        ),
+    ],
+)
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def chat_with_assistant(request):
     """
     Primary chat endpoint with thread ID state management.
-    
+
     - Authenticates user (required for state persistence)
     - Generates/retrieves thread_id from ConversationThread model
     - Links to LangGraph checkpoint system
     - Supports cross-device sync via User ID
-    
+
     Request:
     {
         "message": "Find me an apartment",
         "thread_id": "optional-uuid"  # If not provided, backend retrieves/creates active thread
     }
-    
+
     Response:
     {
         "response": "...",
@@ -300,71 +262,54 @@ def chat_with_assistant(request):
         "conversation_id": "uuid"  # Legacy field, same as thread_id
     }
     """
-    user = request.user
-    message = (request.data.get('message') or '').strip()
-    
-    if not message:
-        return Response({'error': 'Message cannot be empty.'}, status=status.HTTP_400_BAD_REQUEST)
-
-    # Pre-model guardrail: block abusive/out-of-scope/injection before expensive routing
-    guardrail_result = run_enterprise_guardrails(message)
-    if not guardrail_result.passed:
-        return Response({
-            'response': "I'm sorry, I can't assist with that request.",
-            'reason': guardrail_result.reason,
-            'language': request.data.get('language', 'en'),
-            'recommendations': [],
-            'function_calls': [],
-            'requires_phone': False,
-        }, status=status.HTTP_200_OK)
-    
-    # Step 1: Resolve thread_id (ATOMIC - ISSUE-001 FIX)
-    # - If provided in request, validate it
-    # - If not provided, retrieve/create active thread for user
-    thread_id = request.data.get('thread_id')
-    
     try:
-        from .models import ConversationThread
-        if thread_id:
-            # Try to fetch provided thread for this user; fall back if missing/stale
-            try:
-                thread = ConversationThread.objects.get(thread_id=thread_id, user=user, is_active=True)
-            except ConversationThread.DoesNotExist:
-                # Stale or foreign thread_id from localStorage; create/reuse active thread
-                with transaction.atomic():
-                    thread = ConversationThread.objects.select_for_update().filter(
-                        user=user, is_active=True
-                    ).first()
-                    if not thread:
-                        ConversationThread.objects.filter(user=user, is_active=True).update(is_active=False)
-                        thread = ConversationThread.objects.create(
-                            user=user,
-                            thread_id=str(uuid.uuid4()),
-                            is_active=True
-                        )
-                thread_id = thread.thread_id
-        else:
-            # Get or create active thread for this user (ATOMIC)
-            with transaction.atomic():
-                thread = ConversationThread.objects.select_for_update().filter(
-                    user=user, is_active=True
-                ).first()
-                if not thread:
-                    ConversationThread.objects.filter(user=user, is_active=True).update(is_active=False)
-                    thread = ConversationThread.objects.create(
-                        user=user,
-                        thread_id=str(uuid.uuid4()),
-                        is_active=True
-                    )
-            thread_id = thread.thread_id
-            
+        user = request.user
+        message = (request.data.get('message') or '').strip()
+
+        if not message:
+            return _safe_chat_response(request, None, {
+                'message': 'Message cannot be empty.',
+                'language': request.data.get('language', 'en'),
+                'recommendations': [],
+            }, status.HTTP_400_BAD_REQUEST)
+
+        # Pre-model guardrail: block abusive/out-of-scope/injection before expensive routing
+        guardrail_result = run_enterprise_guardrails(message)
+        if not guardrail_result.passed:
+            # Check if this is a benign greeting that should be allowed
+            import re
+            greeting_patterns = [
+                r'^\s*(hi|hello|hey|good\s+(morning|afternoon|evening)|howdy|greetings?)\s*$',
+                r'^\s*(hi|hello|hey)\s+there\s*$',
+                r'^\s*what\'?s?\s+up\s*$',
+                r'^\s*how\s+are\s+you\s*$',
+                r'^\s*can\s+you\s+help\s+me\s*$',
+            ]
+            is_benign_greeting = any(re.search(pattern, message.lower()) for pattern in greeting_patterns)
+
+            if is_benign_greeting:
+                logger.info(f"Guardrail flagged greeting '{message}' but allowing it through")
+            else:
+                return _safe_chat_response(request, None, {
+                    'message': "I'm sorry, I can't assist with that request.",
+                    'reason': guardrail_result.reason,
+                    'language': request.data.get('language', 'en'),
+                    'recommendations': [],
+                    'function_calls': [],
+                    'requires_phone': False,
+                })
+
+        # Step 1: Resolve thread_id using unified resolver
+        supplied_thread_id = request.data.get('thread_id')
+        thread_id = _resolve_thread_id(user, supplied_thread_id)
+
         # Step 2: Process message through agent with robust error handling
         use_supervisor = getattr(settings, 'ENABLE_SUPERVISOR_AGENT', False)
         use_enterprise_agent = getattr(settings, 'ENABLE_ENTERPRISE_AGENT', True)
-        
+
         lc_result = None
         agent_error = None
-        
+
         try:
             if use_supervisor:
                 # 🚦 Prefer Central Supervisor when enabled
@@ -395,27 +340,33 @@ def chat_with_assistant(request):
                 'recommendations': [],
                 'conversation_id': thread_id,
             }
-        
-        # Step 3: Return response with thread_id for client-side caching
-        return Response({
-            'response': lc_result.get('message', ''),
-            'thread_id': thread_id,  # Return for localStorage caching
-            'language': lc_result.get('language', 'en'),
-            'recommendations': lc_result.get('recommendations') or [],
-            'function_calls': [],
-            'requires_phone': False,
-            'conversation_id': thread_id,  # Legacy field
-        }, status=status.HTTP_200_OK)
-        
+
+        # Step 3: Return normalized response with thread_id for client-side caching
+        return _safe_chat_response(request, thread_id, lc_result)
+
     except Exception as e:
-        # Final safety net: if even guardrail or thread setup fails, return 200 with error message
+        # Final safety net: catch any unhandled exceptions and return a proper Response
         logger.error(f"Critical error in chat_with_assistant (view level): {e}", exc_info=True)
-        return Response({
-            'response': 'An error occurred. Please refresh and try again.',
+        # Check if this is the specific error we're trying to fix
+        if "Field 'id' expected a number but got <django.contrib.auth.models.AnonymousUser object" in str(e):
+            logger.warning("Anonymous user error detected - this should be handled by the anonymous user logic above")
+        return _safe_chat_response(request, 'unknown', {
+            'message': 'An error occurred. Please refresh and try again.',
             'language': request.data.get('language', 'en'),
             'recommendations': [],
-            'conversation_id': 'unknown',
-        }, status=status.HTTP_200_OK)
+        })
+
+    except Exception as e:
+        # Final safety net: catch any unhandled exceptions and return a proper Response
+        logger.error(f"Critical error in chat_with_assistant (view level): {e}", exc_info=True)
+        # Check if this is the specific error we're trying to fix
+        if "Field 'id' expected a number but got <django.contrib.auth.models.AnonymousUser object" in str(e):
+            logger.warning("Anonymous user error detected - this should be handled by the anonymous user logic above")
+        return _safe_chat_response(request, 'unknown', {
+            'message': 'An error occurred. Please refresh and try again.',
+            'language': request.data.get('language', 'en'),
+            'recommendations': [],
+        })
 
 
 @api_view(['POST'])
@@ -620,15 +571,14 @@ def handle_chat_event(request):
                         'recommendations': [],
                     }
                 
-            return Response({
-                'response': lc_result.get('message', ''),
-                'language': lc_result.get('language', 'en'),
-                'recommendations': lc_result.get('recommendations') or [],
-                'conversation_id': conversation_id,
-            }, status=status.HTTP_200_OK)
+            return _safe_chat_response(request, conversation_id, lc_result)
     except Exception as e:
         logger.error(f"Critical error in handle_chat_event: {e}", exc_info=True)
-        return Response({'error': 'An unexpected server error occurred.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return _safe_chat_response(request, conversation_id, {
+            'message': 'An unexpected server error occurred.',
+            'language': 'en',
+            'recommendations': [],
+        }, status.HTTP_500_OK)
 
 
 @api_view(['GET'])
@@ -670,18 +620,6 @@ class KnowledgeBaseListView(generics.ListAPIView):
 
 
 # ------------------- Devi AI Webhook (HTTPS + CORS safe) -------------------
-
-def _is_https(request) -> bool:
-    """
-    Returns True if the request is HTTPS, honoring common proxy headers.
-    """
-    if request.is_secure():
-        return True
-    # Honor reverse proxy headers if configured
-    xfp = request.META.get('HTTP_X_FORWARDED_PROTO')
-    if xfp and 'https' in xfp.lower():
-        return True
-    return False
 
 
 @csrf_exempt
@@ -915,46 +853,10 @@ def agent_outreach(request):
         logger.exception("Agent outreach error")
         return JsonResponse({"error": "Internal server error"}, status=500)
     
-def _record_outreach_attempt(listing, channel, contact_number, language, result):
-    """Record outreach attempt in listing structured_data."""
-    try:
-        sd = listing.structured_data or {}
-        
-        outreach_entry = {
-            "channel": channel,
-            "to": contact_number,
-            "language": language,
-            "at": timezone.now().isoformat(),
-            "status": "sent",
-            "twilio_message_sid": result.get("message_sid"),
-            "outreach_id": f"outreach_{listing.id}_{channel}_{int(timezone.now().timestamp())}"
-        }
-        
-        existing = sd.get("outreach") or []
-        if not isinstance(existing, list):
-            existing = [existing]
-        existing.append(outreach_entry)
-        sd["outreach"] = existing
-        
-        listing.structured_data = sd
-        listing.save(update_fields=["structured_data"])
-        
-    except Exception as e:
-        logger.exception(f"Failed to record outreach for listing {listing.id}")
+# Outreach recording moved to _helpers.py
 
 
-def _validate_twilio_webhook(request) -> bool:
-    """Validate Twilio webhook signature for security."""
-    try:
-        from twilio.request_validator import RequestValidator
-        validator = RequestValidator(settings.TWILIO_AUTH_TOKEN)
-        signature = request.META.get('HTTP_X_TWILIO_SIGNATURE', '')
-        url = request.build_absolute_uri()
-        data = request.POST.dict()
-        return validator.validate(url, data, signature)
-    except Exception as e:
-        logger.warning(f"Twilio webhook validation failed: {e}")
-        return False
+# Twilio webhook validation moved to _helpers.py
 
 
 # 1. View to get details for a single listing

@@ -388,12 +388,13 @@ class MediaProcessor:
             listing.structured_data = sd
             # Also update the model's image_urls field to sync with structured_data
             listing.image_urls = sd.get('image_urls', [])
-            listing.save(update_fields=['structured_data', 'image_urls'])
             
-            # NEW: On receipt
-            listing.photos_requested = False  # Reset if fulfilled
-            listing.verified_with_photos = True
-            listing.save(update_fields=['photos_requested', 'structured_data'])
+            # On receipt: mark photos request fulfilled and advance status
+            listing.photos_requested = False
+            listing.status = 'verified_with_photos'
+            
+            # Single atomic save covering all updated fields
+            listing.save(update_fields=['structured_data', 'image_urls', 'photos_requested', 'status'])
 
             logger.info(f"Updated listing {listing_id}: images={len(sd['image_urls'])}, verified={sd['verified_with_photos']}")
             logger.info(f"Photos received for {listing_id}: {len(sd['image_urls'])} images, notifying...")

@@ -1,14 +1,19 @@
 import axios from 'axios';
 import config from './config';
+import { getAccessToken } from './auth/tokenStore';
 
 /**
  * Central axios client used across the frontend.
  * Handles auth header injection and base URL configuration.
+ *
+ * Single source of truth for API calls.
+ * Reads base URL from config (env-aware).
+ * Optional withCredentials enabled when we switch to HttpOnly cookies.
  */
 const http = axios.create({
   baseURL: config.API_BASE_URL,
-  // JWT-based auth does not need cookies; avoid CSRF coupling in dev
-  withCredentials: false,
+  // Cookie-based auth requires credentials; ensures HttpOnly JWT cookies are sent
+  withCredentials: true,
 });
 
 http.interceptors.request.use(
@@ -23,8 +28,7 @@ http.interceptors.request.use(
       url.includes('/api/auth/logout');
 
     if (!isAuthEndpoint) {
-      const token =
-        localStorage.getItem('token') || localStorage.getItem('access_token');
+      const token = getAccessToken();
       if (token) {
         request.headers.Authorization = `Bearer ${token}`;
       }

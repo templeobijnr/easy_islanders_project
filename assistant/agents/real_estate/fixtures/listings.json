@@ -1,0 +1,236 @@
+[
+  {
+    "id": "prop-001",
+    "title": "Modern 2BR Apartment Near Sea",
+    "location": "Kyrenia",
+    "district": "Catalkoy",
+    "bedrooms": 2,
+    "bathrooms": 1,
+    "sleeps": 4,
+    "property_type": "apartment",
+    "price_per_night": 120.00,
+    "currency": "GBP",
+    "amenities": ["wifi", "air_conditioning", "parking", "sea_view", "balcony"],
+    "description": "Beautiful 2-bedroom apartment with sea views. Fully furnished with modern amenities. 5-minute walk to the beach.",
+    "photos": [
+      "https://example.com/prop-001-1.jpg",
+      "https://example.com/prop-001-2.jpg"
+    ],
+    "availability": [
+      {"start": "2025-01-01", "end": "2025-03-31"},
+      {"start": "2025-05-01", "end": "2025-08-31"}
+    ]
+  },
+  {
+    "id": "prop-002",
+    "title": "Luxury 3BR Villa with Pool",
+    "location": "Kyrenia",
+    "district": "Bellapais",
+    "bedrooms": 3,
+    "bathrooms": 2,
+    "sleeps": 6,
+    "property_type": "villa",
+    "price_per_night": 250.00,
+    "currency": "GBP",
+    "amenities": ["private_pool", "wifi", "air_conditioning", "parking", "garden", "bbq"],
+    "description": "Stunning 3-bedroom villa with private pool and mountain views. Perfect for families. Fully equipped kitchen and outdoor dining area.",
+    "photos": [
+      "https://example.com/prop-002-1.jpg",
+      "https://example.com/prop-002-2.jpg",
+      "https://example.com/prop-002-3.jpg"
+    ],
+    "availability": [
+      {"start": "2025-01-01", "end": "2025-12-31"}
+    ]
+  },
+  {
+    "id": "prop-003",
+    "title": "Cozy Studio in City Center",
+    "location": "Kyrenia",
+    "district": "City Center",
+    "bedrooms": 0,
+    "bathrooms": 1,
+    "sleeps": 2,
+    "property_type": "studio",
+    "price_per_night": 60.00,
+    "currency": "GBP",
+    "amenities": ["wifi", "air_conditioning", "kitchenette"],
+    "description": "Compact studio apartment in the heart of Kyrenia. Walking distance to restaurants and shops. Perfect for couples.",
+    "photos": [
+      "https://example.com/prop-003-1.jpg"
+    ],
+    "availability": [
+      {"start": "2025-02-01", "end": "2025-06-30"}
+    ]
+  },
+  {
+    "id": "prop-004",
+    "title": "Family 4BR House with Garden",
+    "location": "Girne",
+    "district": "Alsancak",
+    "bedrooms": 4,
+    "bathrooms": 3,
+    "sleeps": 8,
+    "property_type": "house",
+    "price_per_night": 180.00,
+    "currency": "GBP",
+    "amenities": ["wifi", "air_conditioning", "parking", "garden", "bbq", "washing_machine"],
+    "description": "Spacious 4-bedroom house perfect for large families. Private garden with BBQ area. Quiet residential neighborhood.",
+    "photos": [
+      "https://example.com/prop-004-1.jpg",
+      "https://example.com/prop-004-2.jpg"
+    ],
+    "availability": [
+      {"start": "2025-01-01", "end": "2025-12-31"}
+    ]
+  },
+  {
+    "id": "prop-005",
+    "title": "Beachfront 2BR Apartment",
+    "location": "Kyrenia",
+    "district": "Escape Beach",
+    "bedrooms": 2,
+    "bathrooms": 1,
+    "sleeps": 4,
+    "property_type": "apartment",
+    "price_per_night": 150.00,
+    "currency": "GBP",
+    "amenities": ["wifi", "air_conditioning", "parking", "beach_access", "pool", "gym"],
+    "description": "Direct beach access from this stunning 2-bedroom apartment. Shared pool and gym. Wake up to sea views every morning.",
+    "photos": [
+      "https://example.com/prop-005-1.jpg",
+      "https://example.com/prop-005-2.jpg",
+      "https://example.com/prop-005-3.jpg"
+    ],
+    "availability": [
+      {"start": "2025-01-15", "end": "2025-07-31"}
+    ]
+  },
+  {
+    "id": "prop-006",
+    "title": "Budget 1BR Apartment",
+    "location": "Kyrenia",
+    "district": "Catalkoy",
+    "bedrooms": 1,
+    "bathrooms": 1,
+    "sleeps": 2,
+    "property_type": "apartment",
+    "price_per_night": 50.00,
+    "currency": "GBP",
+    "amenities": ["wifi", "air_conditioning"],
+    "description": "Affordable 1-bedroom apartment. Clean and comfortable. Good for budget travelers.",
+    "photos": [
+      "https://example.com/prop-006-1.jpg"
+    ],
+    "availability": [
+      {"start": "2025-01-01", "end": "2025-12-31"}
+    ]
+  },
+  {
+    "id": "prop-007",
+    "title": "Deluxe 2BR with Pool Access",
+    "location": "Kyrenia",
+    "district": "Catalkoy",
+    "bedrooms": 2,
+    "bathrooms": 2,
+    "sleeps": 4,
+    "property_type": "apartment",
+    "price_per_night": 140.00,
+    "currency": "GBP",
+    "amenities": ["pool", "wifi", "air_conditioning", "parking", "balcony"],
+    "description": "Modern 2-bedroom apartment with pool access. Double bathrooms. Great location near amenities.",
+    "photos": [
+      "https://example.com/prop-007-1.jpg",
+      "https://example.com/prop-007-2.jpg"
+    ],
+    "availability": [
+      {"start": "2025-01-01", "end": "2025-12-31"}
+    ]
+  },
+  {
+    "id": "prop-008",
+    "title": "Premium 5BR Villa with Sea View",
+    "location": "Kyrenia",
+    "district": "Bellapais",
+    "bedrooms": 5,
+    "bathrooms": 4,
+    "sleeps": 10,
+    "property_type": "villa",
+    "price_per_night": 550.00,
+    "currency": "GBP",
+    "amenities": ["private_pool", "wifi", "air_conditioning", "parking", "garden", "bbq", "sea_view"],
+    "description": "Luxurious 5-bedroom villa with breathtaking sea views. Private pool, spacious garden, and outdoor entertainment area.",
+    "photos": [
+      "https://example.com/prop-008-1.jpg",
+      "https://example.com/prop-008-2.jpg",
+      "https://example.com/prop-008-3.jpg"
+    ],
+    "availability": [
+      {"start": "2025-01-01", "end": "2025-12-31"}
+    ]
+  },
+  {
+    "id": "prop-009",
+    "title": "Elegant 4BR Villa with Private Pool",
+    "location": "Kyrenia",
+    "district": "Alsancak",
+    "bedrooms": 4,
+    "bathrooms": 3,
+    "sleeps": 8,
+    "property_type": "villa",
+    "price_per_night": 580.00,
+    "currency": "GBP",
+    "amenities": ["private_pool", "wifi", "air_conditioning", "parking", "garden", "bbq", "washing_machine"],
+    "description": "High-end 4-bedroom villa with modern design. Private pool, landscaped garden, and full entertainment facilities.",
+    "photos": [
+      "https://example.com/prop-009-1.jpg",
+      "https://example.com/prop-009-2.jpg"
+    ],
+    "availability": [
+      {"start": "2025-01-01", "end": "2025-12-31"}
+    ]
+  },
+  {
+    "id": "prop-010",
+    "title": "Spacious 3BR Apartment Near Beach",
+    "location": "Kyrenia",
+    "district": "Escape Beach",
+    "bedrooms": 3,
+    "bathrooms": 2,
+    "sleeps": 6,
+    "property_type": "apartment",
+    "price_per_night": 180.00,
+    "currency": "GBP",
+    "amenities": ["pool", "wifi", "air_conditioning", "parking", "beach_access", "gym"],
+    "description": "Large 3-bedroom apartment with beach access. Shared pool and gym facilities. Perfect for families.",
+    "photos": [
+      "https://example.com/prop-010-1.jpg",
+      "https://example.com/prop-010-2.jpg"
+    ],
+    "availability": [
+      {"start": "2025-01-01", "end": "2025-12-31"}
+    ]
+  },
+  {
+    "id": "prop-011",
+    "title": "Luxury 2BR Penthouse with Sea View",
+    "location": "Kyrenia",
+    "district": "Bellapais",
+    "bedrooms": 2,
+    "bathrooms": 2,
+    "sleeps": 4,
+    "property_type": "apartment",
+    "price_per_night": 520.00,
+    "currency": "GBP",
+    "amenities": ["wifi", "air_conditioning", "parking", "sea_view", "balcony", "pool"],
+    "description": "Stunning 2-bedroom penthouse with panoramic sea views. Top-floor luxury apartment with premium amenities.",
+    "photos": [
+      "https://example.com/prop-011-1.jpg",
+      "https://example.com/prop-011-2.jpg",
+      "https://example.com/prop-011-3.jpg"
+    ],
+    "availability": [
+      {"start": "2025-01-01", "end": "2025-12-31"}
+    ]
+  }
+]

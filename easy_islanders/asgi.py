@@ -1,16 +1,26 @@
-"""
-ASGI config for easy_islanders project.
-
-It exposes the ASGI callable as a module-level variable named ``application``.
-
-For more information on this file, see
-https://docs.djangoproject.com/en/5.2/howto/deployment/asgi/
-"""
-
 import os
 
+import django
 from django.core.asgi import get_asgi_application
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'easy_islanders.settings')
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "easy_islanders.settings")
 
-application = get_asgi_application()
+# Ensure Django apps initialize before importing auth-dependent modules
+django.setup()
+
+from channels.routing import ProtocolTypeRouter, URLRouter
+from assistant.routing import websocket_urlpatterns
+from assistant.auth.ws_cookie_auth import CookieOrQueryTokenAuthMiddleware  # PR D: Cookie auth
+
+# Fail fast if WebSocket support is missing
+from .startup_checks import check_ws_support
+check_ws_support()
+
+django_asgi_app = get_asgi_application()
+
+application = ProtocolTypeRouter({
+    "http": django_asgi_app,
+    "websocket": CookieOrQueryTokenAuthMiddleware(  # PR D: Cookie-first auth
+        URLRouter(websocket_urlpatterns)
+    ),
+})

@@ -15,7 +15,7 @@ export default function Header() {
       <Link
         to={to}
         className={`px-3 py-2 rounded-xl text-sm transition-colors ${
-          isActive ? 'bg-brand-100 text-brand-700 font-medium' : 'text-ink-600 hover:bg-slate-100'
+          isActive ? 'bg-lime-100 text-lime-700 font-medium' : 'text-ink-600 hover:bg-slate-100'
         }`}
       >
         {label}
@@ -37,7 +37,7 @@ export default function Header() {
           </button>
 
           <Link to="/" className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-2xl bg-brand grid place-items-center">
+            <div className="w-10 h-10 rounded-2xl bg-lime-600 grid place-items-center">
               <Compass className="text-white w-5 h-5" />
             </div>
             <span className="font-semibold text-ink-700 text-lg">Easy Islanders</span>

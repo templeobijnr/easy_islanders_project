@@ -31,10 +31,7 @@ graph_run_message = None
 graph_run_event = None
 from listings.models import Listing
 from ..models import DemandLead, ServiceProvider, KnowledgeBase, Conversation, Booking, Request
-from ..auth import (
-    register_user, login_user, logout_user, 
-    get_user_profile, update_user_profile, check_auth_status
-)
+
 from ..serializers import (
     ServiceProviderSerializer,
     KnowledgeBaseSerializer,

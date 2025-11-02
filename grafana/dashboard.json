@@ -110,6 +110,47 @@
             "max": 1
           }
         ]
+      },
+      {
+        "id": 7,
+        "title": "Active WebSocket Connections",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(websocket_connections_active)",
+            "legendFormat": "connections"
+          }
+        ],
+        "yAxes": [
+          {
+            "unit": "short",
+            "min": 0
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "WS Send Errors (5m)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "increase(ws_message_send_errors_total[5m])",
+            "legendFormat": "errors"
+          }
+        ],
+        "yAxes": [
+          {
+            "unit": "short",
+            "min": 0
+          }
+        ],
+        "thresholds": [
+          {
+            "value": 0,
+            "colorMode": "critical",
+            "op": "gt"
+          }
+        ]
       }
     ],
     "time": {

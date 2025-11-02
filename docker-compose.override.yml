@@ -1,0 +1,8 @@
+# This file intentionally left minimal - main config is in docker-compose.yml
+# Uncomment services below if you need to override defaults for local dev
+
+# services:
+#   db:
+#     environment:
+#       POSTGRES_USER: easy_user
+#       POSTGRES_PASSWORD: easy_pass

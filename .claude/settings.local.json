@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 manage.py shell:*)",
+      "Bash(awk:*)",
+      "Bash(export DJANGO_SETTINGS_MODULE=easy_islanders.settings.development)",
+      "Bash(export DATABASE_URL=postgresql://easy_user:easy_pass@127.0.0.1:5432/easy_islanders:*)",
+      "Bash(export REDIS_URL=redis://127.0.0.1:6379/0)",
+      "Bash(python3 manage.py migrate:*)",
+      "Bash(curl:*)",
+      "Bash(python3:*)",
+      "Bash(docker compose exec:*)",
+      "Bash(egrep:*)",
+      "Bash(psql:*)",
+      "Bash(docker compose logs:*)",
+      "Bash(docker compose build:*)",
+      "Bash(docker compose:*)",
+      "Bash(mkdir:*)",
+      "Bash(git checkout:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

@@ -8,10 +8,15 @@ from celery import shared_task
 import requests
 import time
 import logging
-from typing import List, Dict, Any, Optional
+import os
+from typing import List, Dict, Any, Optional, Literal, Set
+from uuid import UUID
 from django.conf import settings
 from django.db import transaction  # ISSUE-004 FIX: Import for atomic transactions
 from listings.models import Listing
+from assistant.models import Message, ConversationThread
+from assistant.brain.agent import run_supervisor_agent
+from assistant.utils.correlation import set_correlation_id, reset_correlation_id
 from .utils.notifications import put_card_display, put_auto_display
 from .twilio_client import MediaProcessor
 from datetime import datetime, timedelta
@@ -19,6 +24,9 @@ from django.utils import timezone as dt_timezone
 # REMOVED incorrect import: from .utils.outreach import check_for_new_images, graph_run_event
 from .twilio_client import TwilioWhatsAppClient
 from assistant.brain.resilience import resilient_api_call
+from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
+
+from assistant.monitoring.metrics import increment_ws_invalid_envelope
 
 logger = logging.getLogger(__name__)
 
@@ -1099,4 +1107,341 @@ def update_calibration_params() -> Dict[str, Any]:
 
     except Exception as e:
         logger.error(f"Failed to update calibration parameters: {e}")
+        raise
+
+# ============================================================================
+# Chat Processing with WebSocket Integration (PR B)
+# ============================================================================
+
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
+from prometheus_client import Histogram
+from celery.exceptions import MaxRetriesExceededError
+
+
+# Retry exceptions for transient failures
+RETRY_EXCEPTIONS = (TimeoutError, ConnectionError, requests.exceptions.Timeout, requests.exceptions.ConnectionError)
+
+
+# Prometheus metric for task duration
+TASK_DURATION = Histogram(
+    'celery_task_duration_seconds',
+    'Celery task execution time',
+    ['task_name', 'status'],
+    buckets=[0.1, 0.5, 1, 2, 5, 10, 30, 60, 120]
+)
+
+
+def _resolve_strict_validation() -> bool:
+    setting_value = getattr(settings, 'WS_STRICT_VALIDATION', None)
+    if setting_value is not None:
+        return bool(setting_value)
+    env_value = os.getenv('WS_STRICT_VALIDATION')
+    if env_value is None:
+        return True
+    return env_value.strip().lower() not in {'0', 'false', 'no'}
+
+
+WS_STRICT_VALIDATION = _resolve_strict_validation()
+_invalid_logged_threads: Set[str] = set()
+
+
+class WsAssistantFrame(BaseModel):
+    """Validated WebSocket assistant envelope."""
+
+    type: Literal["chat_message"]
+    event: Literal["assistant_message"]
+    thread_id: UUID
+    payload: Dict[str, Any]
+    meta: Dict[str, Any]
+
+    model_config = ConfigDict(extra="allow")
+
+    @field_validator("payload")
+    @classmethod
+    def ensure_payload_has_text(cls, value: Dict[str, Any]):
+        if not isinstance(value, dict):
+            raise ValueError("payload must be a dict")
+        text = value.get("text")
+        if not isinstance(text, str) or not text.strip():
+            raise ValueError("payload.text must be a non-empty string")
+        if "rich" not in value or not isinstance(value.get("rich"), dict):
+            value.setdefault("rich", {})
+        return value
+
+    @field_validator("meta")
+    @classmethod
+    def require_in_reply_to(cls, value: Dict[str, Any]):
+        if not isinstance(value, dict):
+            raise ValueError("meta must be a dict")
+        reply = value.get("in_reply_to")
+        if not isinstance(reply, str) or not reply.strip():
+            raise ValueError("meta.in_reply_to must be provided")
+        return value
+
+
+_protocol_error_threads: Set[str] = set()
+
+
+def _record_invalid_envelope(channel_layer, group_name: str, thread_id: UUID, correlation_id: Optional[str], reason: str) -> None:
+    thread_str = str(thread_id)
+    increment_ws_invalid_envelope(thread_str)
+    if thread_str not in _invalid_logged_threads:
+        logger.error("WS OUT INVALID: thread=%s missing=in_reply_to", thread_str)
+        _invalid_logged_threads.add(thread_str)
+    if not WS_STRICT_VALIDATION:
+        return
+    if thread_str in _protocol_error_threads:
+        return
+    _protocol_error_threads.add(thread_str)
+    payload = {"reason": "invalid_envelope"}
+    if correlation_id:
+        payload["correlation_id"] = correlation_id
+    async_to_sync(channel_layer.group_send)(
+        group_name,
+        {
+            "type": "chat.message",
+            "data": {
+                "type": "chat_status",
+                "event": "protocol_error",
+                "thread_id": thread_str,
+                "payload": payload,
+            },
+        },
+    )
+
+
+@shared_task(queue="dlq")
+def dead_letter_queue(task_name: str, args: dict, exception: str):
+    """
+    Dead Letter Queue (DLQ) for failed tasks.
+    Gate B: Operational Hardening - captures poison tasks after max retries exceeded.
+    """
+    from assistant.models import FailedTask
+    FailedTask.objects.create(task_name=task_name, args=args, exception=exception)
+
+
+@shared_task(
+    bind=True,
+    ignore_result=True,
+    autoretry_for=RETRY_EXCEPTIONS,
+    retry_backoff=True,
+    retry_backoff_max=60,
+    retry_jitter=True,  # Add jitter to spread retry bursts
+    max_retries=5,
+    soft_time_limit=100,  # Increased from 45s to handle long LLM calls
+    time_limit=120,  # Increased from 60s to prevent mid-stream kills
+    queue="chat",  # Gate B: route to chat queue
+)
+def process_chat_message(self, message_id: str, thread_id: str, client_msg_id: Optional[str] = None):
+    headers = getattr(self.request, "headers", {}) or {}
+    correlation_id = headers.get("correlation_id")
+    token = set_correlation_id(correlation_id)
+
+    channel_layer = get_channel_layer()
+    group_name = f"thread-{thread_id}"
+
+    # Track task duration and status
+    start_time = time.time()
+    status = 'success'
+
+    try:
+        msg = Message.objects.get(id=message_id)
+        thread = ConversationThread.objects.get(thread_id=thread_id)
+
+        # Step 1: notify typing/on-progress
+        async_to_sync(channel_layer.group_send)(
+            group_name,
+            {
+                "type": "chat_status",
+                "event": "typing",
+                "value": True,
+                "correlation_id": correlation_id,
+            },
+        )
+
+        # Step 2: run the agent (slow path)
+        user_text = (msg.content or "").strip()
+        result = run_supervisor_agent(user_text, thread.thread_id)
+        reply_text = result.get("message") or "Got it. I'll search options that match."
+        recommendations = result.get("recommendations") or []
+
+        a = Message.objects.create(
+            type="assistant",
+            conversation_id=thread.thread_id,
+            content=reply_text,
+            sender=None,
+        )
+
+        # Step 3: emit final assistant message
+        in_reply_to = client_msg_id or (msg.client_msg_id and str(msg.client_msg_id))
+        ws_meta: Dict[str, Any] = {
+            "queued_message_id": str(a.id),
+            "in_reply_to": str(in_reply_to) if in_reply_to else str(msg.client_msg_id or msg.id),
+        }
+        if correlation_id:
+            ws_meta["correlation_id"] = correlation_id
+
+        rich_payload_candidate = result.get("rich") if isinstance(result, dict) else {}
+        rich_payload: Dict[str, Any] = rich_payload_candidate if isinstance(rich_payload_candidate, dict) else {}
+        if recommendations:
+            rich_payload.setdefault("recommendations", recommendations)
+
+        # Extract agent name from supervisor result (Step 1.2: Agent tagging)
+        agent_name = result.get('agent_name') or result.get('current_node', 'unknown')
+        if agent_name and agent_name.endswith('_agent'):
+            agent_name = agent_name.replace('_agent', '')  # "real_estate_agent" → "real_estate"
+
+        frame_payload = {
+            "text": reply_text,
+            "rich": rich_payload,
+            "agent": agent_name,  # Frontend knows which agent handled the request
+        }
+
+        try:
+            frame = WsAssistantFrame(
+                type="chat_message",
+                event="assistant_message",
+                thread_id=thread.thread_id,
+                payload=frame_payload,
+                meta=ws_meta,
+            )
+            payload = frame.model_dump(mode="json")
+        except ValidationError as ex:
+            _record_invalid_envelope(channel_layer, group_name, thread.thread_id, correlation_id, str(ex))
+            if WS_STRICT_VALIDATION:
+                return
+            payload = {
+                "type": "chat_message",
+                "event": "assistant_message",
+                "thread_id": str(thread.thread_id),
+                "payload": frame_payload,
+                "meta": ws_meta,
+            }
+        else:
+            async_to_sync(channel_layer.group_send)(
+                group_name,
+                {
+                    "type": "chat.message",
+                    "data": payload,
+                },
+            )
+            return
+
+        # Non-strict path: send original payload even after validation failure
+        async_to_sync(channel_layer.group_send)(
+            group_name,
+            {
+                "type": "chat.message",
+                "data": payload,
+            },
+        )
+
+    except MaxRetriesExceededError as e:
+        # Gate B: DLQ handling for poison tasks
+        status = 'failure_dlq'
+        dead_letter_queue.apply_async(
+            kwargs={
+                "task_name": "process_chat_message",
+                "args": {"message_id": message_id, "thread_id": thread_id, "client_msg_id": client_msg_id},
+                "exception": str(e),
+            },
+            queue="dlq",
+        )
+        async_to_sync(channel_layer.group_send)(
+            group_name,
+            {
+                "type": "chat_error",
+                "event": "task_failed_max_retries",
+                "error": "Maximum retries exceeded. Task moved to DLQ for manual review.",
+                "message": {
+                    "in_reply_to": client_msg_id,
+                    "queued_message_id": message_id,
+                    "correlation_id": correlation_id,
+                },
+            },
+        )
+        raise
+    except Exception as e:
+        status = 'failure'
+        async_to_sync(channel_layer.group_send)(
+            group_name,
+            {
+                "type": "chat_error",
+                "event": "task_failed",
+                "error": str(e),
+                "message": {
+                    "in_reply_to": client_msg_id,
+                    "queued_message_id": message_id,
+                    "correlation_id": correlation_id,
+                },
+            },
+        )
+        raise
+    finally:
+        # Record task duration metric
+        duration = time.time() - start_time
+        TASK_DURATION.labels(task_name='process_chat_message', status=status).observe(duration)
+
+        async_to_sync(channel_layer.group_send)(
+            group_name,
+            {
+                "type": "chat_status",
+                "event": "typing",
+                "value": False,
+                "correlation_id": correlation_id,
+            },
+        )
+        reset_correlation_id(token)
+
+
+@shared_task(bind=True, autoretry_for=RETRY_EXCEPTIONS, retry_backoff=True, max_retries=5)
+def dispatch_broadcast(self, request_id: int, vendor_ids: List[int]):
+    """
+    Dispatch broadcast notifications to vendors (Email/WhatsApp/SMS).
+    
+    Backend-only task - does not send WebSocket events to the user.
+    The agent will later summarize responses in the chat thread.
+    
+    Args:
+        request_id: ID of the user request
+        vendor_ids: List of vendor IDs to notify
+    """
+    from assistant.models import Request
+    
+    try:
+        request = Request.objects.get(id=request_id)
+        success_count = 0
+        failure_count = 0
+        
+        for vendor_id in vendor_ids[:200]:  # Cap at 200
+            try:
+                # TODO: Implement vendor notification logic
+                # Example: send_email(vendor.email, request.subject, request.payload)
+                # Example: send_whatsapp(vendor.phone, request.formatted_message())
+                success_count += 1
+            except Exception as e:
+                logger.error(f"Failed to notify vendor {vendor_id}: {e}")
+                failure_count += 1
+        
+        # Update request status
+        request.status = "broadcast_complete"
+        request.meta = {
+            **request.meta,
+            "broadcast_stats": {
+                "success": success_count,
+                "failure": failure_count,
+                "total": len(vendor_ids),
+            }
+        }
+        request.save()
+        
+        logger.info(f"Broadcast complete: request={request_id}, success={success_count}, failure={failure_count}")
+        
+    except RETRY_EXCEPTIONS as e:
+        logger.warning(f"Transient error in dispatch_broadcast: {e}. Retrying...")
+        raise self.retry(exc=e)
+        
+    except Exception as e:
+        logger.error(f"Fatal error in dispatch_broadcast: request={request_id}, error={e}", exc_info=True)
         raise

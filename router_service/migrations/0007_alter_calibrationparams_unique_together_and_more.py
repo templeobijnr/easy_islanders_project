@@ -10,25 +10,18 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AlterUniqueTogether(
-            name='calibrationparams',
-            unique_together={('domain', 'version')},
-        ),
+        # Restore domain (renamed away in 0004)
         migrations.AddField(
             model_name='calibrationparams',
             name='domain',
             field=models.CharField(default='', max_length=64),
             preserve_default=False,
         ),
+        # Restore other fields first so constraints can reference them
         migrations.AddField(
             model_name='calibrationparams',
             name='ece',
             field=models.FloatField(default=0.0, help_text='Expected Calibration Error'),
-        ),
-        migrations.AddField(
-            model_name='calibrationparams',
-            name='id',
-            field=models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID'),
         ),
         migrations.AddField(
             model_name='calibrationparams',
@@ -44,8 +37,20 @@ class Migration(migrations.Migration):
             model_name='calibrationparams',
             index=models.Index(fields=['version'], name='router_serv_version_f11575_idx'),
         ),
+        # Now that 'version' exists, apply unique_together
+        migrations.AlterUniqueTogether(
+            name='calibrationparams',
+            unique_together={('domain', 'version')},
+        ),
+        # Remove legacy primary key field first to avoid dual-PK conflicts
         migrations.RemoveField(
             model_name='calibrationparams',
             name='model_name',
+        ),
+        # Add new surrogate primary key after removing the old PK
+        migrations.AddField(
+            model_name='calibrationparams',
+            name='id',
+            field=models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID'),
         ),
     ]

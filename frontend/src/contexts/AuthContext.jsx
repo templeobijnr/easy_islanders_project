@@ -1,6 +1,7 @@
 import React, { createContext, useState, useCallback, useEffect } from 'react';
 import config from '../config';
 import { http } from '../api';
+import { setAccessToken, clearAccessToken, getAccessToken } from '../auth/tokenStore';
 
 export const AuthContext = createContext();
 
@@ -22,10 +23,18 @@ export const AuthProvider = ({ children }) => {
       const response = await http.post(config.ENDPOINTS.AUTH.LOGIN, credentials);
       
       // Store JWT token
-      const { token, access, refresh, user: userData } = response.data;
-      const accessToken = token || access;
-      if (accessToken) localStorage.setItem('token', accessToken);
-      if (refresh) localStorage.setItem('refresh', refresh);
+      const { token, access, refresh, user: userData } = response.data || {};
+      const accessToken = access || token;
+      if (accessToken) {
+        setAccessToken(accessToken);
+      } else {
+        clearAccessToken();
+      }
+      if (refresh) {
+        localStorage.setItem('refresh', refresh);
+      } else {
+        localStorage.removeItem('refresh');
+      }
       
       setIsAuthenticated(true);
       setUser(userData ? {
@@ -59,10 +68,18 @@ export const AuthProvider = ({ children }) => {
       const response = await http.post(config.ENDPOINTS.AUTH.REGISTER, payload);
       
       // Store JWT token
-      const { token, access, refresh, user: userPayload } = response.data;
-      const accessToken = token || access;
-      if (accessToken) localStorage.setItem('token', accessToken);
-      if (refresh) localStorage.setItem('refresh', refresh);
+      const { token, access, refresh, user: userPayload } = response.data || {};
+      const accessToken = access || token;
+      if (accessToken) {
+        setAccessToken(accessToken);
+      } else {
+        clearAccessToken();
+      }
+      if (refresh) {
+        localStorage.setItem('refresh', refresh);
+      } else {
+        localStorage.removeItem('refresh');
+      }
       
       setIsAuthenticated(true);
       setUser(userPayload ? {
@@ -88,7 +105,7 @@ export const AuthProvider = ({ children }) => {
     try {
       await http.post(config.ENDPOINTS.AUTH.LOGOUT);
       // Clear JWT tokens
-      localStorage.removeItem('token');
+      clearAccessToken();
       localStorage.removeItem('refresh');
       setIsAuthenticated(false);
       setUser(null);
@@ -96,7 +113,7 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('Logout failed:', error);
       // Clear tokens even if logout request fails
-      localStorage.removeItem('token');
+      clearAccessToken();
       localStorage.removeItem('refresh');
       setIsAuthenticated(false);
       setUser(null);
@@ -120,11 +137,8 @@ export const AuthProvider = ({ children }) => {
 
   // Check for existing token on app load
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      // User data will be fetched when needed
-      setIsAuthenticated(true);
-    }
+    const token = getAccessToken();
+    setIsAuthenticated(Boolean(token));
   }, []);
 
   const value = {

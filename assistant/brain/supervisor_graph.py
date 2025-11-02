@@ -98,48 +98,102 @@ def build_supervisor_graph():
     @traced_worker_agent("real_estate")
     def real_estate_handler(state: SupervisorState) -> SupervisorState:
         """
-        Real Estate Agent: Handle property search, booking, and viewing scheduling.
-        Extracts: bedrooms, location, budget, duration, etc.
+        Real Estate Agent: Delegates to production RE agent with frozen contracts.
+
+        Integration Pattern (Contract-First):
+        1. Map SupervisorState → AgentRequest (frozen schema)
+        2. Call handle_real_estate_request() from production agent
+        3. Map AgentResponse → SupervisorState
+        4. Extract show_listings actions → recommendations format
+
+        Observability: Full trace data preserved in state.agent_traces
         """
+        from assistant.agents.real_estate import handle_real_estate_request
+        from assistant.agents.contracts import AgentRequest, AgentContext
+        from datetime import datetime
+        import uuid
+
+        thread_id = state.get('thread_id', 'unknown')
+
         try:
-            logger.info(f"[{state.get('thread_id')}] Real Estate Agent: processing '{state['user_input'][:50]}'...")
-            
-            # Extract entities from routing decision for context
-            routing_decision = state.get('routing_decision')
-            entities = {}
-            if routing_decision is not None:
-                if hasattr(routing_decision, 'extracted_entities'):
-                    entities = getattr(routing_decision, 'extracted_entities') or {}
-                elif isinstance(routing_decision, dict):
-                    entities = routing_decision.get('extracted_entities', {}) or {}
-            bedrooms = entities.get('bedrooms')
-            location = entities.get('location')
-            
-            # Build a response that acknowledges the search intent
-            if location:
-                response = f"I'm searching for properties in {location}"
-                if bedrooms:
-                    response += f" with {bedrooms} bedroom(s)"
-                response += ". Let me find the best options for you."
-            else:
-                response = "I can help you find properties in North Cyprus. What are you looking for?"
-            
-            logger.info(f"[{state.get('thread_id')}] Real Estate Agent: returning response")
+            logger.info(f"[{thread_id}] RE Agent: delegating to production agent...")
+
+            # Map SupervisorState → AgentRequest (frozen contract)
+            routing = state.get('routing_decision') or {}
+            intent_type = routing.get('intent_type', 'property_search')
+
+            # Map supervisor intent → agent intent enum
+            intent_map = {
+                'property_search': 'property_search',
+                'booking_request': 'property_search',  # S2: Treat as search
+                'lead_capture': 'property_search',
+            }
+            intent = intent_map.get(intent_type, 'property_search')
+
+            # Build AgentRequest
+            agent_request = AgentRequest(
+                thread_id=thread_id,
+                client_msg_id=state.get('client_msg_id') or f"sup-{uuid.uuid4()}",
+                intent=intent,
+                input=state['user_input'],
+                ctx=AgentContext(
+                    user_id=state.get('user_id'),
+                    locale=state.get('user_language', 'en'),
+                    time=datetime.utcnow().isoformat() + 'Z',
+                ),
+            )
+
+            # Call production agent
+            agent_response = handle_real_estate_request(agent_request)
+
+            # Extract data from AgentResponse
+            reply = agent_response.get('reply', 'I found some properties for you.')
+            actions = agent_response.get('actions', [])
+            traces = agent_response.get('traces', {})
+
+            # Map show_listings action → recommendations format
+            recommendations = []
+            for action in actions:
+                if action['type'] == 'show_listings':
+                    listings = action['params'].get('listings', [])
+                    # Convert PropertyCard → supervisor recommendation format
+                    recommendations = [
+                        {
+                            'id': lst['id'],
+                            'title': lst['title'],
+                            'location': lst['location'],
+                            'bedrooms': lst['bedrooms'],
+                            'price': lst['price_per_night'],
+                            'amenities': lst['amenities'],
+                            'photos': lst['photos'],
+                            'type': 'property',
+                            'agent': 'real_estate',  # Tag with agent name
+                        }
+                        for lst in listings
+                    ]
+
+            logger.info(f"[{thread_id}] RE Agent: completed, {len(recommendations)} cards, reply_len={len(reply)}")
+
             return {
                 **state,
-                'final_response': response,
+                'final_response': reply,
+                'recommendations': recommendations,
                 'current_node': 'real_estate_agent',
                 'is_complete': True,
-                'extracted_criteria': entities
+                'agent_response': agent_response,  # Full response for debugging
+                'agent_traces': traces,  # Observability data
+                'agent_name': 'real_estate',  # For WS frame tagging
             }
+
         except Exception as e:
-            logger.error(f"[{state.get('thread_id')}] Real Estate Agent failed: {e}")
+            logger.error(f"[{thread_id}] RE Agent failed: {e}", exc_info=True)
             return {
                 **state,
                 'final_response': 'I had trouble processing your property request. Please try again.',
                 'current_node': 'real_estate_agent',
                 'is_complete': True,
-                'error_message': str(e)
+                'error_message': str(e),
+                'agent_name': 'real_estate',
             }
 
     @traced_worker_agent("marketplace")

@@ -35,16 +35,30 @@ const Composer: React.FC = () => {
     }
   };
 
-  const onAttach = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onAttach = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    // Send a message indicating file attachment
-    if (sendMessage) {
-      sendMessage(`📎 Attached: ${file.name} (${(file.size / 1024).toFixed(1)}KB)`, 'user');
-    }
-    // Clear the file input for next use
-    if (fileRef.current) {
-      fileRef.current.value = '';
+
+    setBusy(true);
+    try {
+      // TODO: Upload file to backend
+      // const formData = new FormData();
+      // formData.append('file', file);
+      // await http.post('/api/uploads/', formData);
+
+      // For now, just show a message
+      if (sendMessage) {
+        sendMessage(`📎 Attached: ${file.name} (${(file.size / 1024).toFixed(1)}KB)`, 'user');
+      }
+    } catch (error) {
+      console.error('File upload failed:', error);
+      // TODO: Show error toast
+    } finally {
+      setBusy(false);
+      // Clear the file input for next use
+      if (fileRef.current) {
+        fileRef.current.value = '';
+      }
     }
   };
 

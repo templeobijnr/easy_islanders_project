@@ -303,6 +303,46 @@ if _PROMETHEUS_AVAILABLE:
         ["domain", "status"],
     )
 
+    # Gate B: WebSocket connection metrics
+    WEBSOCKET_CONNECTIONS = Gauge(
+        "websocket_connections_active",
+        "Active WebSocket connections by thread",
+        ["thread_id"],
+    )
+    WS_MESSAGE_SEND_ERRORS = Counter(
+        "ws_message_send_errors_total",
+        "Total WebSocket message send failures",
+    )
+    WS_OUT_INVALID_ENVELOPE_TOTAL = Counter(
+        "ws_out_invalid_envelope_total",
+        "Outgoing WebSocket frames rejected by validation",
+        ["thread_id"],
+    )
+
+    # P1: Enhanced WebSocket metrics for production observability
+    WS_CLOSES_TOTAL = Counter(
+        "ws_closes_total",
+        "WebSocket close events by code and reason",
+        ["code", "reason"],
+    )
+    WS_CONNECTION_DURATION_SECONDS = Histogram(
+        "ws_connection_duration_seconds",
+        "WebSocket connection duration in seconds",
+        buckets=[1, 5, 30, 60, 300, 600, 1800, 3600, 7200],  # 1s, 5s, 30s, 1m, 5m, 10m, 30m, 1h, 2h
+    )
+    WS_FRAMES_SENT_TOTAL = Counter(
+        "ws_frames_sent_total",
+        "WebSocket frames sent by event type",
+        ["event"],
+    )
+    WS_RECONNECT_ADVICE_TOTAL = Counter(
+        "ws_reconnect_advice_total",
+        "WebSocket reconnect advice given by reason",
+        ["why"],  # auth, network, transient
+    )
+else:
+    WS_OUT_INVALID_ENVELOPE_TOTAL = None
+
 
 @dataclass
 class LLMRequestMetrics:
@@ -345,6 +385,15 @@ def inc_agent_degraded(agent: str, reason: str) -> None:
     try:
         if _PROMETHEUS_AVAILABLE:
             AGENT_DEGRADED_TOTAL.labels(agent=agent, reason=reason).inc()
+    except Exception:
+        pass
+
+
+def increment_ws_invalid_envelope(thread_id: str) -> None:
+    """Increment counter for invalid WS envelopes (noop if metrics disabled)."""
+    try:
+        if _PROMETHEUS_AVAILABLE and WS_OUT_INVALID_ENVELOPE_TOTAL:
+            WS_OUT_INVALID_ENVELOPE_TOTAL.labels(thread_id=thread_id).inc()
     except Exception:
         pass
 

@@ -1,17 +1,48 @@
-import React from 'react';
-import LeftRail from '../left-rail/LeftRail';
+import React, { useCallback } from 'react';
 import { ChatHeader } from './components/ChatHeader';
 import { ChatThread } from './components/ChatThread';
 import InlineRecsCarousel from './components/InlineRecsCarousel';
 import Composer from './components/Composer';
 import FeaturedPane from '../featured/FeaturedPane';
-import { useUi } from 'shared/context/UiContext';
-import { useChat } from 'shared/context/ChatContext';
+import { useUi } from '../../shared/context/UiContext';
+import { useChat } from '../../shared/context/ChatContext';
+import { useChatSocket } from 'shared/hooks/useChatSocket';
 import type { ChatMessage } from './types';
 
 const ChatPage: React.FC = () => {
   const { activeJob } = useUi();
-  const { messages } = useChat();
+  const {
+    messages,
+    threadId,
+    pushAssistantMessage,
+    setConnectionStatus,
+    setTyping,
+    wsCorrelationId,
+    handleAssistantError,
+  } = useChat();
+
+  // Connect to WebSocket for real-time updates
+  const handleWsMessage = useCallback((wsMessage: any) => {
+    if (wsMessage.type === 'chat_message' && wsMessage.event === 'assistant_message') {
+      pushAssistantMessage(wsMessage);
+      return;
+    }
+    if (wsMessage.type === 'chat_error') {
+      handleAssistantError(wsMessage);
+    }
+  }, [pushAssistantMessage, handleAssistantError]);
+
+  const handleWsError = useCallback((error: string) => {
+    console.error('[Chat] WebSocket error:', error);
+  }, []);
+
+  useChatSocket(threadId, {
+    onMessage: handleWsMessage,
+    onStatus: setConnectionStatus,
+    onError: handleWsError,
+    onTyping: setTyping,
+    correlationId: wsCorrelationId || undefined,
+  });
 
   // Convert Message[] to ChatMessage[]
   const chatMessages: ChatMessage[] = messages.map(msg => ({
@@ -22,27 +53,21 @@ const ChatPage: React.FC = () => {
   }));
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-6">
-      {/* LEFT RAIL */}
-      <LeftRail />
+    <div className="space-y-4">
+      {/* CHAT SECTION - Top of main column */}
+      <section className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 overflow-hidden flex flex-col">
+        <ChatHeader />
+        <div className="flex-1 overflow-y-auto px-4 max-h-[58vh]">
+          <ChatThread messages={chatMessages} />
+          {activeJob && <InlineRecsCarousel />}
+        </div>
+        <Composer />
+      </section>
 
-      {/* MAIN CONTENT: Chat + Featured stacked vertically */}
-      <div className="flex flex-col gap-6">
-        {/* CHAT SECTION */}
-        <section className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 overflow-hidden flex flex-col h-[600px]">
-          <ChatHeader />
-          <div className="flex-1 overflow-y-auto px-4">
-            <ChatThread messages={chatMessages} />
-            {activeJob && <InlineRecsCarousel />}
-          </div>
-          <Composer />
-        </section>
-
-        {/* FEATURED SECTION - Full width below chat */}
-        <section>
-          <FeaturedPane />
-        </section>
-      </div>
+      {/* FEATURED/EXPLORE SECTION - Below chat in same column */}
+      <section className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 overflow-hidden">
+        <FeaturedPane />
+      </section>
     </div>
   );
 };

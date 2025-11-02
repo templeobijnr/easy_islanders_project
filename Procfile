@@ -13,3 +13,4 @@ beat: celery -A easy_islanders beat --loglevel=info
 
 
 
+

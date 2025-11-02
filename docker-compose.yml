@@ -22,33 +22,33 @@ services:
   web:
     build: .
     container_name: easy_islanders_web
-    command: python manage.py runserver 0.0.0.0:8000
+    # Use an ASGI server so WebSockets work (Channels)
+    command: uvicorn easy_islanders.asgi:application --host 0.0.0.0 --port 8000
     volumes:
       - .:/code
     ports:
       - "8000:8000"
-    environment:
-      DEBUG: "True"
-      DATABASE_URL: postgresql://postgres:postgres@db:5432/easy_islanders
-      ENABLE_LANGGRAPH_AGENT: "false"
-      LANGGRAPH_CHECKPOINT_CONNECTION_STRING: "sqlite:///langgraph_checkpoints.db"
+    # Container environment comes from the selected env file
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - easy_islanders_network
+    env_file:
+      - ${ENV_FILE:-.env.docker}
 
   celery:
     build: .
     container_name: easy_islanders_celery
-    command: celery -A easy_islanders worker -l info
+    # Subscribe worker to all queues we publish to (chat + others)
+    command: celery -A easy_islanders worker -Q chat,default,background,notifications,dlq -l info --concurrency=8
     volumes:
       - .:/code
-    environment:
-      DEBUG: "True"
-      DATABASE_URL: postgresql://postgres:postgres@db:5432/easy_islanders
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/0
+    # Use the same env file as web to ensure alignment
+    env_file:
+      - ${ENV_FILE:-.env.docker}
     depends_on:
       - db
       - redis

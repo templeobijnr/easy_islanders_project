@@ -11,7 +11,14 @@ export type Job = {
   icon: string;
 };
 
-export type Message = { id: string; role: Role; text: string; ts: number };
+export type Message = {
+  id: string;
+  role: Role;
+  text: string;
+  ts: number;
+  pending?: boolean;
+  inReplyTo?: string | null;
+};
 
 export type RecItem = {
   id: string;

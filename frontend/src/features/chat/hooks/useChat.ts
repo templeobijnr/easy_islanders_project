@@ -27,8 +27,10 @@ export function useChat() {
     const text = input.trim();
     if (!text) return;
     setInput("");
+    const clientMsgId = crypto.randomUUID();
+    const correlationId = crypto.randomUUID();
     const optimisticUser: ChatMessage = {
-      id: `u-${Date.now()}`,
+      id: clientMsgId,
       role: "user",
       content: text,
       ts: Date.now(),
@@ -43,12 +45,14 @@ export function useChat() {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('token') || localStorage.getItem('access_token') || ''}`,
+          'X-Correlation-ID': correlationId,
         },
         body: JSON.stringify({
           message: text,
           language: 'en',
           conversation_id: `conv-${Date.now()}`,
           thread_id: localStorage.getItem('threadId') || null,
+          client_msg_id: clientMsgId,
         }),
       });
 
@@ -56,14 +60,19 @@ export function useChat() {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
+      const status = response.status;
       const data = await response.json();
-      const reply: ChatMessage = {
-        id: `a-${Date.now()}`,
-        role: "assistant",
-        content: data.response || data.message || "Got it. I'll search options that match.",
-        ts: Date.now(),
-      };
-      setMessages((prev) => [...prev, reply]);
+
+      // Do not append HTTP reply for enqueue-only responses (202)
+      if (status !== 202) {
+        const reply: ChatMessage = {
+          id: `a-${Date.now()}`,
+          role: "assistant",
+          content: data.response || data.message || "Got it. I'll search options that match.",
+          ts: Date.now(),
+        };
+        setMessages((prev) => [...prev, reply]);
+      }
 
       // Store thread_id if provided
       if (data.thread_id) {

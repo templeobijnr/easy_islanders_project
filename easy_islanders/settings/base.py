@@ -27,14 +27,17 @@ SECRET_KEY = config('SECRET_KEY', default='django-insecure-^8j$q^-8r2s=1)&etjdrk
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=True, cast=bool)
 
-ALLOWED_HOSTS = [h.strip() for h in config('ALLOWED_HOSTS', default='*').split(',') if h.strip()]
-# Ensure Docker host alias is allowed (Prometheus scrape from containers)
-if 'host.docker.internal' not in ALLOWED_HOSTS:
-    ALLOWED_HOSTS.append('host.docker.internal')
+# Fail-fast if insecure key in production
+if not DEBUG and (not SECRET_KEY or SECRET_KEY.startswith('django-insecure')):
+    from django.core.exceptions import ImproperlyConfigured
+    raise ImproperlyConfigured(
+        "A valid SECRET_KEY is required in production. "
+        "Set SECRET_KEY environment variable to a strong random value."
+    )
 
-# Add Fly.io internal network for health checks
-if '172.19.0.0/16' not in ALLOWED_HOSTS:
-    ALLOWED_HOSTS.append('172.19.0.0/16')
+# ALLOWED_HOSTS will be set later after CORS_ALLOWED_ORIGINS is defined
+# to ensure alignment between CORS and Django host validation
+ALLOWED_HOSTS = []  # Populated after CORS configuration
 
 
 # Application definition
@@ -54,6 +57,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'drf_spectacular',
     'drf_spectacular_sidecar',
+    'channels',  # WebSocket support
 
     # Local apps - users must come before assistant
     'users',
@@ -96,7 +100,31 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'easy_islanders.wsgi.application'
+ASGI_APPLICATION = 'easy_islanders.asgi.application'
 
+# Channels (WebSocket) Configuration
+import os
+from django.core.exceptions import ImproperlyConfigured
+
+# Single canonical REDIS_URL read (used by Channels, Celery, Cache)
+REDIS_URL = config('REDIS_URL', default='redis://127.0.0.1:6379/0')
+
+# Fail-fast in production if Redis unavailable (no in-memory fallback)
+if not DEBUG and not REDIS_URL:
+    raise ImproperlyConfigured(
+        "REDIS_URL is required in production for WebSocket support. "
+        "In-memory channel layer is not suitable for multi-worker deployments."
+    )
+
+CHANNEL_LAYERS = {
+    "default": (
+        {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {"hosts": [REDIS_URL]},
+        } if REDIS_URL else
+        {"BACKEND": "channels.layers.InMemoryChannelLayer"}  # dev-only convenience
+    )
+}
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
@@ -169,20 +197,46 @@ AUTH_USER_MODEL = 'users.User'
 # REST Framework & JWT Configuration
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'assistant.auth.cookies.CookieJWTAuthentication',  # PRIMARY: Cookie-based auth
+        'rest_framework_simplejwt.authentication.JWTAuthentication',  # Fallback: Header auth
         'rest_framework.authentication.TokenAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    # Gate B: DRF throttling (proper 429 responses)
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'user': '10/min',  # Matches PR C spec
+    },
 }
 
+from datetime import timedelta
+
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': __import__('datetime').timedelta(days=7),
-    'REFRESH_TOKEN_LIFETIME': __import__('datetime').timedelta(days=30),
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=int(config('ACCESS_TOKEN_MINUTES', default='60'))),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=30),
     'ALGORITHM': 'HS256',
+    'LEEWAY': 60,  # Clock skew tolerance in seconds for distributed systems
 }
+
+# ===== JWT Cookie Configuration (PR D: Auth Hardening) =====
+JWT_COOKIE_SECURE = not DEBUG  # Only send over HTTPS in production
+JWT_COOKIE_SAMESITE = 'Lax'    # CSRF protection while allowing normal navigation
+FEATURE_FLAG_ALLOW_QUERY_TOKEN = DEBUG  # Query param auth only in dev (WebSocket)
+FEATURE_FLAG_ALLOW_HEADER_AUTH = True   # Allow Authorization header for non-browser clients
+
+# ===== Session & CSRF Security =====
+SESSION_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+
+CSRF_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_HTTPONLY = True  # Prevent JS access
+CSRF_COOKIE_SAMESITE = 'Lax'
 
 # ✅ CORS Configuration for credentials support
 # When using withCredentials: true on frontend, cannot use wildcard '*'
@@ -203,6 +257,7 @@ CORS_ALLOWED_ORIGINS = sorted(_default_cors.union(_cors_env))
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = list(default_headers) + [
     'authorization',
+    'x-correlation-id',
 ]
 
 # CSRF trusted origins (needed if using session auth or admin from a different host)
@@ -210,6 +265,22 @@ CSRF_TRUSTED_ORIGINS = [
     'http://localhost:3000',
     'http://127.0.0.1:3000',
 ]
+
+# ALLOWED_HOSTS Configuration - Aligned with CORS for security
+from urllib.parse import urlparse
+
+if DEBUG:
+    # Development: allow all for convenience
+    ALLOWED_HOSTS = ['*']
+else:
+    # Production: only explicit hosts derived from CORS origins + health check hosts
+    _cors_hosts = [urlparse(origin).netloc for origin in CORS_ALLOWED_ORIGINS if origin]
+    ALLOWED_HOSTS = [h for h in _cors_hosts if h] + [
+        'host.docker.internal',  # Docker/K8s health checks
+        '127.0.0.1',
+        'localhost',
+        '172.19.0.0/16',  # Fly.io internal network
+    ]
 
 # --- DECOUPLE AND AI CONFIGURATION ---
 # This part is crucial for reading the .env file
@@ -229,10 +300,8 @@ if not DEBUG and not OPENAI_API_KEY:
 # Enhanced Agent Context - Feature Flag (default: disabled for safety)
 ENABLE_AGENT_CONTEXT = config('ENABLE_AGENT_CONTEXT', default='false').lower() == 'true'
 
-# Redis Configuration
-REDIS_URL = config('REDIS_URL', default='redis://127.0.0.1:6379/0')
-
 # Cache configuration with optional Redis
+# Note: REDIS_URL is already defined in Channels section above
 USE_REDIS_CACHE = config('USE_REDIS_CACHE', default=False, cast=bool)
 
 if USE_REDIS_CACHE:
@@ -259,15 +328,34 @@ else:
     }
 
 # Celery Configuration
+# Use the already-resolved REDIS_URL as the default to avoid decouple looking up a literal URL as an env var
 CELERY_BROKER_URL = config('CELERY_BROKER_URL', default=REDIS_URL)
 CELERY_RESULT_BACKEND = config('CELERY_RESULT_BACKEND', default=REDIS_URL)
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TIMEZONE = TIME_ZONE
-CELERY_TASK_TIME_LIMIT = 60
+CELERY_TASK_TIME_LIMIT = 60  # Hard limit: kill task after 60s
+CELERY_TASK_SOFT_TIME_LIMIT = 45  # Soft limit: SoftTimeLimitExceeded after 45s
 CELERY_TASK_ACKS_LATE = True
 CELERY_TASK_REJECT_ON_WORKER_LOST = True
+
+# --- Celery queues & routing (Gate B: Operational Hardening) ---
+CELERY_TASK_IGNORE_RESULT = True  # we don't need results for enqueue-only
+CELERY_TASK_DEFAULT_QUEUE = "default"
+CELERY_TASK_ROUTES = {
+    "assistant.tasks.process_chat_message": {"queue": "chat"},
+    # background jobs -> lower priority queue
+    "assistant.tasks.process_incoming_media_task": {"queue": "background"},
+    "assistant.tasks.trigger_get_and_prepare_card_task": {"queue": "background"},
+    "assistant.tasks.send_whatsapp_message_task": {"queue": "notifications"},
+    "assistant.tasks.broadcast_request_for_request": {"queue": "background"},
+    "assistant.tasks.update_calibration_params": {"queue": "background"},
+    "assistant.tasks.dispatch_broadcast": {"queue": "background"},
+}
+# Fair scheduling; avoid big tasks starving small ones
+CELERYD_PREFETCH_MULTIPLIER = 1
+CELERY_WORKER_ENABLE_REMOTE_CONTROL = True
 OPENAI_MODEL = config('OPENAI_MODEL', default='gpt-4-turbo-preview')
 
 # Proactive Agent Configuration
@@ -354,26 +442,38 @@ ROUTER_DELTA_TOP2 = 0.08
 ROUTER_CALIBRATION_VERSION = "v1.5"
 ROUTER_ENABLE_AB = False
 
+# Production Safety Toggles
+# ALLOW_ANY_SCHEME_IN_URLS: Allow non-HTTPS URLs in development
+# Set to "false" in production environments
+ALLOW_ANY_SCHEME_IN_URLS = os.getenv("ALLOW_ANY_SCHEME_IN_URLS", "false").lower() == "true"
+
 # Structured JSON logging for assistant.* loggers
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
+    'filters': {
+        'correlation': {
+            '()': 'assistant.utils.correlation.CorrelationIdFilter',
+        },
+    },
     'formatters': {
         'json': {
             '()': 'assistant.monitoring.logging_utils.JSONFormatter',
         },
         'simple': {
-            'format': '[%(levelname)s] %(name)s: %(message)s'
+            'format': '[%(levelname)s] [cid=%(correlation_id)s] %(name)s: %(message)s'
         },
     },
     'handlers': {
         'console_json': {
             'class': 'logging.StreamHandler',
             'formatter': 'json',
+            'filters': ['correlation'],
         },
         'console': {
             'class': 'logging.StreamHandler',
             'formatter': 'simple',
+            'filters': ['correlation'],
         },
     },
     'loggers': {

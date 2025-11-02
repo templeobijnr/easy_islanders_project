@@ -58,8 +58,8 @@ const config = {
   
   // WebSocket Configuration (for real-time updates)
   WEBSOCKET: {
-    ENABLED: process.env.REACT_APP_WEBSOCKET_ENABLED === 'true',
-    URL: process.env.REACT_APP_WEBSOCKET_URL || 'ws://127.0.0.1:8001/ws/',
+    ENABLED: process.env.REACT_APP_WEBSOCKET_ENABLED !== 'false', // Enabled by default
+    URL: process.env.REACT_APP_WS_URL || process.env.REACT_APP_WEBSOCKET_URL || 'ws://127.0.0.1:8000',
   },
   
   // Polling Configuration

@@ -1,0 +1,235 @@
+name: Gate B Guardrail
+
+on:
+  pull_request:
+    paths:
+      - 'requirements.txt'
+      - 'assistant/routing.py'
+      - 'assistant/consumers.py'
+      - 'easy_islanders/asgi.py'
+      - 'easy_islanders/startup_checks.py'
+      - 'tests/test_ws_*.py'
+      - '.github/workflows/gate-b-guardrail.yml'
+  workflow_dispatch:
+    inputs:
+      run_e2e:
+        description: "Run full E2E (requires secrets)"
+        type: boolean
+        default: false
+
+jobs:
+  # ---- Minimal job: no secrets, no external APIs ----
+  guardrail-minimal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: 'pip'
+
+      - name: Install deps (minimal)
+        run: |
+          python -m pip install --upgrade pip
+          # Install only what's needed by the WS tests
+          pip install pytest pytest-django channels websockets uvicorn[standard]
+          # Install project deps for imports
+          pip install -r requirements.txt
+
+      - name: Run WS guardrail unit tests
+        run: |
+          pytest -xvs tests/test_ws_routes.py tests/test_websocket_libs.py
+
+      - name: Verify startup check exists
+        run: |
+          test -f easy_islanders/startup_checks.py
+          grep -q "check_ws_support" easy_islanders/asgi.py
+
+      - name: Summary
+        run: echo "✅ Gate B minimal checks PASSED"
+
+  # ---- Optional full E2E job: Docker stack + smoke ----
+  guardrail-e2e:
+    if: ${{ github.event.inputs.run_e2e == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DJANGO_SETTINGS_MODULE: easy_islanders.settings.development
+      # Safe dummy values unless overridden by repo/org secrets
+      SECRET_KEY: ci-secret-key-for-tests-no-dollar-signs
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || 'dummy-key-for-ci' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install tooling
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y jq uuid-runtime curl
+
+      - name: Prepare Docker env
+        run: |
+          # Minimal CI env; override as needed
+          cat > .env.docker <<'EOF'
+          DJANGO_SETTINGS_MODULE=easy_islanders.settings.development
+          DATABASE_URL=postgresql://easy_user:easy_pass@db:5432/easy_islanders
+          REDIS_URL=redis://redis:6379/0
+          CELERY_BROKER_URL=redis://redis:6379/0
+          CELERY_RESULT_BACKEND=redis://redis:6379/0
+          DEBUG=True
+          SECRET_KEY=ci-secret-key-for-tests-no-dollar-signs
+          ALLOWED_HOSTS=127.0.0.1,localhost,web
+          OPENAI_API_KEY=dummy-key-for-ci
+          ENABLE_LANGGRAPH_AGENT=false
+          EOF
+
+      - name: Start core services (db, redis)
+        run: |
+          docker compose up -d db redis
+          echo "Waiting for Postgres..."
+          for i in {1..60}; do
+            docker compose exec -T db pg_isready -U postgres && break
+            sleep 1
+          done
+
+      - name: Bootstrap DB (role, ext, migrate)
+        run: |
+          docker compose exec -T db psql -U postgres -c "DO \$\$BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='easy_user') THEN CREATE ROLE easy_user LOGIN PASSWORD 'easy_pass'; END IF; END\$\$;"
+          docker compose exec -T db psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='easy_islanders';" | grep -q 1 || docker compose exec -T db psql -U postgres -c "CREATE DATABASE easy_islanders OWNER easy_user;"
+          docker compose exec -T db psql -U postgres -d easy_islanders -c "CREATE EXTENSION IF NOT EXISTS vector;"
+          docker compose run --rm web python manage.py migrate --noinput
+
+      - name: Create CI superuser
+        run: |
+          docker compose run --rm web python manage.py shell <<'EOF'
+          from django.contrib.auth import get_user_model
+          User = get_user_model()
+          user, created = User.objects.get_or_create(
+              username='admin',
+              defaults={'email': 'admin@example.com'}
+          )
+          user.is_active = True
+          user.is_staff = True
+          user.is_superuser = True
+          user.set_password('password123')
+          user.save()
+          print(f'User {"created" if created else "updated"}: {user.username}')
+          EOF
+
+      - name: Start web + celery
+        run: |
+          docker compose up -d web celery
+          echo "Waiting for web to respond..."
+          for i in {1..60}; do
+            curl -fsS http://127.0.0.1:8000/ >/dev/null 2>&1 && break
+            sleep 1
+          done
+
+      - name: Obtain JWT access token
+        id: jwt
+        run: |
+          ACCESS=$(curl -sS -X POST http://127.0.0.1:8000/api/token/ \
+            -H 'Content-Type: application/json' \
+            -d '{"username":"admin","password":"password123"}' | jq -r .access)
+          if [ -z "$ACCESS" ] || [ "$ACCESS" = "null" ]; then
+            echo "❌ Failed to get JWT token"
+            docker compose logs web --tail=50
+            exit 1
+          fi
+          echo "access=$ACCESS" >> $GITHUB_OUTPUT
+          echo "✅ JWT token obtained"
+
+      - name: Gate B smoke (HTTP enqueue → WS handshake)
+        env:
+          ACCESS: ${{ steps.jwt.outputs.access }}
+        run: |
+          CLIENT_MSG_ID=$(uuidgen | tr 'A-Z' 'a-z')
+
+          # HTTP enqueue
+          echo "Enqueuing chat message..."
+          curl -sS -X POST http://127.0.0.1:8000/api/chat/ \
+            -H "Authorization: Bearer $ACCESS" \
+            -H 'Accept: application/json' \
+            -H 'Content-Type: application/json' \
+            -d "{\"message\":\"hello from CI\",\"client_msg_id\":\"$CLIENT_MSG_ID\"}" | tee /tmp/chat_resp.json
+
+          THREAD=$(jq -r '.thread_id // .data.thread_id // empty' /tmp/chat_resp.json)
+          if [ -z "$THREAD" ]; then
+            echo "❌ No thread_id in response"
+            cat /tmp/chat_resp.json
+            exit 1
+          fi
+          echo "✅ Thread created: $THREAD"
+
+          # WebSocket handshake test
+          echo "Testing WebSocket handshake..."
+          docker compose run --rm web python - <<EOF
+          import asyncio
+          import websockets
+          import json
+          import sys
+
+          async def test_ws():
+              url = f"ws://web:8000/ws/chat/${THREAD}/?token=${ACCESS}"
+              try:
+                  async with websockets.connect(url) as ws:
+                      print("✅ WebSocket handshake SUCCESSFUL")
+                      print(f"   State: {ws.state.name}")
+
+                      # Send test ping
+                      await ws.send(json.dumps({"type": "ping"}))
+
+                      # Try to receive (with timeout)
+                      try:
+                          msg = await asyncio.wait_for(ws.recv(), timeout=3.0)
+                          print(f"✅ Received frame: {msg[:80]}")
+                      except asyncio.TimeoutError:
+                          print("   (No immediate response - acceptable)")
+
+                      return True
+              except Exception as e:
+                  print(f"❌ WebSocket FAILED: {type(e).__name__}: {e}")
+                  return False
+
+          result = asyncio.run(test_ws())
+          sys.exit(0 if result else 1)
+          EOF
+
+      - name: Verify queues + redis
+        run: |
+          echo "Checking Celery queues..."
+          docker compose exec -T celery celery -A easy_islanders inspect active_queues | grep -E "(chat|default|background|notifications|dlq)"
+
+          echo "Checking Redis..."
+          docker compose exec -T redis redis-cli -n 0 PING | grep -q PONG
+          echo "✅ Celery queues and Redis healthy"
+
+      - name: Check metrics presence (best-effort)
+        continue-on-error: true
+        run: |
+          echo "Checking metrics endpoint..."
+          curl -sS http://127.0.0.1:8000/api/metrics/ | grep -E '(websocket_connections_active|ws_message_send_errors_total)' || echo "⚠️  WS metrics not visible (may be zero-valued)"
+
+      - name: Print container logs on failure
+        if: failure()
+        run: |
+          echo "=== Web Logs ==="
+          docker compose logs web --tail=100
+          echo "=== Celery Logs ==="
+          docker compose logs celery --tail=50
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker compose down -v
+
+      - name: Summary
+        run: |
+          echo "✅ Gate B E2E PASSED"
+          echo "   - WebSocket handshake successful"
+          echo "   - Celery queues active"
+          echo "   - Redis connectivity confirmed"

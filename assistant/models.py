@@ -27,11 +27,29 @@ class DemandLead(models.Model):
         ('long_term', 'Long Term'),
         ('unknown', 'Unknown'),
     ]
+    SOURCE_CHOICES = [
+        ('facebook', 'Facebook'),
+        ('telegram', 'Telegram'),
+        ('whatsapp', 'WhatsApp'),
+        ('twitter', 'Twitter'),
+        ('linkedin', 'LinkedIn'),
+        ('reddit', 'Reddit'),
+        ('other', 'Other'),
+    ]
     extracted_criteria = models.JSONField(default=dict, help_text='Structured search/lead criteria extracted by NLU')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='new')
     intent_type = models.CharField(max_length=20, choices=INTENT_CHOICES, default='unknown')
     sellers_contacted = models.JSONField(default=list, help_text='Audit log of sellers contacted for this request')
     handle_notes = models.TextField(blank=True, help_text='Internal notes / BI for this request')
+    source_id = models.CharField(max_length=255, null=True, blank=True)
+    source_provider = models.CharField(max_length=20, choices=SOURCE_CHOICES, default='other')
+    source_url = models.URLField(null=True, blank=True)
+    author_name = models.CharField(max_length=255, null=True, blank=True)
+    raw_content = models.TextField(null=True, blank=True)
+    keywords_detected = models.JSONField(default=list)
+    posted_at = models.DateTimeField(null=True, blank=True)
+    structured_lead = models.JSONField(default=dict)
+    is_processed = models.BooleanField(default=False)
 
     class Meta:
         permissions = [
@@ -180,6 +198,7 @@ class KnowledgeBase(models.Model):
     content = models.TextField()
     category = models.CharField(max_length=100, blank=True)
     language = models.CharField(max_length=5, default='en')
+    is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -257,6 +276,12 @@ class Message(models.Model):
         blank=True,
         help_text='Foreign key to DemandLead (for Flow 2 messages)'
     )
+    client_msg_id = models.UUIDField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text='Client-generated UUID for idempotency (prevents duplicate processing on network retry)'
+    )
     
     # === PARTICIPANT FIELDS ===
     sender = models.ForeignKey(
@@ -309,6 +334,13 @@ class Message(models.Model):
             models.Index(fields=['conversation_id', '-created_at']),  # For thread retrieval [Q15]
             models.Index(fields=['type', 'is_unread']),  # For filtering
             models.Index(fields=['-created_at']),  # For pagination
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['conversation_id', 'client_msg_id'],
+                name='uniq_conversation_client_msg',
+                condition=models.Q(client_msg_id__isnull=False),
+            )
         ]
         verbose_name = 'Message'
         verbose_name_plural = 'Messages'
@@ -619,3 +651,26 @@ class ApproveBroadcast(models.Model):
             return False
         timeout = self.created_at + timezone.timedelta(hours=24)
         return timezone.now() > timeout
+
+
+class FailedTask(models.Model):
+    """
+    Dead Letter Queue (DLQ) for failed Celery tasks.
+    Gate B: Operational Hardening - captures poison tasks after max retries exceeded.
+    """
+    task_name = models.CharField(max_length=255)
+    args = models.JSONField()
+    exception = models.TextField()
+    failed_at = models.DateTimeField(auto_now_add=True)
+    retried_at = models.DateTimeField(null=True, blank=True)
+    resolved = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['-failed_at']
+        indexes = [
+            models.Index(fields=['-failed_at']),
+            models.Index(fields=['resolved']),
+        ]
+
+    def __str__(self):
+        return f"{self.task_name} failed at {self.failed_at}"

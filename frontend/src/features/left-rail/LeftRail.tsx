@@ -6,7 +6,7 @@ import { useUi } from '../../shared/context/UiContext';
 const LeftRail: React.FC = () => {
   const { activeJob, setActiveJob } = useUi();
   return (
-    <aside className="w-72 shrink-0 p-4 border-r border-slate-200 bg-white/90 backdrop-blur">
+    <aside className="w-64 p-4 border border-slate-200 bg-white/90 backdrop-blur rounded-2xl sticky top-[88px]">
       <div className="relative overflow-hidden rounded-xl mb-4 p-3 bg-gradient-to-r from-lime-200 via-emerald-200 to-sky-200">
         <div className="flex items-center gap-2">
           <div className="h-8 w-8 rounded-xl bg-lime-600 shadow-inner" />

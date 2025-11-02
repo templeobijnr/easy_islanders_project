@@ -1,0 +1,48 @@
+{
+  "id": null,
+  "uid": "ws-mini",
+  "title": "WebSocket Mini",
+  "tags": ["easy_islanders", "ws"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-6h", "to": "now" },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Active WebSocket Connections",
+      "id": 1,
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "targets": [
+        { "expr": "sum(websocket_connections_active)", "legendFormat": "active", "refId": "A" }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "orientation": "auto"
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 }
+    },
+    {
+      "type": "timeSeries",
+      "title": "WS Send Errors (5m)",
+      "id": 2,
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "targets": [
+        { "expr": "increase(ws_message_send_errors_total[5m])", "legendFormat": "send_errors", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "lineInterpolation": "smooth" } }, "overrides": [] },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "single" }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 }
+    }
+  ],
+  "templating": { "list": [] },
+  "annotations": { "list": [] }
+}

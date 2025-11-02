@@ -19,9 +19,10 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib.staticfiles.urls import staticfiles_urlpatterns
-from rest_framework_simplejwt.views import (
-    TokenObtainPairView,
-    TokenRefreshView,
+from assistant.auth.views import (
+    CookieTokenObtainPairView,
+    CookieTokenRefreshView,
+    logout_view,
 )
 from drf_spectacular.views import (
     SpectacularAPIView,
@@ -34,8 +35,11 @@ urlpatterns = [
     path('api/', include('users.urls')),
     path('api/', include('assistant.urls')),
     path('api/', include('router_service.urls')),
-    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+
+    # JWT Authentication (Cookie-enabled - PR D: Auth Hardening)
+    path('api/token/', CookieTokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/token/refresh/', CookieTokenRefreshView.as_view(), name='token_refresh'),
+    path('api/logout/', logout_view, name='logout'),
 
     # OpenAPI schema & docs
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),

@@ -767,6 +767,59 @@ def _fuse_context(state: SupervisorState) -> SupervisorState:
     return {**state, "fused_context": fused}
 
 
+def _build_router_context(state: SupervisorState, user_input: str) -> str:
+    """
+    STEP 6: Router Memory Fusion Layer
+
+    Build a compact context string for the router to classify intent.
+    Merges last N turns + active domain + agent context summary.
+
+    This ensures the router sees the full conversational context, not just
+    the isolated current utterance.
+
+    Example output:
+        Active domain: real_estate_agent
+        Known entities: location=None, budget=None
+        Recent conversation: I need an apartment | To search for properties, I need...
+        User message: girne
+    """
+    # Get recent conversation history
+    history = state.get("history", [])
+    last_turns = []
+    for entry in history[-4:]:  # Last 4 turns
+        if isinstance(entry, dict) and "content" in entry:
+            content = entry["content"]
+            if isinstance(content, str):
+                last_turns.append(content[:100])  # Truncate long messages
+
+    # Get active domain
+    active_domain = state.get("active_domain", "unknown")
+
+    # Get agent context if available
+    agent_contexts = state.get("agent_contexts") or {}
+    current_agent_ctx = agent_contexts.get(active_domain, {})
+    collected = current_agent_ctx.get("collected_info", {})
+
+    # Format collected entities
+    if collected:
+        collected_str = ", ".join(f"{k}={v}" for k, v in collected.items())
+    else:
+        collected_str = "none"
+
+    # Build context-primed input
+    context_parts = [
+        f"Active domain: {active_domain}",
+        f"Known entities: {collected_str}",
+    ]
+
+    if last_turns:
+        context_parts.append(f"Recent conversation: {' | '.join(last_turns)}")
+
+    context_parts.append(f"User message: {user_input}")
+
+    return "\n".join(context_parts)
+
+
 def _check_continuity_guard(
     state: SupervisorState,
     new_domain: str,
@@ -794,6 +847,21 @@ def _check_continuity_guard(
 
     user_input = state.get("user_input", "").lower().strip()
     word_count = len(user_input.split())
+
+    # LOCATION DETECTION: Standalone location names are follow-ups, not new intents
+    known_locations = [
+        "girne", "kyrenia", "nicosia", "lefkoşa", "lefkosa",
+        "famagusta", "gazimağusa", "gazimagusa", "güzelyurt", "guzelyurt",
+        "morphou", "iskele", "trikomo"
+    ]
+    if user_input in known_locations:
+        logger.info(
+            "[%s] Continuity guard: detected standalone location '%s' - maintaining domain %s",
+            state.get("thread_id"),
+            user_input,
+            active_domain
+        )
+        return True, f"location_followup:{user_input}"
 
     # ROBUST FIX: For very short inputs (1-2 words), ALWAYS maintain active_domain
     # unless there's an explicit switch signal. This is more robust than checking

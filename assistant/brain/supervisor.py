@@ -63,13 +63,18 @@ class CentralSupervisor:
 
         try:
             # Phase B.1: Parse intent with structured output
-            # STEP 3: Include fused context for contextual reasoning
-            fused_context = state.get("fused_context", "")
+            # STEP 6: Router Memory Fusion - Build context-primed input
+            from .supervisor_graph import _build_router_context
+
+            # Build router context that includes active domain, entities, and recent turns
+            router_context = _build_router_context(state, user_input)
+
+            # Use router context for intent classification
             context = {
                 "language": language,
                 "location": location,
                 "last_action": state.get("current_node", "conversation_start"),
-                "history_summary": fused_context if fused_context else "",  # STEP 3: Use fused context
+                "history_summary": router_context,  # STEP 6: Use context-primed router input
                 "active_domain": state.get("active_domain"),  # STEP 3: Include active domain
             }
 

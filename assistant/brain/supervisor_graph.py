@@ -433,6 +433,43 @@ def _check_continuity_guard(state: SupervisorState, new_domain: str) -> tuple[bo
         )
         return True, f"short_input:{word_count}_words"
 
+    # STEP 4: Context-aware guard - check if current agent has significant context
+    agent_contexts = state.get("agent_contexts") or {}
+    agent_name_map = {
+        "REAL_ESTATE": "real_estate_agent",
+        "NON_RE_MARKETPLACE": "marketplace_agent",
+        "LOCAL_INFO": "local_info_agent",
+        "GENERAL_CONVERSATION": "general_conversation_agent",
+    }
+    active_agent_name = agent_name_map.get(active_domain)
+
+    if active_agent_name and active_agent_name in agent_contexts:
+        agent_ctx = agent_contexts[active_agent_name]
+        collected_info = agent_ctx.get("collected_info", {})
+        conversation_stage = agent_ctx.get("conversation_stage", "discovery")
+
+        # Critical conversation stages should be very sticky
+        critical_stages = ["transaction", "presenting", "refinement"]
+        if conversation_stage in critical_stages:
+            logger.info(
+                "[%s] Continuity guard: agent in critical stage '%s' with %d entities - maintaining domain %s",
+                state.get("thread_id"),
+                conversation_stage,
+                len(collected_info),
+                active_domain
+            )
+            return True, f"critical_stage:{conversation_stage}"
+
+        # If agent has collected significant entities (3+), be conservative
+        if len(collected_info) >= 3:
+            logger.info(
+                "[%s] Continuity guard: agent has %d collected entities - maintaining domain %s",
+                state.get("thread_id"),
+                len(collected_info),
+                active_domain
+            )
+            return True, f"significant_context:{len(collected_info)}_entities"
+
     # Otherwise, allow domain switch
     logger.info(
         "[%s] Continuity guard: allowing domain change %s → %s",
@@ -441,6 +478,341 @@ def _check_continuity_guard(state: SupervisorState, new_domain: str) -> tuple[bo
         new_domain
     )
     return False, None
+
+
+def _extract_entities(user_input: str, existing_info: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    STEP 4: Extract entities from user input.
+
+    Extracts location, budget, bedrooms, and other common requirements.
+    Merges with existing collected information.
+
+    Returns:
+        Updated dictionary with extracted entities
+    """
+    import re
+
+    updated = dict(existing_info)
+    user_lower = user_input.lower()
+
+    # Extract location (cities/regions)
+    location_patterns = [
+        r'in\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',
+        r'near\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',
+        r'around\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',
+        r'at\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',
+    ]
+    for pattern in location_patterns:
+        match = re.search(pattern, user_input)
+        if match:
+            updated["location"] = match.group(1)
+            break
+
+    # Extract budget/price
+    budget_patterns = [
+        (r'(\d+(?:,\d{3})*)\s*(?:EUR|euro|€)', 1),
+        (r'under\s+(\d+(?:,\d{3})*)', 1),
+        (r'less\s+than\s+(\d+(?:,\d{3})*)', 1),
+        (r'budget\s+(?:of\s+)?(\d+(?:,\d{3})*)', 1),
+        (r'max(?:imum)?\s+(\d+(?:,\d{3})*)', 1),
+    ]
+    for pattern, group in budget_patterns:
+        match = re.search(pattern, user_lower)
+        if match:
+            budget_str = match.group(group).replace(',', '')
+            updated["budget"] = int(budget_str)
+            break
+
+    # Extract bedrooms
+    bedroom_patterns = [
+        r'(\d+)[-\s]*(?:bed|bedroom|BR)',
+        r'(\d+)[-\s]*(?:room|rooms)',
+    ]
+    for pattern in bedroom_patterns:
+        match = re.search(pattern, user_lower)
+        if match:
+            updated["bedrooms"] = int(match.group(1))
+            break
+
+    # Extract property type
+    property_types = {
+        "apartment": "apartment",
+        "flat": "apartment",
+        "house": "house",
+        "villa": "villa",
+        "studio": "studio",
+    }
+    for key, value in property_types.items():
+        if key in user_lower:
+            updated["property_type"] = value
+            break
+
+    # Extract vehicle type
+    vehicle_types = {
+        "car": "car",
+        "vehicle": "vehicle",
+        "suv": "suv",
+        "sedan": "sedan",
+        "truck": "truck",
+    }
+    for key, value in vehicle_types.items():
+        if key in user_lower:
+            updated["vehicle_type"] = value
+            break
+
+    return updated
+
+
+def _build_agent_context(
+    state: SupervisorState,
+    target_agent: str
+) -> Dict[str, Any]:
+    """
+    STEP 4: Build context tailored for specific agent.
+
+    Creates agent-specific context by:
+    1. Filtering history to this agent's turns only
+    2. Including agent's collected information
+    3. Adding handoff summary from previous agent
+    4. Including shared cross-agent context
+
+    Returns:
+        Dictionary with:
+        - agent_specific_context: formatted context string
+        - collected_info: entities collected by this agent
+        - conversation_stage: agent's current stage
+        - agent_history: this agent's conversation turns
+    """
+    agent_contexts = state.get("agent_contexts") or {}
+    agent_ctx = agent_contexts.get(target_agent, {})
+
+    # 1. Agent-specific history (filter global history)
+    full_history = state.get("history") or []
+    agent_history = [
+        turn for turn in full_history
+        if turn.get("agent") == target_agent
+    ]
+
+    # 2. Agent's collected information
+    collected_info = agent_ctx.get("collected_info", {})
+
+    # 3. Handoff summary (if switched from another agent)
+    handoff_summary = agent_ctx.get("handoff_summary")
+    handoff_from = agent_ctx.get("handoff_from")
+
+    # 4. Shared context (available to all agents)
+    shared_context = state.get("shared_context") or {}
+
+    # 5. Build context string
+    context_parts = []
+
+    # Add handoff if present
+    if handoff_summary:
+        context_parts.append(f"[Context Handoff from {handoff_from}]:\n{handoff_summary}")
+
+    # Add shared user context
+    if shared_context.get("user_location"):
+        context_parts.append(f"User Location: {shared_context['user_location']}")
+
+    if shared_context.get("user_budget"):
+        context_parts.append(f"User Budget: {shared_context['user_budget']} EUR")
+
+    # Add agent's collected info
+    if collected_info:
+        info_items = []
+        for k, v in collected_info.items():
+            info_items.append(f"{k}: {v}")
+        if info_items:
+            context_parts.append(f"[Known Requirements]:\n" + "\n".join(f"- {item}" for item in info_items))
+
+    # Add agent's recent history (last 3 turns)
+    if agent_history:
+        recent = agent_history[-3:]
+        history_lines = []
+        for turn in recent:
+            role = turn.get("role", "unknown")
+            content = turn.get("content", "")
+            if content:
+                # Truncate long content
+                display_content = content[:150] + "..." if len(content) > 150 else content
+                history_lines.append(f"{role.capitalize()}: {display_content}")
+
+        if history_lines:
+            context_parts.append(f"[Agent's Recent Conversation]:\n" + "\n".join(history_lines))
+
+    agent_specific_context = "\n\n".join(context_parts) if context_parts else ""
+
+    logger.info(
+        "[%s] Built agent context for %s: %d chars, %d collected items, handoff=%s",
+        state.get("thread_id"),
+        target_agent,
+        len(agent_specific_context),
+        len(collected_info),
+        "yes" if handoff_summary else "no"
+    )
+
+    return {
+        "agent_specific_context": agent_specific_context,
+        "collected_info": collected_info,
+        "conversation_stage": agent_ctx.get("conversation_stage", "discovery"),
+        "agent_history": agent_history[-5:],  # Last 5 turns
+    }
+
+
+def _create_handoff_summary(
+    state: SupervisorState,
+    from_agent: str,
+    to_agent: str
+) -> str:
+    """
+    STEP 4: Create structured handoff when switching agents.
+
+    Extracts key information from previous agent to pass to next agent.
+    This ensures continuity and prevents user from having to repeat context.
+
+    Returns:
+        Human-readable summary of previous agent's context
+    """
+    agent_contexts = state.get("agent_contexts") or {}
+    from_context = agent_contexts.get(from_agent, {})
+
+    # Extract collected information
+    collected_info = from_context.get("collected_info", {})
+    conversation_stage = from_context.get("conversation_stage", "discovery")
+
+    # Build handoff summary
+    summary_parts = []
+
+    # Add context about what user was doing
+    agent_display_name = from_agent.replace("_agent", "").replace("_", " ").title()
+    summary_parts.append(f"User was previously working with {agent_display_name}.")
+
+    # Add collected entities
+    if collected_info:
+        # Extract location if present (most important for handoff)
+        location = collected_info.get("location") or collected_info.get("city")
+        if location:
+            summary_parts.append(f"Location of interest: {location}.")
+
+        # Extract budget if present
+        budget = collected_info.get("budget") or collected_info.get("price_max")
+        if budget:
+            summary_parts.append(f"Budget mentioned: {budget} EUR.")
+
+        # Extract property/vehicle details
+        if "bedrooms" in collected_info:
+            summary_parts.append(f"Looking for {collected_info['bedrooms']}-bedroom property.")
+
+        if "property_type" in collected_info:
+            summary_parts.append(f"Property type: {collected_info['property_type']}.")
+
+        if "vehicle_type" in collected_info:
+            summary_parts.append(f"Vehicle type: {collected_info['vehicle_type']}.")
+
+        # Add other requirements (limit to 3)
+        other_reqs = {
+            k: v for k, v in collected_info.items()
+            if k not in ["location", "city", "budget", "price_max", "bedrooms", "property_type", "vehicle_type"]
+        }
+        if other_reqs:
+            req_items = [f"{k}: {v}" for k, v in list(other_reqs.items())[:3]]
+            summary_parts.append(f"Additional requirements: {', '.join(req_items)}.")
+
+    # Add stage information
+    if conversation_stage == "presenting":
+        summary_parts.append("User was reviewing options.")
+    elif conversation_stage == "refinement":
+        summary_parts.append("User was refining their search criteria.")
+    elif conversation_stage == "transaction":
+        summary_parts.append("User was ready to proceed with a transaction.")
+
+    # Domain-specific handoff notes
+    if from_agent == "real_estate_agent" and to_agent == "marketplace_agent":
+        summary_parts.append("User may be looking for related services or products in the same area.")
+    elif from_agent == "marketplace_agent" and to_agent == "real_estate_agent":
+        summary_parts.append("User may need housing in the area they were searching for products/services.")
+    elif from_agent == "local_info_agent":
+        summary_parts.append("User was exploring local information and may now need related services.")
+
+    handoff = " ".join(summary_parts)
+
+    logger.info(
+        "[HANDOFF] %s → %s: %s",
+        from_agent,
+        to_agent,
+        handoff[:200] + "..." if len(handoff) > 200 else handoff
+    )
+
+    return handoff
+
+
+def _preserve_cross_agent_context(
+    state: SupervisorState,
+    target_agent: str
+) -> SupervisorState:
+    """
+    STEP 4: Preserve context when switching between agents.
+
+    Creates handoff summary and updates target agent's context.
+    Ensures critical information (location, budget) carries over.
+
+    Returns:
+        Updated state with handoff information
+    """
+    previous_agent = state.get("active_domain")
+
+    # Check if we're switching agents
+    if not previous_agent or previous_agent == target_agent:
+        return state
+
+    logger.info(
+        "[%s] Agent switch detected: %s → %s",
+        state.get("thread_id"),
+        previous_agent,
+        target_agent
+    )
+
+    # Create handoff summary
+    handoff_summary = _create_handoff_summary(state, previous_agent, target_agent)
+
+    # Extract shared context from previous agent
+    agent_contexts = state.get("agent_contexts") or {}
+    prev_context = agent_contexts.get(previous_agent, {})
+    prev_info = prev_context.get("collected_info", {})
+
+    # Update shared context with important cross-agent info
+    shared_context = state.get("shared_context") or {}
+
+    # Carry over location (most important for continuity)
+    if "location" in prev_info or "city" in prev_info:
+        shared_context["user_location"] = prev_info.get("location") or prev_info.get("city")
+
+    # Carry over budget if present
+    if "budget" in prev_info or "price_max" in prev_info:
+        shared_context["user_budget"] = prev_info.get("budget") or prev_info.get("price_max")
+
+    # Update target agent's context with handoff
+    target_ctx = agent_contexts.get(target_agent, {})
+    target_ctx["handoff_from"] = previous_agent
+    target_ctx["handoff_summary"] = handoff_summary
+    target_ctx["handoff_timestamp"] = time.time()
+
+    # Merge any relevant info into target agent's collected_info
+    target_collected = target_ctx.get("collected_info", {})
+    if shared_context.get("user_location") and "location" not in target_collected:
+        target_collected["location"] = shared_context["user_location"]
+    if shared_context.get("user_budget") and "budget" not in target_collected:
+        target_collected["budget"] = shared_context["user_budget"]
+
+    target_ctx["collected_info"] = target_collected
+    agent_contexts[target_agent] = target_ctx
+
+    return {
+        **state,
+        "agent_contexts": agent_contexts,
+        "shared_context": shared_context,
+        "previous_agent": previous_agent,
+    }
 
 
 def build_supervisor_graph():
@@ -499,7 +871,21 @@ def build_supervisor_graph():
                 # Updated context (e.g., TTL refresh) even when not sticky
                 state = {**state, "conversation_ctx": updated_ctx}
 
-            return supervisor.route_request(state)
+            # Route to get target agent
+            routed_state = supervisor.route_request(state)
+            target_agent = routed_state.get("target_agent")
+
+            # STEP 4: Preserve context during agent switch + build agent-specific context
+            routed_state = _preserve_cross_agent_context(routed_state, target_agent)
+            agent_context = _build_agent_context(routed_state, target_agent)
+
+            # Add agent-specific context to state for agent handler
+            return {
+                **routed_state,
+                "agent_specific_context": agent_context["agent_specific_context"],
+                "agent_collected_info": agent_context["collected_info"],
+                "agent_conversation_stage": agent_context["conversation_stage"],
+            }
 
         def route_to_agent(state: SupervisorState) -> str:
             target = state.get("target_agent", "general_conversation_agent")
@@ -519,26 +905,62 @@ def build_supervisor_graph():
             Leverages contextually appropriate responses.
             """
             try:
-                logger.info(f"[{state.get('thread_id')}] General Conversation Agent: processing '{state['user_input'][:50]}'...")
+                thread_id = state.get('thread_id', 'unknown')
+                logger.info(f"[{thread_id}] General Conversation Agent: processing '{state['user_input'][:50]}'...")
+
+                # STEP 4: Get agent-specific context
+                agent_context_str = state.get("agent_specific_context", "")
+                collected_info = state.get("agent_collected_info", {})
+
+                if agent_context_str:
+                    logger.info(
+                        "[%s] General Conversation Agent: using agent-specific context (%d chars, %d collected items)",
+                        thread_id,
+                        len(agent_context_str),
+                        len(collected_info)
+                    )
 
                 # For general conversation, provide contextually appropriate response
                 user_input = state['user_input'].lower().strip()
 
                 # Detect greeting patterns
                 greeting_keywords = ['hello', 'hi', 'hey', 'greetings', 'good morning', 'good afternoon', 'good evening']
-                if any(keyword in user_input for keyword in greeting_keywords):
+                is_greeting = any(keyword in user_input for keyword in greeting_keywords)
+
+                if is_greeting:
                     response = "Welcome to Easy Islanders! I am your personal assistant for anything you need in North Cyprus. How can I help you today?"
                 else:
                     # For other general questions, use a default helpful response
                     response = "I'm here to help! You can ask me about properties to rent or buy, search for vehicles, find services, or any general questions about North Cyprus."
 
-                logger.info(f"[{state.get('thread_id')}] General Conversation Agent: returning response")
+                # STEP 4: Extract entities and update agent context
+                updated_info = _extract_entities(state['user_input'], collected_info)
+                stage = "greeting" if is_greeting else "discovery"
+
+                # Update agent contexts
+                agent_contexts = state.get("agent_contexts") or {}
+                agent_contexts["general_conversation_agent"] = {
+                    "collected_info": updated_info,
+                    "conversation_stage": stage,
+                    "last_active": time.time(),
+                    "is_greeting": is_greeting,
+                }
+
+                logger.info(
+                    "[%s] General Conversation Agent: context preserved (stage=%s)",
+                    thread_id,
+                    stage
+                )
+                logger.info(f"[{thread_id}] General Conversation Agent: returning response")
                 return _with_history(
                     state,
                     {
                         'final_response': response,
                         'current_node': 'general_conversation_agent',
                         'is_complete': True,
+                        'agent_contexts': agent_contexts,  # STEP 4
+                        'agent_collected_info': updated_info,  # STEP 4
+                        'agent_conversation_stage': stage,  # STEP 4
                     },
                     response,
                 )
@@ -575,6 +997,19 @@ def build_supervisor_graph():
             import uuid
 
             thread_id = state.get('thread_id', 'unknown')
+
+            # STEP 4: Get agent-specific context
+            agent_context_str = state.get("agent_specific_context", "")
+            collected_info = state.get("agent_collected_info", {})
+
+            if agent_context_str:
+                logger.info(
+                    "[%s] RE Agent: using agent-specific context (%d chars, %d collected items)",
+                    thread_id,
+                    len(agent_context_str),
+                    len(collected_info)
+                )
+
             # Base capsule for RE agent (persisted between turns)
             conversation_ctx = (state.get('conversation_ctx') or {})
             re_capsule = conversation_ctx.get('real_estate', {})
@@ -734,6 +1169,36 @@ def build_supervisor_graph():
 
                 logger.info(f"[{thread_id}] RE Agent: completed, {len(recommendations)} cards, reply_len={len(reply)}")
 
+                # STEP 4: Extract entities and update agent context
+                updated_info = _extract_entities(state['user_input'], collected_info)
+
+                # Determine conversation stage based on response
+                if recommendations:
+                    stage = "presenting" if not has_more else "refinement"
+                elif any(action.get("type") == "booking_request" for action in actions):
+                    stage = "transaction"
+                elif any(action.get("type") == "ask_clarification" for action in actions):
+                    stage = "discovery"
+                else:
+                    stage = "refinement"
+
+                # Update agent contexts with isolated context for this agent
+                agent_contexts = state.get("agent_contexts") or {}
+                agent_contexts["real_estate_agent"] = {
+                    "collected_info": updated_info,
+                    "conversation_stage": stage,
+                    "last_active": time.time(),
+                    "result_count": len(recommendations),
+                    "has_more_results": has_more,
+                }
+
+                logger.info(
+                    "[%s] RE Agent: context preserved (stage=%s, entities=%d)",
+                    thread_id,
+                    stage,
+                    len(updated_info)
+                )
+
                 return _with_history(
                     state,
                     {
@@ -746,6 +1211,9 @@ def build_supervisor_graph():
                         'agent_name': 'real_estate',  # For WS frame tagging
                         'conversation_ctx': conversation_ctx,
                         'memory_trace': state.get('memory_trace'),
+                        'agent_contexts': agent_contexts,  # STEP 4: Persist agent contexts
+                        'agent_collected_info': updated_info,  # STEP 4: Persist collected info
+                        'agent_conversation_stage': stage,  # STEP 4: Persist conversation stage
                     },
                     reply,
                 )
@@ -772,7 +1240,20 @@ def build_supervisor_graph():
             Extracts: product_type, budget, etc.
             """
             try:
-                logger.info(f"[{state.get('thread_id')}] Marketplace Agent: processing '{state['user_input'][:50]}'...")
+                thread_id = state.get('thread_id', 'unknown')
+                logger.info(f"[{thread_id}] Marketplace Agent: processing '{state['user_input'][:50]}'...")
+
+                # STEP 4: Get agent-specific context
+                agent_context_str = state.get("agent_specific_context", "")
+                collected_info = state.get("agent_collected_info", {})
+
+                if agent_context_str:
+                    logger.info(
+                        "[%s] Marketplace Agent: using agent-specific context (%d chars, %d collected items)",
+                        thread_id,
+                        len(agent_context_str),
+                        len(collected_info)
+                    )
 
                 # Extract entities from routing decision
                 routing_decision = state.get('routing_decision')
@@ -787,7 +1268,28 @@ def build_supervisor_graph():
                 # Build contextual response
                 response = f"I can help you find {product_type}. Let me search for the best deals and connect you with sellers."
 
-                logger.info(f"[{state.get('thread_id')}] Marketplace Agent: returning response")
+                # STEP 4: Extract entities and update agent context
+                updated_info = _extract_entities(state['user_input'], collected_info)
+
+                # Determine conversation stage
+                stage = "discovery"  # Marketplace typically starts with discovery
+
+                # Update agent contexts
+                agent_contexts = state.get("agent_contexts") or {}
+                agent_contexts["marketplace_agent"] = {
+                    "collected_info": updated_info,
+                    "conversation_stage": stage,
+                    "last_active": time.time(),
+                    "product_type": product_type,
+                }
+
+                logger.info(
+                    "[%s] Marketplace Agent: context preserved (stage=%s, entities=%d)",
+                    thread_id,
+                    stage,
+                    len(updated_info)
+                )
+                logger.info(f"[{thread_id}] Marketplace Agent: returning response")
                 return _with_history(
                     state,
                     {
@@ -795,6 +1297,9 @@ def build_supervisor_graph():
                         'current_node': 'marketplace_agent',
                         'is_complete': True,
                         'extracted_criteria': entities,
+                        'agent_contexts': agent_contexts,  # STEP 4: Persist agent contexts
+                        'agent_collected_info': updated_info,  # STEP 4: Persist collected info
+                        'agent_conversation_stage': stage,  # STEP 4: Persist conversation stage
                     },
                     response,
                 )
@@ -820,7 +1325,21 @@ def build_supervisor_graph():
             Always ask for a city if not explicitly provided; never default.
             """
             try:
-                logger.info(f"[{state.get('thread_id')}] Local Info Agent: processing '{(state.get('user_input') or '')[:50]}'...")
+                thread_id = state.get('thread_id', 'unknown')
+                logger.info(f"[{thread_id}] Local Info Agent: processing '{(state.get('user_input') or '')[:50]}'...")
+
+                # STEP 4: Get agent-specific context
+                agent_context_str = state.get("agent_specific_context", "")
+                collected_info = state.get("agent_collected_info", {})
+
+                if agent_context_str:
+                    logger.info(
+                        "[%s] Local Info Agent: using agent-specific context (%d chars, %d collected items)",
+                        thread_id,
+                        len(agent_context_str),
+                        len(collected_info)
+                    )
+
                 user_input = state.get('user_input') or ''
                 q = user_input.lower()
 
@@ -1018,7 +1537,28 @@ def build_supervisor_graph():
                             f"Found {len(recs)} pharmacies in {city}."
                             if recs else f"Couldn't confirm duty pharmacies for {city}."
                         )
-                        logger.info(f"[{state.get('thread_id')}] Local Info: {len(recs)} pharmacies found")
+                        logger.info(f"[{thread_id}] Local Info: {len(recs)} pharmacies found")
+
+                        # STEP 4: Extract entities and update agent context
+                        updated_info = _extract_entities(state['user_input'], collected_info)
+                        stage = "presenting" if recs else "discovery"
+
+                        # Update agent contexts
+                        agent_contexts = state.get("agent_contexts") or {}
+                        agent_contexts["local_info_agent"] = {
+                            "collected_info": updated_info,
+                            "conversation_stage": stage,
+                            "last_active": time.time(),
+                            "query_type": "pharmacy",
+                            "result_count": len(recs),
+                        }
+
+                        logger.info(
+                            "[%s] Local Info Agent: context preserved (stage=%s, entities=%d)",
+                            thread_id,
+                            stage,
+                            len(updated_info)
+                        )
 
                         response_payload = {"type": "text", "message": msg}
                         return _with_history(
@@ -1028,6 +1568,9 @@ def build_supervisor_graph():
                                 'recommendations': recs,
                                 'current_node': 'local_info_agent',
                                 'is_complete': True,
+                                'agent_contexts': agent_contexts,  # STEP 4
+                                'agent_collected_info': updated_info,  # STEP 4
+                                'agent_conversation_stage': stage,  # STEP 4
                             },
                             response_payload,
                         )
@@ -1051,12 +1594,35 @@ def build_supervisor_graph():
                         response = f"Nearby hospitals in {city}:\n" + "\n".join(f"- {p.get('display_name')}" for p in places[:5])
                     else:
                         response = f"I couldn't find nearby hospitals in {city} right now."
+                    query_type = "hospital"
                 elif any(_matches(k) for k in ['things to do', 'activities', 'what to do']):
                     hits = web_search(f"things to do in {city} today")
                     heading = hits.get('Heading') or 'Top guides online'
                     response = f"Popular activities in {city}:\n- {heading}"
+                    query_type = "activities"
                 else:
                     response = "I can look up duty pharmacies, hospitals, directions, and local activities. What exactly do you need?"
+                    query_type = "general"
+
+                # STEP 4: Extract entities and update agent context
+                updated_info = _extract_entities(state['user_input'], collected_info)
+                stage = "discovery"  # General queries usually start with discovery
+
+                # Update agent contexts
+                agent_contexts = state.get("agent_contexts") or {}
+                agent_contexts["local_info_agent"] = {
+                    "collected_info": updated_info,
+                    "conversation_stage": stage,
+                    "last_active": time.time(),
+                    "query_type": query_type,
+                }
+
+                logger.info(
+                    "[%s] Local Info Agent: context preserved (stage=%s, query_type=%s)",
+                    thread_id,
+                    stage,
+                    query_type
+                )
 
                 response_payload = {"type": "text", "message": response}
                 return _with_history(
@@ -1066,6 +1632,9 @@ def build_supervisor_graph():
                         'current_node': 'local_info_agent',
                         'is_complete': True,
                         'recommendations': [],
+                        'agent_contexts': agent_contexts,  # STEP 4
+                        'agent_collected_info': updated_info,  # STEP 4
+                        'agent_conversation_stage': stage,  # STEP 4
                     },
                     response_payload,
                 )

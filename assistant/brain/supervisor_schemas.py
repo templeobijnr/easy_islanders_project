@@ -75,6 +75,14 @@ class SupervisorState(TypedDict):
     active_domain: Optional[str]  # Current active intent domain for continuity
     fused_context: Optional[str]  # Combined short-term + long-term + domain context
 
+    # STEP 4: Agent Context Preservation & Multi-Agent Coherence
+    agent_contexts: Optional[Dict[str, Dict[str, Any]]]  # Agent-specific context buckets
+    shared_context: Optional[Dict[str, Any]]  # Cross-agent shared context
+    previous_agent: Optional[str]  # Previous agent before switch
+    agent_specific_context: Optional[str]  # Context tailored for current agent
+    agent_collected_info: Optional[Dict[str, Any]]  # Current agent's collected entities
+    agent_conversation_stage: Optional[str]  # Current agent's conversation stage
+
 
 class MapMarker(BaseModel):
     """DTO for individual map marker in geo-location recommendations."""

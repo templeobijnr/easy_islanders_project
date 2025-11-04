@@ -793,14 +793,46 @@ def _check_continuity_guard(
         return False, None  # Same domain, no drift
 
     user_input = state.get("user_input", "").lower().strip()
+    word_count = len(user_input.split())
 
-    # CRITICAL FIX: Check intent confidence first
-    # If we have a high-confidence intent switch, allow it regardless of patterns
-    if intent_confidence >= 0.65:
+    # CRITICAL: For very short inputs (1-2 words), check agent context FIRST
+    # before allowing high-confidence switches. Short inputs like "girne" could be
+    # refinements even if they get high confidence for a different domain.
+    if word_count <= 2:
+        agent_contexts = state.get("agent_contexts") or {}
+        agent_name_map = {
+            "REAL_ESTATE": "real_estate_agent",
+            "NON_RE_MARKETPLACE": "marketplace_agent",
+            "LOCAL_INFO": "local_info_agent",
+            "GENERAL_CONVERSATION": "general_conversation_agent",
+        }
+        active_agent_name = agent_name_map.get(active_domain)
+
+        if active_agent_name and active_agent_name in agent_contexts:
+            agent_ctx = agent_contexts[active_agent_name]
+            collected_info = agent_ctx.get("collected_info", {})
+            conversation_stage = agent_ctx.get("conversation_stage", "discovery")
+
+            # If active agent has ANY context, treat short input as refinement
+            if len(collected_info) > 0 or conversation_stage != "greeting":
+                logger.info(
+                    "[%s] Continuity guard: short input (%d words) with active context (stage=%s, entities=%d) - maintaining domain %s",
+                    state.get("thread_id"),
+                    word_count,
+                    conversation_stage,
+                    len(collected_info),
+                    active_domain
+                )
+                return True, f"short_input_with_context:{word_count}_words"
+
+    # Check intent confidence for multi-word complete requests
+    # If we have a high-confidence intent switch with 3+ words, allow it
+    if intent_confidence >= 0.65 and word_count >= 3:
         logger.info(
-            "[%s] Continuity guard: high confidence intent (%0.2f) - allowing domain change %s → %s",
+            "[%s] Continuity guard: high confidence intent (%0.2f, %d words) - allowing domain change %s → %s",
             state.get("thread_id"),
             intent_confidence,
+            word_count,
             active_domain,
             new_domain
         )
@@ -844,25 +876,8 @@ def _check_continuity_guard(
             )
             return True, f"ambiguous_followup:{pattern}"
 
-    # If input is very short (1-2 words without action verbs), likely a refinement
-    # BUT: Only if we also have LOW confidence (extra safety check)
-    word_count = len(user_input.split())
-    if word_count <= 2 and intent_confidence < 0.65:
-        # Check if it's a single word or just a location/modifier
-        action_verbs = ["need", "want", "looking", "find", "show", "get", "buy", "rent", "search"]
-        has_action = any(verb in user_input for verb in action_verbs)
-
-        if not has_action:
-            logger.info(
-                "[%s] Continuity guard: short input without action (%d words, conf=%0.2f) - maintaining domain %s",
-                state.get("thread_id"),
-                word_count,
-                intent_confidence,
-                active_domain
-            )
-            return True, f"short_input:{word_count}_words"
-
     # STEP 4: Context-aware guard - check if current agent has significant context
+    # (Note: Short input check moved to top of function for priority)
     agent_contexts = state.get("agent_contexts") or {}
     agent_name_map = {
         "REAL_ESTATE": "real_estate_agent",
@@ -1846,7 +1861,6 @@ def build_supervisor_graph():
                 if _matches('pharmacy') or _matches('doctor') or _matches('medical'):
                     try:
                         from . import tavily
-                        import time
 
                         # Build Tavily search query (Two-Step: Search → Extract)
                         search_query = f"open on-duty pharmacy schedule {city}"

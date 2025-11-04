@@ -89,6 +89,10 @@ class StructuredIntentParser:
             active_domain = context.get("active_domain", "")  # STEP 3: Get active domain
             conversation_ref = context.get("conversation_id") if isinstance(context, dict) else None
 
+            # STEP 5: Extract token budget info
+            token_budget = context.get("token_budget", 6000)
+            current_token_estimate = context.get("current_token_estimate", 0)
+
             # Build the prompt
             prompt = ChatPromptTemplate.from_template("""
 You are an expert intent classifier for a multi-domain marketplace platform (Easy Islanders).
@@ -124,6 +128,7 @@ CONTEXT:
 - Conversation history: {history_summary}
 - User location: {location}
 - Language: {language}
+- Token Budget: {current_token_estimate}/{token_budget} tokens
 
 IMPORTANT CONTINUITY RULE:
 If active_domain is set (not empty) and the user message appears to be a refinement or follow-up
@@ -187,6 +192,8 @@ EXAMPLES (for disambiguation):
                     "language": language,
                     "location": location,
                     "active_domain": active_domain,  # STEP 3: Include active domain
+                    "token_budget": token_budget,  # STEP 5: Token budget info
+                    "current_token_estimate": current_token_estimate,  # STEP 5: Current token usage
                 }
 
                 if isinstance(structured_llm, Mock):

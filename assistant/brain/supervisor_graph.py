@@ -14,6 +14,7 @@ import logging
 import os
 import time
 from typing import Dict, Any, List
+import tiktoken
 
 from assistant.memory import read_enabled
 from assistant.brain.config import PREFS_APPLY_ENABLED
@@ -292,6 +293,211 @@ def _apply_memory_context(state: SupervisorState) -> SupervisorState:
                         state["memory_trace"] = memt
         except Exception:
             pass
+    return state
+
+
+# ============================================================================
+# STEP 5: Token Budget & Context Window Management
+# ============================================================================
+
+def estimate_tokens(text: str, model: str = "gpt-4-turbo") -> int:
+    """
+    Estimate token count for given text using tiktoken.
+
+    Args:
+        text: Text to estimate tokens for
+        model: Model name for tokenizer (default: gpt-4-turbo)
+
+    Returns:
+        Estimated token count
+    """
+    try:
+        enc = tiktoken.encoding_for_model(model)
+        return len(enc.encode(text))
+    except Exception as e:
+        logger.warning(f"[TOKEN_BUDGET] tiktoken encoding failed: {e}, using fallback")
+        # Fallback: rough estimate (1 token ≈ 4 characters)
+        return len(text) // 4
+
+
+def summarize_text(text: str, max_sentences: int = 3) -> str:
+    """
+    Lightweight text summarizer using sentence truncation.
+
+    For production: Consider using a small summarization model (e.g., BART, T5)
+    or LLM-based summarization.
+
+    Args:
+        text: Text to summarize
+        max_sentences: Maximum sentences to keep
+
+    Returns:
+        Summarized text
+    """
+    if not text or not text.strip():
+        return ""
+
+    # Split by sentence boundaries
+    sentences = [s.strip() for s in text.split(".") if s.strip()]
+
+    if len(sentences) <= max_sentences:
+        return text
+
+    # Keep first max_sentences and add ellipsis
+    summary = ". ".join(sentences[:max_sentences])
+    if not summary.endswith("."):
+        summary += "."
+    summary += ".."
+
+    return summary
+
+
+def _enforce_token_budget(state: SupervisorState, max_tokens: int = 6000) -> SupervisorState:
+    """
+    STEP 5: Enforce token budget by progressively trimming context layers.
+
+    Trimming strategy (in order):
+    1. Halve long-term memory (Zep recall) - oldest semantic context
+    2. Summarize old conversation history (keep last 6 turns)
+    3. Trim agent-specific context if still over budget
+    4. Rebuild fused context and re-check
+
+    Args:
+        state: Current supervisor state
+        max_tokens: Maximum allowed tokens (default: 6000)
+
+    Returns:
+        State with trimmed context and updated token estimates
+    """
+    thread_id = state.get("thread_id", "unknown")
+    fused = state.get("fused_context", "")
+
+    # Estimate current token count
+    token_count = estimate_tokens(fused)
+
+    # Update state with budget tracking
+    state["current_token_estimate"] = token_count
+    state["token_budget"] = max_tokens
+
+    if token_count <= max_tokens:
+        # Within budget, no trimming needed
+        logger.debug(
+            "[%s] Token budget OK: %d/%d tokens",
+            thread_id,
+            token_count,
+            max_tokens
+        )
+        return state
+
+    # --- Exceeded budget: progressively trim ---
+    logger.warning(
+        "[%s] Token budget exceeded: %d > %d tokens, trimming...",
+        thread_id,
+        token_count,
+        max_tokens
+    )
+
+    # Strategy 1: Halve long-term memory (Zep recall)
+    retrieved = state.get("retrieved_context", "")
+    if retrieved and len(retrieved) > 100:
+        lines = retrieved.split("\n")
+        half_point = len(lines) // 2
+        state["retrieved_context"] = "\n".join(lines[:half_point])
+        logger.info(
+            "[%s] Trimmed retrieved_context: %d -> %d lines",
+            thread_id,
+            len(lines),
+            half_point
+        )
+
+    # Strategy 2: Summarize old history (keep last 6 turns + summary)
+    history = state.get("history") or []
+    if len(history) > 6:
+        # Summarize older turns (everything except last 6)
+        old_turns = history[:-6]
+        recent_turns = history[-6:]
+
+        # Combine old turns into text for summarization
+        old_text = " ".join([
+            f"{turn.get('role', 'user')}: {turn.get('content', '')}"
+            for turn in old_turns
+        ])
+
+        summary = summarize_text(old_text, max_sentences=2)
+
+        # Create summary turn
+        summary_turn = {
+            "role": "system",
+            "content": f"[Earlier conversation summary]: {summary}"
+        }
+
+        # Update history: summary + recent 6 turns
+        state["history"] = [summary_turn] + recent_turns
+
+        logger.info(
+            "[%s] Summarized history: %d turns -> summary + %d recent",
+            thread_id,
+            len(history),
+            len(recent_turns)
+        )
+
+    # Strategy 3: Trim agent-specific context if still too large
+    agent_context_str = state.get("agent_specific_context", "")
+    if agent_context_str and len(agent_context_str) > 500:
+        # Keep first 500 chars + ellipsis
+        state["agent_specific_context"] = agent_context_str[:500] + "..."
+        logger.info(
+            "[%s] Trimmed agent_specific_context: %d -> 500 chars",
+            thread_id,
+            len(agent_context_str)
+        )
+
+    # Rebuild fused context with trimmed inputs
+    # Note: We don't call _fuse_context here to avoid circular dependency
+    # Instead, we'll rebuild a simplified version
+    context_parts = []
+
+    if state.get("active_domain"):
+        context_parts.append(f"[Active Domain: {state['active_domain']}]")
+
+    if state.get("retrieved_context"):
+        context_parts.append(f"[Relevant Past Context]:\n{state['retrieved_context'].strip()}")
+
+    history = state.get("history") or []
+    if history:
+        history_lines = [
+            f"{turn.get('role', 'unknown').capitalize()}: {turn.get('content', '')}"
+            for turn in history[-5:]  # Last 5 turns
+        ]
+        context_parts.append(f"[Recent Conversation]:\n" + "\n".join(history_lines))
+
+    if state.get("memory_context_summary"):
+        context_parts.append(f"[Summary]: {state['memory_context_summary']}")
+
+    # Rebuild fused context
+    new_fused = "\n\n".join(context_parts)
+    new_token_count = estimate_tokens(new_fused)
+
+    state["fused_context"] = new_fused
+    state["current_token_estimate"] = new_token_count
+
+    logger.info(
+        "[%s] Token budget enforced: %d -> %d tokens (target: %d)",
+        thread_id,
+        token_count,
+        new_token_count,
+        max_tokens
+    )
+
+    # If still over budget after all trimming, log warning but proceed
+    if new_token_count > max_tokens:
+        logger.warning(
+            "[%s] Still over budget after trimming: %d > %d tokens",
+            thread_id,
+            new_token_count,
+            max_tokens
+        )
+
     return state
 
 
@@ -835,6 +1041,7 @@ def build_supervisor_graph():
             state = _apply_memory_context(state)
             state = _inject_zep_context(state)
             state = _fuse_context(state)  # STEP 3: Merge all context sources
+            state = _enforce_token_budget(state, max_tokens=6000)  # STEP 5: Enforce token budget
             sticky_agent, updated_ctx = _maybe_route_sticky(state)
             if sticky_agent:
                 logger.info(

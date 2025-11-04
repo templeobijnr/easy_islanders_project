@@ -83,6 +83,10 @@ class SupervisorState(TypedDict):
     agent_collected_info: Optional[Dict[str, Any]]  # Current agent's collected entities
     agent_conversation_stage: Optional[str]  # Current agent's conversation stage
 
+    # STEP 5: Token Budget & Context Window Management
+    token_budget: Optional[int]  # Max tokens allowed per prompt (default: 6000)
+    current_token_estimate: Optional[int]  # Last computed prompt size in tokens
+
 
 class MapMarker(BaseModel):
     """DTO for individual map marker in geo-location recommendations."""

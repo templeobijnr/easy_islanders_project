@@ -844,16 +844,23 @@ def _check_continuity_guard(
             )
             return True, f"ambiguous_followup:{pattern}"
 
-    # If input is very short (< 5 words), likely a refinement
+    # If input is very short (1-2 words without action verbs), likely a refinement
+    # BUT: Only if we also have LOW confidence (extra safety check)
     word_count = len(user_input.split())
-    if word_count < 5:
-        logger.info(
-            "[%s] Continuity guard: short input (%d words) - maintaining domain %s",
-            state.get("thread_id"),
-            word_count,
-            active_domain
-        )
-        return True, f"short_input:{word_count}_words"
+    if word_count <= 2 and intent_confidence < 0.65:
+        # Check if it's a single word or just a location/modifier
+        action_verbs = ["need", "want", "looking", "find", "show", "get", "buy", "rent", "search"]
+        has_action = any(verb in user_input for verb in action_verbs)
+
+        if not has_action:
+            logger.info(
+                "[%s] Continuity guard: short input without action (%d words, conf=%0.2f) - maintaining domain %s",
+                state.get("thread_id"),
+                word_count,
+                intent_confidence,
+                active_domain
+            )
+            return True, f"short_input:{word_count}_words"
 
     # STEP 4: Context-aware guard - check if current agent has significant context
     agent_contexts = state.get("agent_contexts") or {}

@@ -795,38 +795,30 @@ def _check_continuity_guard(
     user_input = state.get("user_input", "").lower().strip()
     word_count = len(user_input.split())
 
-    # CRITICAL: For very short inputs (1-2 words), check agent context FIRST
-    # before allowing high-confidence switches. Short inputs like "girne" could be
-    # refinements even if they get high confidence for a different domain.
+    # ROBUST FIX: For very short inputs (1-2 words), ALWAYS maintain active_domain
+    # unless there's an explicit switch signal. This is more robust than checking
+    # agent_contexts which may not persist across turns.
     if word_count <= 2:
-        agent_contexts = state.get("agent_contexts") or {}
-        agent_name_map = {
-            "REAL_ESTATE": "real_estate_agent",
-            "NON_RE_MARKETPLACE": "marketplace_agent",
-            "LOCAL_INFO": "local_info_agent",
-            "GENERAL_CONVERSATION": "general_conversation_agent",
-        }
-        active_agent_name = agent_name_map.get(active_domain)
+        # Check for explicit switch signals first
+        explicit_switch_patterns = [
+            "actually", "instead", "now show", "now let's", "change to",
+            "switch to", "i want to see", "show me", "let's talk about",
+            "tell me about", "what about", "how about"
+        ]
 
-        if active_agent_name and active_agent_name in agent_contexts:
-            agent_ctx = agent_contexts[active_agent_name]
-            collected_info = agent_ctx.get("collected_info", {})
-            conversation_stage = agent_ctx.get("conversation_stage", "discovery")
+        has_explicit_switch = any(pattern in user_input for pattern in explicit_switch_patterns)
 
-            # If active agent has ANY context, treat short input as refinement
-            if len(collected_info) > 0 or conversation_stage != "greeting":
-                logger.info(
-                    "[%s] Continuity guard: short input (%d words) with active context (stage=%s, entities=%d) - maintaining domain %s",
-                    state.get("thread_id"),
-                    word_count,
-                    conversation_stage,
-                    len(collected_info),
-                    active_domain
-                )
-                return True, f"short_input_with_context:{word_count}_words"
+        if not has_explicit_switch:
+            # Short input without explicit switch = maintain continuity
+            logger.info(
+                "[%s] Continuity guard: short input (%d words) without explicit switch - maintaining domain %s",
+                state.get("thread_id"),
+                word_count,
+                active_domain
+            )
+            return True, f"short_input_no_switch:{word_count}_words"
 
-    # Check intent confidence for multi-word complete requests
-    # If we have a high-confidence intent switch with 3+ words, allow it
+    # For longer inputs (3+ words), check confidence for complete requests
     if intent_confidence >= 0.65 and word_count >= 3:
         logger.info(
             "[%s] Continuity guard: high confidence intent (%0.2f, %d words) - allowing domain change %s → %s",
@@ -837,24 +829,6 @@ def _check_continuity_guard(
             new_domain
         )
         return False, f"high_confidence:{intent_confidence:.2f}"
-
-    # Explicit switch signals (override continuity)
-    explicit_switch_patterns = [
-        "actually", "instead", "now show", "now let's", "change to",
-        "switch to", "i want to see", "show me", "let's talk about",
-        "tell me about", "what about", "how about"
-    ]
-
-    for pattern in explicit_switch_patterns:
-        if pattern in user_input:
-            logger.info(
-                "[%s] Continuity guard: explicit switch detected ('%s') - allowing domain change %s → %s",
-                state.get("thread_id"),
-                pattern,
-                active_domain,
-                new_domain
-            )
-            return False, f"explicit_switch:{pattern}"
 
     # Ambiguous follow-ups (should maintain continuity)
     # Only apply this logic for LOW confidence intents

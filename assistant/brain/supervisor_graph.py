@@ -501,6 +501,200 @@ def _enforce_token_budget(state: SupervisorState, max_tokens: int = 6000) -> Sup
     return state
 
 
+# ============================================================================
+# STEP 6: Context Lifecycle & Summarization Layer
+# ============================================================================
+
+def summarize_agent_context(agent_ctx: Dict[str, Any], agent_name: str, max_sentences: int = 4) -> str:
+    """
+    STEP 6: Condense an agent context into a short natural-language summary.
+
+    Creates a human-readable summary of what happened during the agent's interaction,
+    including collected entities, conversation stage, and recent turns.
+
+    Args:
+        agent_ctx: Agent context dictionary from state.agent_contexts
+        agent_name: Name of the agent (for logging)
+        max_sentences: Maximum sentences in summary (default: 4)
+
+    Returns:
+        Natural language summary string
+    """
+    collected_info = agent_ctx.get("collected_info", {})
+    stage = agent_ctx.get("conversation_stage", "unknown")
+    result_count = agent_ctx.get("result_count", 0)
+
+    # Build entity summary
+    if collected_info:
+        entities_str = ", ".join([f"{k}={v}" for k, v in collected_info.items()])
+        summary = f"During {stage} stage, user discussed {entities_str}."
+    else:
+        summary = f"During {stage} stage, user had general conversation."
+
+    # Add result information if available
+    if result_count > 0:
+        summary += f" Agent showed {result_count} results."
+
+    # Add recent conversation snippets
+    agent_history = agent_ctx.get("agent_history", [])
+    if agent_history and len(agent_history) > 0:
+        # Get last 2 turns
+        recent_turns = agent_history[-2:]
+        recent_text = " ".join([
+            f"{turn.get('role', 'user')}: {turn.get('content', '')[:100]}"
+            for turn in recent_turns
+        ])
+
+        # Truncate to reasonable length
+        if len(recent_text) > 200:
+            recent_text = recent_text[:200] + "..."
+
+        summary += f" Recent: {recent_text}"
+
+    return summary
+
+
+def archive_to_zep(
+    thread_id: str,
+    agent_name: str,
+    summary: str,
+    metadata: Optional[Dict[str, Any]] = None
+) -> bool:
+    """
+    STEP 6: Archive agent context summary to Zep for long-term storage.
+
+    Stores summarized context in Zep as a system message with metadata,
+    making it retrievable for future conversations.
+
+    Args:
+        thread_id: Conversation thread ID
+        agent_name: Agent that generated this context
+        summary: Summary text to archive
+        metadata: Additional metadata (optional)
+
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        from datetime import datetime
+
+        # Get Zep client (global instance from module)
+        if not _ZEP_CLIENT:
+            logger.warning("[LIFECYCLE] Zep client not available, skipping archive")
+            return False
+
+        # Prepare metadata
+        archive_metadata = {
+            "type": "context_summary",
+            "agent": agent_name,
+            "timestamp": datetime.utcnow().isoformat(),
+            "source": "lifecycle_manager",
+        }
+
+        if metadata:
+            archive_metadata.update(metadata)
+
+        # Add memory to Zep
+        _ZEP_CLIENT.add_memory(
+            session_id=thread_id,
+            messages=[{
+                "role": "system",
+                "content": f"[ARCHIVED SUMMARY {agent_name}] {summary}",
+                "metadata": archive_metadata,
+            }]
+        )
+
+        logger.info(
+            "[LIFECYCLE] Archived context for %s to Zep (%d chars)",
+            agent_name,
+            len(summary)
+        )
+        return True
+
+    except Exception as e:
+        logger.error(f"[LIFECYCLE] Failed to archive to Zep: {e}", exc_info=True)
+        return False
+
+
+def rotate_inactive_contexts(state: SupervisorState, ttl: int = 1800) -> SupervisorState:
+    """
+    STEP 6: Summarize and archive inactive agent contexts.
+
+    This is the core lifecycle manager that:
+    1. Identifies inactive agent contexts (not used for > TTL seconds)
+    2. Summarizes them into human-readable text
+    3. Archives summaries to Zep for long-term storage
+    4. Removes inactive contexts from active state
+    5. Preserves summaries in state for quick access
+
+    Prevents unbounded state growth while maintaining historical continuity.
+
+    Args:
+        state: Current supervisor state
+        ttl: Time-to-live in seconds (default: 1800 = 30 minutes)
+
+    Returns:
+        Updated state with rotated contexts
+    """
+    thread_id = state.get("thread_id", "unknown")
+    now = time.time()
+
+    # Get current contexts and summaries
+    agent_contexts = state.get("agent_contexts") or {}
+    summaries = state.get("agent_context_summaries") or {}
+
+    # Track what we rotate
+    rotated_count = 0
+
+    for agent_name, agent_ctx in list(agent_contexts.items()):
+        last_active = agent_ctx.get("last_active", now)
+        inactive_duration = now - last_active
+
+        # Check if context is inactive (past TTL)
+        if inactive_duration > ttl:
+            # Summarize the context
+            summary = summarize_agent_context(agent_ctx, agent_name)
+            summaries[agent_name] = summary
+
+            # Archive to Zep for long-term storage
+            archive_to_zep(
+                thread_id=thread_id,
+                agent_name=agent_name,
+                summary=summary,
+                metadata={
+                    "inactive_duration_seconds": int(inactive_duration),
+                    "conversation_stage": agent_ctx.get("conversation_stage"),
+                    "result_count": agent_ctx.get("result_count", 0),
+                }
+            )
+
+            logger.info(
+                "[LIFECYCLE] Rotated inactive context: %s (inactive for %d seconds)",
+                agent_name,
+                int(inactive_duration)
+            )
+
+            # Remove from active contexts
+            del agent_contexts[agent_name]
+            rotated_count += 1
+
+    if rotated_count > 0:
+        logger.info(
+            "[%s] Lifecycle rotation: %d contexts archived, %d still active",
+            thread_id,
+            rotated_count,
+            len(agent_contexts)
+        )
+
+    # Update state with rotated contexts
+    state["agent_contexts"] = agent_contexts
+    state["agent_context_summaries"] = summaries
+    state["last_summary_timestamp"] = now
+    state["summary_version"] = (state.get("summary_version") or 0) + 1
+
+    return state
+
+
 def _fuse_context(state: SupervisorState) -> SupervisorState:
     """
     STEP 3: Context Fusion
@@ -1042,6 +1236,7 @@ def build_supervisor_graph():
             state = _inject_zep_context(state)
             state = _fuse_context(state)  # STEP 3: Merge all context sources
             state = _enforce_token_budget(state, max_tokens=6000)  # STEP 5: Enforce token budget
+            state = rotate_inactive_contexts(state, ttl=1800)  # STEP 6: Lifecycle management
             sticky_agent, updated_ctx = _maybe_route_sticky(state)
             if sticky_agent:
                 logger.info(

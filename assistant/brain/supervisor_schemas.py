@@ -87,6 +87,11 @@ class SupervisorState(TypedDict):
     token_budget: Optional[int]  # Max tokens allowed per prompt (default: 6000)
     current_token_estimate: Optional[int]  # Last computed prompt size in tokens
 
+    # STEP 6: Context Lifecycle & Summarization Layer
+    agent_context_summaries: Optional[Dict[str, str]]  # Per-agent summarized contexts
+    last_summary_timestamp: Optional[float]  # Last time contexts were summarized
+    summary_version: Optional[int]  # Version counter for summary updates
+
 
 class MapMarker(BaseModel):
     """DTO for individual map marker in geo-location recommendations."""

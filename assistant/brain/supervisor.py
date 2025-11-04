@@ -63,13 +63,16 @@ class CentralSupervisor:
 
         try:
             # Phase B.1: Parse intent with structured output
+            # STEP 3: Include fused context for contextual reasoning
+            fused_context = state.get("fused_context", "")
             context = {
                 "language": language,
                 "location": location,
                 "last_action": state.get("current_node", "conversation_start"),
-                "history_summary": "",  # Could be enriched from message history
+                "history_summary": fused_context if fused_context else "",  # STEP 3: Use fused context
+                "active_domain": state.get("active_domain"),  # STEP 3: Include active domain
             }
-            
+
             intent_result = intent_parser.parse_intent_robust(user_input, context, thread_id)
 
             # Backwards compatibility: accept legacy SupervisorRoutingDecision outputs
@@ -115,6 +118,7 @@ class CentralSupervisor:
                     "intent_reasoning": decision.reasoning,
                     "requires_hitl": decision.requires_clarification,
                     "extracted_criteria": decision.extracted_entities,
+                    "active_domain": target_agent,  # STEP 3: Track domain for continuity
                 }
             
             registry_hits = []
@@ -144,9 +148,35 @@ class CentralSupervisor:
                 f"[CSA:{thread_id}] Intent: {intent_label} "
                 f"(conf={confidence_display}, flow={flow_label}, node={node_label})"
             )
-            
+
             # Determine target agent based on intent type
             target_agent = self._map_intent_to_agent(intent_result.intent_type, intent_result.category)
+
+            # STEP 3: Apply continuity guard to prevent unintentional domain drift
+            from .supervisor_graph import _check_continuity_guard
+            active_domain = state.get("active_domain")
+            should_maintain, continuity_reason = _check_continuity_guard(state, target_agent)
+
+            if should_maintain and active_domain:
+                logger.info(
+                    "[CSA:%s] Continuity guard active: maintaining domain %s (reason: %s)",
+                    thread_id,
+                    active_domain,
+                    continuity_reason
+                )
+                target_agent = active_domain  # Keep existing agent
+                # Mark in normalized decision for observability
+                normalized_decision_extra = {
+                    "continuity_maintained": True,
+                    "continuity_reason": continuity_reason,
+                    "original_target": self._map_intent_to_agent(intent_result.intent_type, intent_result.category)
+                }
+            else:
+                normalized_decision_extra = {
+                    "continuity_maintained": False
+                }
+                if continuity_reason:
+                    normalized_decision_extra["continuity_reason"] = continuity_reason
 
             normalized_decision = {
                 "intent_type": intent_result.intent_type,
@@ -156,8 +186,9 @@ class CentralSupervisor:
                 "primary_node": intent_result.primary_node,
                 "attributes": intent_result.attributes,
                 "requires_hitl": intent_result.requires_hitl,
+                **normalized_decision_extra,  # STEP 3: Include continuity guard info
             }
-            
+
             # Update state with structured routing decision
             return {
                 **state,
@@ -174,6 +205,7 @@ class CentralSupervisor:
                 "extracted_criteria": intent_result.attributes,
                 "normalized_query": normalized_query,
                 "registry_hits": registry_hits,
+                "active_domain": target_agent,  # STEP 3: Update active domain for next turn
             }
         
         except Exception as e:

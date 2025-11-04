@@ -295,6 +295,154 @@ def _apply_memory_context(state: SupervisorState) -> SupervisorState:
     return state
 
 
+def _fuse_context(state: SupervisorState) -> SupervisorState:
+    """
+    STEP 3: Context Fusion
+
+    Merge multiple context sources into a unified reasoning context:
+    1. Short-term history (last N turns)
+    2. Long-term semantic recall (Zep retrieved_context)
+    3. Active domain state (for continuity tracking)
+    4. Current user input
+
+    Returns state with populated fused_context field.
+    """
+    context_parts = []
+
+    # 1. Active domain context (for continuity)
+    active_domain = state.get("active_domain")
+    if active_domain:
+        context_parts.append(f"[Active Domain: {active_domain}]")
+
+    # 2. Long-term memory (Zep semantic recall)
+    retrieved_context = state.get("retrieved_context")
+    if retrieved_context and retrieved_context.strip():
+        context_parts.append(f"[Relevant Past Context from Memory]:\n{retrieved_context.strip()}")
+
+    # 3. Short-term history (last N turns, default: 5)
+    history = state.get("history") or []
+    recent_limit = 5
+    if len(history) > 0:
+        recent_history = history[-recent_limit:] if len(history) > recent_limit else history
+        history_lines = []
+        for turn in recent_history:
+            role = turn.get("role", "unknown")
+            content = turn.get("content", "")
+            if content:
+                history_lines.append(f"{role.capitalize()}: {content}")
+
+        if history_lines:
+            context_parts.append(f"[Recent Conversation]:\n" + "\n".join(history_lines))
+
+    # 4. Memory context summary (if available from Zep service)
+    memory_summary = state.get("memory_context_summary")
+    if memory_summary and memory_summary.strip():
+        context_parts.append(f"[Conversation Summary]:\n{memory_summary.strip()}")
+
+    # 5. Memory facts (structured knowledge)
+    memory_facts = state.get("memory_context_facts") or []
+    if memory_facts:
+        facts_lines = []
+        for fact in memory_facts[:3]:  # Limit to top 3 facts
+            if isinstance(fact, dict):
+                fact_text = fact.get("fact") or fact.get("content") or str(fact)
+                facts_lines.append(f"- {fact_text}")
+
+        if facts_lines:
+            context_parts.append(f"[Known Facts]:\n" + "\n".join(facts_lines))
+
+    # Build fused context
+    if context_parts:
+        fused = "\n\n".join(context_parts)
+        logger.info(
+            "[%s] Context fusion: %d parts, %d chars",
+            state.get("thread_id"),
+            len(context_parts),
+            len(fused)
+        )
+    else:
+        fused = ""
+        logger.debug("[%s] Context fusion: no context parts available", state.get("thread_id"))
+
+    return {**state, "fused_context": fused}
+
+
+def _check_continuity_guard(state: SupervisorState, new_domain: str) -> tuple[bool, Optional[str]]:
+    """
+    STEP 3: Continuity Guard
+
+    Prevent unintentional domain drift on ambiguous follow-ups.
+
+    Returns (should_maintain_continuity, reason)
+    - True: Keep active_domain, don't switch
+    - False: Allow domain switch
+    """
+    active_domain = state.get("active_domain")
+    if not active_domain:
+        return False, None  # No active domain, allow any routing
+
+    if active_domain == new_domain:
+        return False, None  # Same domain, no drift
+
+    user_input = state.get("user_input", "").lower().strip()
+
+    # Explicit switch signals (override continuity)
+    explicit_switch_patterns = [
+        "actually", "instead", "now show", "now let's", "change to",
+        "switch to", "i want to see", "show me", "let's talk about",
+        "tell me about", "what about", "how about"
+    ]
+
+    for pattern in explicit_switch_patterns:
+        if pattern in user_input:
+            logger.info(
+                "[%s] Continuity guard: explicit switch detected ('%s') - allowing domain change %s → %s",
+                state.get("thread_id"),
+                pattern,
+                active_domain,
+                new_domain
+            )
+            return False, f"explicit_switch:{pattern}"
+
+    # Ambiguous follow-ups (should maintain continuity)
+    ambiguous_patterns = [
+        "in ", "near ", "around ", "at ",  # Location refinements
+        "cheaper", "bigger", "smaller", "better",  # Comparatives
+        "more", "another", "different", "similar",  # Alternatives
+        "what else", "any other", "show more",  # Exploration
+    ]
+
+    for pattern in ambiguous_patterns:
+        if user_input.startswith(pattern) or f" {pattern}" in user_input:
+            logger.info(
+                "[%s] Continuity guard: ambiguous follow-up detected ('%s') - maintaining domain %s",
+                state.get("thread_id"),
+                pattern,
+                active_domain
+            )
+            return True, f"ambiguous_followup:{pattern}"
+
+    # If input is very short (< 5 words), likely a refinement
+    word_count = len(user_input.split())
+    if word_count < 5:
+        logger.info(
+            "[%s] Continuity guard: short input (%d words) - maintaining domain %s",
+            state.get("thread_id"),
+            word_count,
+            active_domain
+        )
+        return True, f"short_input:{word_count}_words"
+
+    # Otherwise, allow domain switch
+    logger.info(
+        "[%s] Continuity guard: allowing domain change %s → %s",
+        state.get("thread_id"),
+        active_domain,
+        new_domain
+    )
+    return False, None
+
+
 def build_supervisor_graph():
     """
     Build and compile the hierarchical LangGraph with CentralSupervisor routing.
@@ -314,6 +462,7 @@ def build_supervisor_graph():
         def supervisor_node(state: SupervisorState) -> SupervisorState:
             state = _apply_memory_context(state)
             state = _inject_zep_context(state)
+            state = _fuse_context(state)  # STEP 3: Merge all context sources
             sticky_agent, updated_ctx = _maybe_route_sticky(state)
             if sticky_agent:
                 logger.info(

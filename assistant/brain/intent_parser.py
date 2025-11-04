@@ -86,8 +86,9 @@ class StructuredIntentParser:
             history_summary = context.get("history_summary", "")
             language = context.get("language", "en")
             location = context.get("location", "")
+            active_domain = context.get("active_domain", "")  # STEP 3: Get active domain
             conversation_ref = context.get("conversation_id") if isinstance(context, dict) else None
-            
+
             # Build the prompt
             prompt = ChatPromptTemplate.from_template("""
 You are an expert intent classifier for a multi-domain marketplace platform (Easy Islanders).
@@ -119,9 +120,15 @@ LOCAL LOOKUP (live external info, not transactional):
 
 CONTEXT:
 - Previous action: {last_action}
+- Active domain: {active_domain}
 - Conversation history: {history_summary}
 - User location: {location}
 - Language: {language}
+
+IMPORTANT CONTINUITY RULE:
+If active_domain is set (not empty) and the user message appears to be a refinement or follow-up
+(e.g., "in Girne", "cheaper", "bigger", "near X"), maintain the same intent domain unless there's
+an explicit switch signal (e.g., "actually show me cars instead").
 
 USER MESSAGE: "{message}"
 
@@ -179,6 +186,7 @@ EXAMPLES (for disambiguation):
                     "history_summary": history_summary,
                     "language": language,
                     "location": location,
+                    "active_domain": active_domain,  # STEP 3: Include active domain
                 }
 
                 if isinstance(structured_llm, Mock):

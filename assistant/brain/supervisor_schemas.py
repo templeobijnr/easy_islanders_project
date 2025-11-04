@@ -71,6 +71,10 @@ class SupervisorState(TypedDict):
     memory_context_recent: Optional[List[Dict[str, Any]]]
     retrieved_context: Optional[str]
 
+    # STEP 3: Context Fusion + Intent Continuity
+    active_domain: Optional[str]  # Current active intent domain for continuity
+    fused_context: Optional[str]  # Combined short-term + long-term + domain context
+
 
 class MapMarker(BaseModel):
     """DTO for individual map marker in geo-location recommendations."""

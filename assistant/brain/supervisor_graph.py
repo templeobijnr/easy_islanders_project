@@ -13,7 +13,7 @@ from django.conf import settings
 import logging
 import os
 import time
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import tiktoken
 
 from assistant.memory import read_enabled

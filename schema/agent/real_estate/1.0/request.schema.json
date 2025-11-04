@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://easyislanders.com/schema/agent/real_estate/1.0/request.schema.json",
+  "title": "AgentRequest v1.0 - Real Estate",
+  "description": "Frozen contract: Supervisor → Real Estate Agent. DO NOT MODIFY without version bump.",
+  "type": "object",
+  "required": ["thread_id", "client_msg_id", "intent", "input", "ctx"],
+  "properties": {
+    "thread_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Conversation thread ID"
+    },
+    "client_msg_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Client message ID for correlation"
+    },
+    "intent": {
+      "type": "string",
+      "enum": ["property_search", "property_qa", "smalltalk", "out_of_scope"],
+      "description": "Classified intent type"
+    },
+    "input": {
+      "type": "string",
+      "minLength": 1,
+      "description": "User's natural language input"
+    },
+    "ctx": {
+      "type": "object",
+      "required": ["locale", "time"],
+      "properties": {
+        "user_id": {
+          "type": ["string", "null"],
+          "description": "User ID if authenticated"
+        },
+        "locale": {
+          "type": "string",
+          "pattern": "^(en|tr|ru|de|pl)$",
+          "description": "User's language preference"
+        },
+        "time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO8601 timestamp of request"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

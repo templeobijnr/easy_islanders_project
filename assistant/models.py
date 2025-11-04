@@ -3,6 +3,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 import uuid
 from django.utils import timezone
+from pgvector.django import VectorField
 
 User = get_user_model()
 
@@ -674,3 +675,173 @@ class FailedTask(models.Model):
 
     def __str__(self):
         return f"{self.task_name} failed at {self.failed_at}"
+
+# SPRINT 6: User Preference Models
+# ============================================================================
+
+class UserPreference(models.Model):
+    """
+    Structured user preferences extracted from conversations.
+
+    Schema version: 1
+    Features:
+    - Canonical value normalization (locations, features, currency)
+    - Time-based confidence decay
+    - Contradiction detection
+    - Precedence rules: current > explicit > strong inferred > weak inferred
+    """
+
+    SCHEMA_VERSION = 1
+
+    CATEGORY_CHOICES = [
+        ('real_estate', 'Real Estate'),
+        ('services', 'Services'),
+        ('lifestyle', 'Lifestyle'),
+        ('general', 'General'),
+    ]
+
+    SOURCE_CHOICES = [
+        ('explicit', 'Explicitly Stated'),
+        ('inferred', 'Inferred from Context'),
+        ('behavior', 'Learned from Behavior'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='preferences')
+
+    # Categorization
+    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, db_index=True)
+    preference_type = models.CharField(max_length=50, db_index=True)
+
+    # Value storage
+    value = models.JSONField(help_text="Normalized structured value")
+    raw_value = models.TextField(blank=True, help_text="Original utterance (PII-redacted)")
+
+    # Confidence & tracking
+    confidence = models.FloatField(default=1.0)
+    source = models.CharField(max_length=50, choices=SOURCE_CHOICES)
+
+    # Timestamps
+    extracted_at = models.DateTimeField(auto_now_add=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+    last_decayed_at = models.DateTimeField(default=timezone.now)
+    use_count = models.IntegerField(default=0)
+
+    # Vector embedding for semantic search
+    embedding = VectorField(dimensions=1536, null=True, blank=True)
+
+    # Versioning
+    schema_version = models.IntegerField(default=SCHEMA_VERSION)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = 'user_preferences'
+        unique_together = [['user', 'category', 'preference_type']]
+        indexes = [
+            models.Index(fields=['user', 'category'], name="user_pref_user_cat_idx"),
+            models.Index(fields=['-confidence', '-last_used_at'], name="user_pref_conf_last_used_idx"),
+        ]
+        ordering = ['-confidence', '-last_used_at']
+
+    def __str__(self):
+        return f"{self.user.username} - {self.category}/{self.preference_type}"
+
+    @property
+    def is_stale(self):
+        """Check if preference is stale (30+ days since last use)."""
+        if not self.last_used_at:
+            return False
+        from datetime import timedelta
+        return (timezone.now() - self.last_used_at).days > 30
+
+    def calculate_decay(self) -> float:
+        """
+        Calculate confidence decay based on time since last use.
+
+        Decay schedule:
+        - 0-7 days: no decay
+        - 7-30 days: -0.01 per day
+        - 30-90 days: -0.02 per day
+        - 90+ days: -0.05 per day
+
+        Returns:
+            Decay amount to subtract from confidence
+        """
+        if not self.last_used_at:
+            return 0.0
+
+        days = (timezone.now() - self.last_used_at).days
+
+        if days <= 7:
+            return 0.0
+        elif days <= 30:
+            return (days - 7) * 0.01
+        elif days <= 90:
+            return 0.23 + (days - 30) * 0.02
+        else:
+            return 1.43 + (days - 90) * 0.05
+
+    def to_dict(self):
+        """Serialize to dict for API responses."""
+        return {
+            'id': str(self.id),
+            'category': self.category,
+            'preference_type': self.preference_type,
+            'value': self.value,
+            'confidence': round(self.confidence, 2),
+            'source': self.source,
+            'extracted_at': self.extracted_at.isoformat(),
+            'last_used_at': self.last_used_at.isoformat() if self.last_used_at else None,
+            'use_count': self.use_count,
+            'is_stale': self.is_stale,
+        }
+
+
+class PreferenceExtractionEvent(models.Model):
+    """
+    Audit trail for preference extraction attempts.
+
+    Tracks:
+    - Extraction method (LLM, rule-based, fallback)
+    - Confidence scores
+    - Contradictions detected
+    - Processing time
+    """
+
+    EXTRACTION_METHOD_CHOICES = [
+        ('llm', 'LLM (OpenAI)'),
+        ('rule', 'Rule-based'),
+        ('hybrid', 'Hybrid (LLM + Rules)'),
+        ('fallback', 'Fallback Only'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+
+    # Context
+    thread_id = models.CharField(max_length=255, db_index=True)
+    message_id = models.UUIDField(db_index=True)
+    utterance = models.TextField()
+
+    # Results
+    extracted_preferences = models.JSONField(default=list)
+    confidence_scores = models.JSONField(default=dict)
+    extraction_method = models.CharField(max_length=50, choices=EXTRACTION_METHOD_CHOICES)
+    llm_reasoning = models.TextField(blank=True)
+    contradictions_detected = models.JSONField(default=list)
+
+    # Performance
+    created_at = models.DateTimeField(auto_now_add=True)
+    processing_time_ms = models.IntegerField(null=True)
+
+    class Meta:
+        db_table = 'preference_extraction_events'
+        indexes = [
+            models.Index(fields=['user', '-created_at'], name="pref_ext_user_created_idx"),
+            models.Index(fields=['thread_id', '-created_at'], name="pref_ext_thread_created_idx"),
+            models.Index(fields=['-created_at'], name="pref_ext_created_at_idx"),
+        ]
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Extraction for {self.user.username} at {self.created_at}"

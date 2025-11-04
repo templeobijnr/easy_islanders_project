@@ -1,0 +1,30 @@
+Log:
+  Level: info
+Server:
+  Host: 0.0.0.0
+  Port: 8000
+  WebEnabled: true
+Store:
+  Type: postgres
+  Postgres:
+    DSN: postgresql://zep:zep@zep_db:5432/zep?sslmode=disable
+Auth:
+  Required: false
+  Secret: local-dev-secret
+LLM:
+  Service: ""
+  OpenAIAPIKey: ""
+Extractors:
+  Messages:
+    Summarizer:
+      Enabled: false
+    Embeddings:
+      Enabled: true
+    Entities:
+      Enabled: false
+    Intent:
+      Enabled: false
+  Documents:
+    Embeddings:
+      Enabled: true
+Development: true

@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     'listings',
     'assistant',
     'router_service',
+    'real_estate',
 ]
 
 MIDDLEWARE = [
@@ -125,6 +126,13 @@ CHANNEL_LAYERS = {
         {"BACKEND": "channels.layers.InMemoryChannelLayer"}  # dev-only convenience
     )
 }
+
+# Zep memory service configuration (disabled by default)
+ZEP_ENABLED = config("ZEP_ENABLED", default=False, cast=bool)
+ZEP_BASE_URL = config("ZEP_BASE_URL", default=None)
+ZEP_API_KEY = config("ZEP_API_KEY", default=None)
+ZEP_TIMEOUT_MS = config("ZEP_TIMEOUT_MS", default=1500, cast=int)
+ZEP_API_VERSION = config("ZEP_API_VERSION", default=None)
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
@@ -356,6 +364,7 @@ CELERY_TASK_ROUTES = {
 # Fair scheduling; avoid big tasks starving small ones
 CELERYD_PREFETCH_MULTIPLIER = 1
 CELERY_WORKER_ENABLE_REMOTE_CONTROL = True
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 OPENAI_MODEL = config('OPENAI_MODEL', default='gpt-4-turbo-preview')
 
 # Proactive Agent Configuration

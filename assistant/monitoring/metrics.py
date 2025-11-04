@@ -212,6 +212,79 @@ if _PROMETHEUS_AVAILABLE:
         "Cache operations (hits/misses)",
         ["operation", "cache_type", "status"],
     )
+    MEMORY_ZEP_WRITE_REQUESTS_TOTAL = Counter(
+        "memory_zep_write_requests_total",
+        "Total Zep memory write attempts by operation",
+        ["op"],
+    )
+    MEMORY_ZEP_WRITE_FAILURES_TOTAL = Counter(
+        "memory_zep_write_failures_total",
+        "Total Zep memory write failures by reason",
+        ["op", "reason"],
+    )
+    MEMORY_ZEP_WRITE_SKIPPED_TOTAL = Counter(
+        "memory_zep_write_skipped_total",
+        "Count of Zep writes skipped due to configuration or circuit state",
+        ["op", "reason"],
+    )
+    MEMORY_ZEP_WRITE_LATENCY_SECONDS = Histogram(
+        "memory_zep_write_latency_seconds",
+        "Latency of successful Zep memory writes by operation",
+        ["op"],
+        buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0),
+    )
+    MEMORY_ZEP_RETRY_AFTER_SECONDS = Histogram(
+        "memory_zep_retry_after_seconds",
+        "Retry-After delays returned by Zep when throttled",
+        ["op"],
+        buckets=(0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0),
+    )
+    MEMORY_ZEP_READ_REQUESTS_TOTAL = Counter(
+        "memory_zep_read_requests_total",
+        "Total Zep memory read attempts by operation",
+        ["op"],
+    )
+    MEMORY_ZEP_READ_FAILURES_TOTAL = Counter(
+        "memory_zep_read_failures_total",
+        "Total Zep memory read failures by reason",
+        ["op", "reason"],
+    )
+    MEMORY_ZEP_READ_SKIPPED_TOTAL = Counter(
+        "memory_zep_read_skipped_total",
+        "Count of Zep reads skipped due to configuration or circuit state",
+        ["op", "reason"],
+    )
+    MEMORY_ZEP_READ_LATENCY_SECONDS = Histogram(
+        "memory_zep_read_latency_seconds",
+        "Latency of successful Zep memory reads by operation",
+        ["op"],
+        buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0),
+    )
+    MEMORY_MODE_GAUGE = Gauge(
+        "memory_mode_gauge",
+        "Current memory mode (0=off, 1=write_only, 2=read_write)",
+        ["mode"],
+    )
+    MEMORY_ZEP_REDACTIONS_TOTAL = Counter(
+        "memory_zep_redactions_total",
+        "Count of PII redactions before Zep writes",
+        ["field_type"],
+    )
+    MEMORY_ZEP_CONTEXT_FAILURES_TOTAL = Counter(
+        "memory_zep_context_failures_total",
+        "Count of context retrieval failures by reason",
+        ["reason"],
+    )
+    MEMORY_ZEP_DOWNGRADES_TOTAL = Counter(
+        "memory_zep_downgrades_total",
+        "Count of automatic mode downgrades due to sustained errors",
+        ["reason"],
+    )
+    MEMORY_ZEP_CONTEXT_CACHE_HITS_TOTAL = Counter(
+        "memory_zep_context_cache_hits_total",
+        "Count of cache hits for Zep context fetches",
+        [],
+    )
     ERROR_RATE = Counter(
         "error_rate_total",
         "Error rate by service and error type",
@@ -302,6 +375,11 @@ if _PROMETHEUS_AVAILABLE:
         "Router prediction accuracy counters",
         ["domain", "status"],
     )
+    ROUTER_CONTEXT_OVERRIDE_TOTAL = Counter(
+        "router_context_override_total",
+        "Router context override events (sticky routing)",
+        ["from_domain", "to_domain"],
+    )
 
     # Gate B: WebSocket connection metrics
     WEBSOCKET_CONNECTIONS = Gauge(
@@ -339,6 +417,33 @@ if _PROMETHEUS_AVAILABLE:
         "ws_reconnect_advice_total",
         "WebSocket reconnect advice given by reason",
         ["why"],  # auth, network, transient
+    )
+    # Sprint 6: Preferences metrics
+    PREFS_EXTRACT_REQUESTS_TOTAL = Counter(
+        "prefs_extract_requests_total",
+        "Total preference extraction requests",
+        ["result"],  # ok|fallback|skipped|error
+    )
+    PREFS_SAVED_TOTAL = Counter(
+        "prefs_saved_total",
+        "Total preferences saved",
+        ["category", "type", "source"],
+    )
+    PREFS_APPLIED_TOTAL = Counter(
+        "prefs_applied_total",
+        "Total times preferences applied to agent",
+        ["agent"],
+    )
+    PREFS_CONTRADICTIONS_TOTAL = Counter(
+        "prefs_contradictions_total",
+        "Total extracted contradictions detected",
+        ["type"],
+    )
+    PREFS_LATENCY_SECONDS = Histogram(
+        "prefs_latency_seconds",
+        "Preference extraction latency",
+        ["method"],
+        buckets=(0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0),
     )
 else:
     WS_OUT_INVALID_ENVELOPE_TOTAL = None
@@ -389,6 +494,47 @@ def inc_agent_degraded(agent: str, reason: str) -> None:
         pass
 
 
+# ---- Sprint 6 preferences helpers ----
+def inc_prefs_extract_request(result: str) -> None:
+    try:
+        if _PROMETHEUS_AVAILABLE:
+            PREFS_EXTRACT_REQUESTS_TOTAL.labels(result=result).inc()
+    except Exception:
+        pass
+
+
+def inc_prefs_saved(category: str, pref_type: str, source: str) -> None:
+    try:
+        if _PROMETHEUS_AVAILABLE:
+            PREFS_SAVED_TOTAL.labels(category=category, type=pref_type, source=source).inc()
+    except Exception:
+        pass
+
+
+def inc_prefs_applied(agent: str) -> None:
+    try:
+        if _PROMETHEUS_AVAILABLE:
+            PREFS_APPLIED_TOTAL.labels(agent=agent).inc()
+    except Exception:
+        pass
+
+
+def inc_prefs_contradiction(pref_type: str) -> None:
+    try:
+        if _PROMETHEUS_AVAILABLE:
+            PREFS_CONTRADICTIONS_TOTAL.labels(type=pref_type).inc()
+    except Exception:
+        pass
+
+
+def observe_prefs_latency(method: str, seconds: float) -> None:
+    try:
+        if _PROMETHEUS_AVAILABLE:
+            PREFS_LATENCY_SECONDS.labels(method=method).observe(seconds)
+    except Exception:
+        pass
+
+
 def increment_ws_invalid_envelope(thread_id: str) -> None:
     """Increment counter for invalid WS envelopes (noop if metrics disabled)."""
     try:
@@ -430,6 +576,78 @@ def inc_circuit_open(component: str) -> None:
         pass
 
 
+def inc_zep_write_request(op: str) -> None:
+    try:
+        if _PROMETHEUS_AVAILABLE:
+            MEMORY_ZEP_WRITE_REQUESTS_TOTAL.labels(op=op).inc()
+    except Exception:
+        pass
+
+
+def inc_zep_write_failure(op: str, reason: str) -> None:
+    try:
+        if _PROMETHEUS_AVAILABLE:
+            MEMORY_ZEP_WRITE_FAILURES_TOTAL.labels(op=op, reason=reason).inc()
+    except Exception:
+        pass
+
+
+def inc_zep_write_skipped(op: str, reason: str) -> None:
+    try:
+        if _PROMETHEUS_AVAILABLE:
+            MEMORY_ZEP_WRITE_SKIPPED_TOTAL.labels(op=op, reason=reason).inc()
+    except Exception:
+        pass
+
+
+def observe_zep_write_latency(op: str, seconds: float) -> None:
+    try:
+        if _PROMETHEUS_AVAILABLE:
+            MEMORY_ZEP_WRITE_LATENCY_SECONDS.labels(op=op).observe(seconds)
+    except Exception:
+        pass
+
+
+def observe_zep_retry_after(op: str, seconds: float) -> None:
+    try:
+        if _PROMETHEUS_AVAILABLE:
+            MEMORY_ZEP_RETRY_AFTER_SECONDS.labels(op=op).observe(seconds)
+    except Exception:
+        pass
+
+
+def inc_zep_read_request(op: str) -> None:
+    try:
+        if _PROMETHEUS_AVAILABLE:
+            MEMORY_ZEP_READ_REQUESTS_TOTAL.labels(op=op).inc()
+    except Exception:
+        pass
+
+
+def inc_zep_read_failure(op: str, reason: str) -> None:
+    try:
+        if _PROMETHEUS_AVAILABLE:
+            MEMORY_ZEP_READ_FAILURES_TOTAL.labels(op=op, reason=reason).inc()
+    except Exception:
+        pass
+
+
+def inc_zep_read_skipped(op: str, reason: str) -> None:
+    try:
+        if _PROMETHEUS_AVAILABLE:
+            MEMORY_ZEP_READ_SKIPPED_TOTAL.labels(op=op, reason=reason).inc()
+    except Exception:
+        pass
+
+
+def observe_zep_read_latency(op: str, seconds: float) -> None:
+    try:
+        if _PROMETHEUS_AVAILABLE:
+            MEMORY_ZEP_READ_LATENCY_SECONDS.labels(op=op).observe(seconds)
+    except Exception:
+        pass
+
+
 def warm_metrics() -> None:
     """Register zero-value samples so key metrics appear before first event.
 
@@ -455,6 +673,29 @@ def warm_metrics() -> None:
         AGENT_DEGRADED_TOTAL.labels(agent="enterprise_agent", reason="llm_error").inc(0)
         CIRCUIT_EVENTS_TOTAL.labels(component="llm", state="open").inc(0)
         CIRCUIT_OPEN_TOTAL.labels(component="llm").inc(0)
+        MEMORY_ZEP_WRITE_REQUESTS_TOTAL.labels(op="ensure_user").inc(0)
+        MEMORY_ZEP_WRITE_REQUESTS_TOTAL.labels(op="ensure_thread").inc(0)
+        MEMORY_ZEP_WRITE_REQUESTS_TOTAL.labels(op="user_message").inc(0)
+        MEMORY_ZEP_WRITE_REQUESTS_TOTAL.labels(op="assistant_message").inc(0)
+        MEMORY_ZEP_WRITE_FAILURES_TOTAL.labels(op="ensure_user", reason="init").inc(0)
+        MEMORY_ZEP_WRITE_FAILURES_TOTAL.labels(op="ensure_thread", reason="init").inc(0)
+        MEMORY_ZEP_WRITE_FAILURES_TOTAL.labels(op="user_message", reason="init").inc(0)
+        MEMORY_ZEP_WRITE_FAILURES_TOTAL.labels(op="assistant_message", reason="init").inc(0)
+        MEMORY_ZEP_WRITE_SKIPPED_TOTAL.labels(op="ensure_user", reason="init").inc(0)
+        MEMORY_ZEP_WRITE_SKIPPED_TOTAL.labels(op="ensure_thread", reason="init").inc(0)
+        MEMORY_ZEP_WRITE_SKIPPED_TOTAL.labels(op="user_message", reason="init").inc(0)
+        MEMORY_ZEP_WRITE_SKIPPED_TOTAL.labels(op="assistant_message", reason="init").inc(0)
+        MEMORY_ZEP_WRITE_LATENCY_SECONDS.labels(op="ensure_user").observe(0.0)
+        MEMORY_ZEP_WRITE_LATENCY_SECONDS.labels(op="ensure_thread").observe(0.0)
+        MEMORY_ZEP_WRITE_LATENCY_SECONDS.labels(op="user_message").observe(0.0)
+        MEMORY_ZEP_WRITE_LATENCY_SECONDS.labels(op="assistant_message").observe(0.0)
+        MEMORY_ZEP_RETRY_AFTER_SECONDS.labels(op="user_message").observe(0.0)
+        MEMORY_ZEP_RETRY_AFTER_SECONDS.labels(op="assistant_message").observe(0.0)
+        MEMORY_ZEP_READ_REQUESTS_TOTAL.labels(op="context_summary").inc(0)
+        MEMORY_ZEP_READ_FAILURES_TOTAL.labels(op="context_summary", reason="init").inc(0)
+        MEMORY_ZEP_READ_SKIPPED_TOTAL.labels(op="context_summary", reason="init").inc(0)
+        MEMORY_ZEP_READ_LATENCY_SECONDS.labels(op="context_summary").observe(0.0)
+        MEMORY_ZEP_CONTEXT_CACHE_HITS_TOTAL.inc(0)
 
         # Router warm-up
         ROUTER_LATENCY_SECONDS.labels(domain="*").observe(0.0)
@@ -518,6 +759,15 @@ def inc_router_accuracy(domain: str, correct: bool) -> None:
     try:
         if _PROMETHEUS_AVAILABLE:
             ROUTER_ACCURACY_TOTAL.labels(domain=domain, correct=str(correct).lower()).inc()
+    except Exception:
+        pass
+
+
+def inc_router_context_override(from_domain: str, to_domain: str) -> None:
+    """Increment router context override counter (sticky routing)."""
+    try:
+        if _PROMETHEUS_AVAILABLE:
+            ROUTER_CONTEXT_OVERRIDE_TOTAL.labels(from_domain=from_domain, to_domain=to_domain).inc()
     except Exception:
         pass
 
@@ -1191,8 +1441,58 @@ def record_connection(connection_type: str, status: str):
     """Record connection metrics."""
     if not _PROMETHEUS_AVAILABLE:
         return
-    
+
     ACTIVE_CONNECTIONS.labels(
         connection_type=connection_type,
         status=status
     ).inc()
+
+
+def set_memory_mode_gauge(mode: str) -> None:
+    """Set current memory mode gauge (off, write_only, read_only, read_write)."""
+    try:
+        if _PROMETHEUS_AVAILABLE:
+            # Clear all labels first
+            for m in ["off", "write_only", "read_only", "read_write"]:
+                MEMORY_MODE_GAUGE.labels(mode=m).set(0)
+            # Encode mode as distinct value for dashboards
+            mode_value_map = {"off": 0, "write_only": 1, "read_only": 2, "read_write": 3}
+            mode_value = mode_value_map.get(mode, 0)
+            MEMORY_MODE_GAUGE.labels(mode=mode).set(mode_value)
+    except Exception:
+        pass
+
+
+def inc_memory_redaction(field_type: str) -> None:
+    """Increment PII redaction counter."""
+    try:
+        if _PROMETHEUS_AVAILABLE:
+            MEMORY_ZEP_REDACTIONS_TOTAL.labels(field_type=field_type).inc()
+    except Exception:
+        pass
+
+
+def inc_memory_context_failure(reason: str) -> None:
+    """Increment context retrieval failure counter."""
+    try:
+        if _PROMETHEUS_AVAILABLE:
+            MEMORY_ZEP_CONTEXT_FAILURES_TOTAL.labels(reason=reason).inc()
+    except Exception:
+        pass
+
+
+def inc_memory_downgrade(reason: str) -> None:
+    """Increment memory mode downgrade counter."""
+    try:
+        if _PROMETHEUS_AVAILABLE:
+            MEMORY_ZEP_DOWNGRADES_TOTAL.labels(reason=reason).inc()
+    except Exception:
+        pass
+
+
+def inc_zep_context_cache_hit() -> None:
+    try:
+        if _PROMETHEUS_AVAILABLE:
+            MEMORY_ZEP_CONTEXT_CACHE_HITS_TOTAL.inc()
+    except Exception:
+        pass

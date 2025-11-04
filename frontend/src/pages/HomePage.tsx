@@ -2,6 +2,8 @@ import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { Compass } from 'lucide-react';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
+import DebugMemoryHUD from '../dev/DebugMemoryHUD';
+import { useChat } from '../shared/context/ChatContext';
 import { UiProvider } from '../shared/context/UiContext';
 import { ChatProvider } from '../shared/context/ChatContext';
 import AppShell from '../app/AppShell';
@@ -102,6 +104,65 @@ function Navigation() {
 // Main App Component
 function AppContent() {
   const { isAuthenticated, setUnreadCount } = useAuth();
+  const { dev_lastMemoryTrace, dev_lastCorrelationId } = useChat();
+  const HUD_FLAG = (
+    (import.meta as any)?.env?.VITE_DEBUG_MEMORY_HUD === 'true' ||
+    (typeof process !== 'undefined' && (
+      (process as any).env?.NEXT_PUBLIC_DEBUG_MEMORY_HUD === 'true' ||
+      (process as any).env?.REACT_APP_DEBUG_MEMORY_HUD === 'true'
+    ))
+  );
+  const [hudVisible, setHudVisible] = React.useState<boolean>(() => {
+    if (!HUD_FLAG) return false;
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      const viaQuery = sp.get('debugHUD') === '1';
+      const persisted = sessionStorage.getItem('debugHUD:visible') === 'true';
+      return viaQuery || persisted;
+    } catch (_) {
+      return HUD_FLAG;
+    }
+  });
+
+  // Restore persisted HUD visibility (session-only)
+  React.useEffect(() => {
+    if (!HUD_FLAG) return;
+    try {
+      const saved = sessionStorage.getItem('debugHUD:visible');
+      if (saved !== null) setHudVisible(saved === 'true');
+    } catch (_) {}
+  }, [HUD_FLAG]);
+
+  React.useEffect(() => {
+    if (!HUD_FLAG) return;
+    const onKey = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey;
+      const target = e.target as HTMLElement | null;
+      // Ignore when typing in inputs/textareas or contenteditable
+      if (target && (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        (target as HTMLElement).isContentEditable
+      )) {
+        return;
+      }
+      if (mod && String(e.key).toLowerCase() === 'm') {
+        // Prevent only when toggling HUD
+        e.preventDefault();
+        setHudVisible((v) => !v);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [HUD_FLAG]);
+
+  // Persist HUD visibility in sessionStorage
+  React.useEffect(() => {
+    if (!HUD_FLAG) return;
+    try {
+      sessionStorage.setItem('debugHUD:visible', String(hudVisible));
+    } catch (_) {}
+  }, [HUD_FLAG, hudVisible]);
   useAuthMigration(isAuthenticated);
   const { unreadCount: fetchedCount } = useUnreadCount();
 
@@ -123,6 +184,9 @@ function AppContent() {
           <Route path="/dashboard/*" element={<Dashboard />} />
         </Routes>
       </div>
+      {HUD_FLAG && hudVisible && (
+        <DebugMemoryHUD lastTrace={dev_lastMemoryTrace as any} correlationId={dev_lastCorrelationId} />
+      )}
     </div>
   );
 }

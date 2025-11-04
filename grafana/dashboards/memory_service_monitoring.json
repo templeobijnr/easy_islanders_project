@@ -1,0 +1,362 @@
+{
+  "dashboard": {
+    "title": "Easy Islanders - Memory Service Monitoring",
+    "tags": ["memory", "zep", "production"],
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "refresh": "30s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Memory Mode (Current)",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "max by (mode) (memory_mode_gauge)",
+            "legendFormat": "{{mode}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"]
+          },
+          "text": {},
+          "textMode": "value_and_name",
+          "colorMode": "background",
+          "graphMode": "none",
+          "justifyMode": "center",
+          "orientation": "horizontal"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 1, "color": "yellow"},
+                {"value": 2, "color": "green"}
+              ]
+            },
+            "mappings": [
+              {"type": "value", "value": "0", "text": "OFF"},
+              {"type": "value", "value": "1", "text": "WRITE_ONLY"},
+              {"type": "value", "value": "2", "text": "READ_WRITE"}
+            ]
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Downgrade Events (10min window)",
+        "type": "timeseries",
+        "gridPos": {"x": 6, "y": 0, "w": 18, "h": 4},
+        "targets": [
+          {
+            "expr": "increase(memory_zep_downgrades_total[10m])",
+            "legendFormat": "{{reason}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "drawStyle": "bars",
+              "lineInterpolation": "linear",
+              "fillOpacity": 70
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 1, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Read Health - p95 Latency",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 4, "w": 12, "h": 6},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(memory_zep_read_latency_seconds_bucket[5m])) by (le))",
+            "legendFormat": "p95 read latency",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.50, sum(rate(memory_zep_read_latency_seconds_bucket[5m])) by (le))",
+            "legendFormat": "p50 read latency",
+            "refId": "B"
+          }
+        ],
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "fillOpacity": 10
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 0.250, "color": "yellow"},
+                {"value": 0.500, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Context Failures by Reason",
+        "type": "table",
+        "gridPos": {"x": 12, "y": 4, "w": 12, "h": 6},
+        "targets": [
+          {
+            "expr": "sum(increase(memory_zep_context_failures_total[15m])) by (reason)",
+            "format": "table",
+            "instant": true,
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "showHeader": true,
+          "sortBy": [
+            {
+              "displayName": "Value",
+              "desc": true
+            }
+          ]
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "align": "auto",
+              "displayMode": "auto"
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "reason"},
+              "properties": [
+                {"id": "displayName", "value": "Failure Reason"}
+              ]
+            },
+            {
+              "matcher": {"id": "byName", "options": "Value"},
+              "properties": [
+                {"id": "displayName", "value": "Count (15min)"}
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": 5,
+        "title": "PII Redactions (Audit Trail)",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 10, "w": 12, "h": 6},
+        "targets": [
+          {
+            "expr": "sum(rate(memory_zep_redactions_total[1h])) by (field_type)",
+            "legendFormat": "{{field_type}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ops",
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "fillOpacity": 20
+            }
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "Cache Hit Rate",
+        "type": "timeseries",
+        "gridPos": {"x": 12, "y": 10, "w": 12, "h": 6},
+        "targets": [
+          {
+            "expr": "rate(memory_zep_context_cache_hits_total[5m]) / (rate(memory_zep_context_cache_hits_total[5m]) + rate(memory_zep_read_requests_total[5m]))",
+            "legendFormat": "cache hit rate",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percentunit",
+            "min": 0,
+            "max": 1,
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "fillOpacity": 20
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 0.30, "color": "yellow"},
+                {"value": 0.50, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 7,
+        "title": "Write Health - Success Rate",
+        "type": "gauge",
+        "gridPos": {"x": 0, "y": 16, "w": 6, "h": 6},
+        "targets": [
+          {
+            "expr": "1 - (rate(memory_zep_write_failures_total[5m]) / rate(memory_zep_write_requests_total[5m]))",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "showThresholdLabels": true,
+          "showThresholdMarkers": true
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percentunit",
+            "min": 0,
+            "max": 1,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 0.95, "color": "yellow"},
+                {"value": 0.99, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 8,
+        "title": "Circuit Breaker Opens",
+        "type": "timeseries",
+        "gridPos": {"x": 6, "y": 16, "w": 18, "h": 6},
+        "targets": [
+          {
+            "expr": "rate(circuit_open_total{component=\"zep\"}[5m])",
+            "legendFormat": "circuit opens",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ops",
+            "custom": {
+              "drawStyle": "bars",
+              "lineInterpolation": "linear",
+              "fillOpacity": 70
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 0.1, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 9,
+        "title": "Read/Write Request Rate",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 22, "w": 24, "h": 6},
+        "targets": [
+          {
+            "expr": "sum(rate(memory_zep_read_requests_total[5m]))",
+            "legendFormat": "reads/sec",
+            "refId": "A"
+          },
+          {
+            "expr": "sum(rate(memory_zep_write_requests_total[5m]))",
+            "legendFormat": "writes/sec",
+            "refId": "B"
+          }
+        ],
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "reqps",
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "fillOpacity": 10
+            }
+          }
+        }
+      }
+    ],
+    "annotations": {
+      "list": [
+        {
+          "name": "Downgrades",
+          "datasource": "Prometheus",
+          "enable": true,
+          "expr": "changes(memory_mode_gauge[1m]) > 0",
+          "step": "1m",
+          "tagKeys": "mode",
+          "textFormat": "Mode change",
+          "titleFormat": "Memory Mode Change"
+        }
+      ]
+    }
+  }
+}

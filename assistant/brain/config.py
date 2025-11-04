@@ -27,6 +27,11 @@ OPENAI_CHAT_MODEL: str = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini")
 DEFAULT_REQUEST_TIMEOUT_SECONDS: int = int(os.getenv("LC_DEFAULT_TIMEOUT", "60"))
 DEFAULT_MAX_RETRIES: int = int(os.getenv("LC_DEFAULT_MAX_RETRIES", "2"))
 
+# Sprint 6 feature flags
+PREFS_EXTRACT_ENABLED: bool = os.getenv("PREFS_EXTRACT_ENABLED", "true").lower() in {"1", "true", "yes"}
+PREFS_APPLY_ENABLED: bool = os.getenv("PREFS_APPLY_ENABLED", "false").lower() in {"1", "true", "yes"}
+PREFS_UI_ENABLED: bool = os.getenv("PREFS_UI_ENABLED", "false").lower() in {"1", "true", "yes"}
+
 
 def load_router_thresholds(yaml_path: Optional[str] = None) -> Dict[str, Any]:
     """Load per-domain router thresholds from YAML configuration.

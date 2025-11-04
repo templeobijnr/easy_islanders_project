@@ -7,7 +7,7 @@ This document summarizes what was delivered for Gate B (WebSocket) guardrails: C
 ## Files Created
 
 ### 1) GitHub Actions Workflow
-**File:** `.github/workflows/gate-b-guardrail.yml`
+**File:** `.github/workflows/gate-b-guardrail.yml`  
 
 **Features**
 - **Two-tier validation:** Minimal (fast) + Full E2E (manual).
@@ -42,7 +42,7 @@ This document summarizes what was delivered for Gate B (WebSocket) guardrails: C
 - Minimal vs E2E: how it works
 - Triggering instructions
 - Required secrets
-- What's protected (5 checkpoints)
+- What’s protected (5 checkpoints)
 - Files monitored (6 paths)
 - Local testing commands
 
@@ -52,16 +52,12 @@ This document summarizes what was delivered for Gate B (WebSocket) guardrails: C
 
 ### Minimal Checks (Fast Path, ~2 minutes)
 **Auto-runs when PR touches:**
-
-```
 requirements.txt
 assistant/routing.py
 assistant/consumers.py
 easy_islanders/asgi.py
 easy_islanders/startup_checks.py
 tests/test_ws_*.py
-```
-
 **Tests executed**
 - `test_ws_route_matches_both_forms()` — URL pattern regression
 - `test_ws_route_rejects_invalid_thread_ids()` — invalid input handling
@@ -98,7 +94,7 @@ tests/test_ws_*.py
 - Cleans up with `docker compose down -v`
 
 **Secrets (Optional)**
-- `OPENAI_API_KEY` only if Celery tasks invoke an LLM (infra validation doesn't require it)
+- `OPENAI_API_KEY` only if Celery tasks invoke an LLM (infra validation doesn’t require it)
 
 ---
 
@@ -116,7 +112,7 @@ tests/test_ws_*.py
 
 ---
 
-## What's Protected
+## What’s Protected
 
 - **Missing WebSocket libraries**
   - ❌ Removing `uvicorn[standard]` / `websockets` breaks CI
@@ -145,51 +141,3 @@ pytest -xvs tests/test_ws_routes.py tests/test_websocket_libs.py
 # Full E2E (requires Docker)
 docker compose up -d
 # Follow steps from .github/workflows/gate-b-guardrail.yml
-```
-
----
-
-## Production Rollout Checklist
-
-- [x] GitHub Actions workflow created
-- [x] README documentation added
-- [x] Path filters configured
-- [x] Manual E2E trigger available
-- [x] Unit tests cover critical paths
-- [x] Container logs on failure
-- [x] Cleanup steps included
-- [ ] Add `OPENAI_API_KEY` to repo secrets (optional)
-- [ ] Enable branch protection to require `guardrail-minimal`
-- [ ] (Optional) Slack notification on E2E failure
-
----
-
-## Next Steps
-
-1. **Enable Branch Protection**
-   - Settings → Branches → Branch protection rules
-   - Require status check: `guardrail-minimal`
-
-2. **Add Secrets (optional)**
-   - Settings → Secrets and variables → Actions
-   - Add `OPENAI_API_KEY` if tasks call LLMs
-
-3. **Test Workflow**
-   - Open a PR that touches a watched file to see minimal checks run
-
-4. **Manual E2E**
-   - Actions → Gate B Guardrail → Run with `run_e2e: true`
-
----
-
-## Summary
-
-**Gate B CI/CD Guardrail — LOCKED IN 🔒**
-
-Fast unit tests for every PR, on-demand full E2E, comprehensive regression coverage, and clear developer docs ensure WebSocket health is protected before changes reach production.
-
----
-
-**Last Updated**: 2025-11-01  
-**Status**: Production Ready  
-**Contact**: See CLAUDE.md for project guidance

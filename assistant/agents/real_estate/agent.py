@@ -19,29 +19,44 @@ from assistant.agents.real_estate.policy import execute_policy
 from prometheus_client import Counter, Histogram
 
 
-# Prometheus Metrics (Step 2: Telemetry)
+# Prometheus Metrics (v1.1: Tenure-aware telemetry)
 RE_REQUESTS_TOTAL = Counter(
     "agent_re_requests_total",
     "Total RE agent requests",
-    ["intent"]
+    ["intent", "tenure"]
 )
 
 RE_EXECUTION_SECONDS = Histogram(
     "agent_re_execution_duration_seconds",
     "RE agent execution time in seconds",
+    ["tenure"],
     buckets=[0.005, 0.01, 0.02, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10]
 )
 
 RE_SEARCH_RESULTS = Histogram(
     "agent_re_search_results_count",
     "Number of property results returned",
+    ["tenure"],
     buckets=[0, 1, 2, 5, 10, 25, 50]
 )
 
 RE_ERRORS_TOTAL = Counter(
     "agent_re_errors_total",
     "RE agent errors",
-    ["error_type"]
+    ["tenure", "error_type"]
+)
+
+RE_DB_QUERY_DURATION = Histogram(
+    "agent_re_db_query_duration_seconds",
+    "DB query execution time",
+    ["tenure"],
+    buckets=[0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0]
+)
+
+RE_NO_RESULTS_TOTAL = Counter(
+    "agent_re_no_results_total",
+    "Searches returning zero results",
+    ["tenure", "reason"]
 )
 
 
@@ -154,9 +169,8 @@ def handle_real_estate_request(request: dict[str, Any]) -> AgentResponse:
     """
     start_time = time.time()
 
-    # Increment request counter by intent
-    intent = request.get("intent", "unknown")
-    RE_REQUESTS_TOTAL.labels(intent=intent).inc()
+    # Extract tenure for metrics (will be available after policy execution)
+    tenure = "unknown"
 
     try:
         # Validate request
@@ -165,10 +179,17 @@ def handle_real_estate_request(request: dict[str, Any]) -> AgentResponse:
         # Execute policy with timeout check
         response = execute_policy(validated_request)
 
+        # Extract tenure from response traces
+        tenure = response.get("traces", {}).get("tenure", "unknown")
+
+        # Increment request counter by intent and tenure
+        intent = request.get("intent", "unknown")
+        RE_REQUESTS_TOTAL.labels(intent=intent, tenure=tenure).inc()
+
         # Check timeout
         elapsed = time.time() - start_time
         if elapsed > MAX_EXECUTION_TIME_SECONDS:
-            RE_ERRORS_TOTAL.labels(error_type="timeout").inc()
+            RE_ERRORS_TOTAL.labels(tenure=tenure, error_type="timeout").inc()
             raise TimeoutError(f"Execution exceeded {MAX_EXECUTION_TIME_SECONDS}s")
 
         # Validate response
@@ -180,19 +201,27 @@ def handle_real_estate_request(request: dict[str, Any]) -> AgentResponse:
             validated_response["traces"]["thread_id"] = request["thread_id"]
 
         # Emit metrics: execution duration and search results count
-        RE_EXECUTION_SECONDS.observe(elapsed)
+        RE_EXECUTION_SECONDS.labels(tenure=tenure).observe(elapsed)
 
         # Track number of listings returned
         for action in response.get('actions', []):
             if action['type'] == 'show_listings':
                 listings_count = len(action['params'].get('listings', []))
-                RE_SEARCH_RESULTS.observe(listings_count)
+                RE_SEARCH_RESULTS.labels(tenure=tenure).observe(listings_count)
+                # Track no results
+                if listings_count == 0:
+                    reason = "unknown"
+                    if not response.get("traces", {}).get("extracted_params", {}).get("location"):
+                        reason = "no_location"
+                    elif not response.get("traces", {}).get("extracted_params", {}).get("budget"):
+                        reason = "no_budget"
+                    RE_NO_RESULTS_TOTAL.labels(tenure=tenure, reason=reason).inc()
 
         return validated_response
 
     except ValueError as e:
         # Validation error
-        RE_ERRORS_TOTAL.labels(error_type="validation").inc()
+        RE_ERRORS_TOTAL.labels(tenure=tenure, error_type="validation").inc()
         return AgentResponse(
             reply="Sorry, I encountered a validation error. Please try again.",
             actions=[
@@ -201,12 +230,11 @@ def handle_real_estate_request(request: dict[str, Any]) -> AgentResponse:
                     "params": {"message": str(e)}
                 }
             ],
-            traces={"error": str(e), "error_type": "validation"}
+            traces={"error": str(e), "error_type": "validation", "tenure": tenure}
         )
 
     except TimeoutError as e:
-        # Timeout error
-        RE_ERRORS_TOTAL.labels(error_type="timeout").inc()
+        # Timeout error (already incremented above with tenure)
         return AgentResponse(
             reply="Sorry, the request took too long to process. Please try again.",
             actions=[
@@ -215,12 +243,12 @@ def handle_real_estate_request(request: dict[str, Any]) -> AgentResponse:
                     "params": {"message": str(e)}
                 }
             ],
-            traces={"error": str(e), "error_type": "timeout"}
+            traces={"error": str(e), "error_type": "timeout", "tenure": tenure}
         )
 
     except Exception as e:
         # Unexpected error
-        RE_ERRORS_TOTAL.labels(error_type="unexpected").inc()
+        RE_ERRORS_TOTAL.labels(tenure=tenure, error_type="unexpected").inc()
         return AgentResponse(
             reply="Sorry, something went wrong. Please try again.",
             actions=[
@@ -229,7 +257,7 @@ def handle_real_estate_request(request: dict[str, Any]) -> AgentResponse:
                     "params": {"message": str(e)}
                 }
             ],
-            traces={"error": str(e), "error_type": "unexpected"}
+            traces={"error": str(e), "error_type": "unexpected", "tenure": tenure}
         )
 
 

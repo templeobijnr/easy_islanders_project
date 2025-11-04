@@ -1,0 +1,137 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://easyislanders.com/schema/agent/real_estate/1.1/response.schema.json",
+  "title": "Real Estate Agent Response v1.1",
+  "description": "Frozen contract for RE agent output with tenure support. DO NOT MODIFY without version bump.",
+  "type": "object",
+  "required": ["reply", "actions", "traces"],
+  "properties": {
+    "reply": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Natural language response to user"
+    },
+    "actions": {
+      "type": "array",
+      "description": "Structured actions for UI rendering",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": ["type", "params"],
+            "properties": {
+              "type": {"const": "show_listings"},
+              "params": {
+                "type": "object",
+                "required": ["listings", "tenure"],
+                "properties": {
+                  "listings": {
+                    "type": "array",
+                    "maxItems": 25,
+                    "items": {
+                      "type": "object",
+                      "required": ["id", "title", "location", "bedrooms", "price_per_night", "available"],
+                      "properties": {
+                        "id": {"type": "string"},
+                        "title": {"type": "string"},
+                        "location": {"type": "string"},
+                        "bedrooms": {"type": "integer", "minimum": 0},
+                        "bathrooms": {"type": "integer", "minimum": 1},
+                        "sleeps": {"type": "integer", "minimum": 1},
+                        "price_per_night": {
+                          "type": "string",
+                          "description": "Formatted price with tenure unit (e.g., '£120/night' or '£800/month')"
+                        },
+                        "amenities": {
+                          "type": "array",
+                          "items": {"type": "string"},
+                          "maxItems": 5
+                        },
+                        "photos": {
+                          "type": "array",
+                          "items": {"type": "string", "format": "uri"}
+                        },
+                        "available": {"type": "boolean"}
+                      }
+                    }
+                  },
+                  "tenure": {
+                    "type": "string",
+                    "enum": ["short_term", "long_term"],
+                    "description": "Rental mode for these results"
+                  },
+                  "search_params": {
+                    "type": "object",
+                    "description": "Search parameters used"
+                  },
+                  "relaxed": {
+                    "type": "boolean",
+                    "description": "True if constraints were relaxed"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": ["type", "params"],
+            "properties": {
+              "type": {"const": "ask_clarification"},
+              "params": {
+                "type": "object",
+                "required": ["reason"],
+                "properties": {
+                  "reason": {"type": "string"},
+                  "suggestions": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Suggested clarifications"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": ["type", "params"],
+            "properties": {
+              "type": {"const": "error"},
+              "params": {
+                "type": "object",
+                "required": ["message"],
+                "properties": {
+                  "message": {"type": "string"}
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "traces": {
+      "type": "object",
+      "description": "Observability data for debugging and metrics",
+      "properties": {
+        "states_visited": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "tenure": {
+          "type": "string",
+          "enum": ["short_term", "long_term", "auto"]
+        },
+        "tenure_signals": {
+          "type": "object",
+          "properties": {
+            "short_term_count": {"type": "integer"},
+            "long_term_count": {"type": "integer"}
+          }
+        },
+        "extracted_params": {"type": "object"},
+        "search_result_count": {"type": "integer"},
+        "execution_time_seconds": {"type": "number"},
+        "thread_id": {"type": "string"}
+      }
+    }
+  }
+}

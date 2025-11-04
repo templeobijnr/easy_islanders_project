@@ -1,0 +1,79 @@
+Summary,Issue Type,Epic Name,Epic Link,Description,Priority,Labels,Components
+Sprint 6 – Preference Extraction & Persistence,Epic,Sprint 6 – Preference Extraction,,Phase 1 of the context-aware roadmap: extract & persist user preferences; integrate into supervisor & real_estate agent; ship UI chips & toggle; full observability and rollout.,High,"sprint6,preferences,context,phase1","assistant-backend,frontend,infra,observability"
+DB: Create user_preferences & preference_extraction_events schema (pgvector),Story,,Sprint 6 – Preference Extraction,"Add normalized tables:
+- user_preferences (category, preference_type, value JSONB, confidence, source, embedding VECTOR, metadata, use_count, last_used_at)
+- preference_extraction_events (audit)
+Enable/verify pgvector. Add indexes (ivfflat) and uniqueness on (user_id, category, preference_type, value).
+Acceptance:
+- Migrations apply/rollback cleanly
+- EXPLAIN shows index usage
+- Unit tests cover constraints",High,"db,pgvector,preferences",assistant-backend
+Service: PreferenceService CRUD + get_active_preferences(),Story,,Sprint 6 – Preference Extraction,"Implement PreferenceService with CRUD, mark_used(), and get_active_preferences(min_confidence). Include canonical normalization (locations, features, currency) and confidence decay (time + contradiction). 
+Acceptance:
+- Unit tests for normalization & decay
+- API returns grouped dict per category
+- Prometheus prefs_saved_total increments",High,"service,preferences",assistant-backend
+PII: Integrate redact_pii into preference write path,Task,,Sprint 6 – Preference Extraction,"Apply existing PII redaction to extracted values before persistence; emit memory_zep_redactions_total counters.
+Acceptance:
+- Emails/phones masked in stored JSONB
+- No PII leaks in logs
+- Unit tests for redaction on values",High,"pii,compliance",assistant-backend
+LLM: Structured preference extraction chain (LangChain + OpenAI),Story,,Sprint 6 – Preference Extraction,"Implement extract_preferences_from_message() with Pydantic schema and confidence scoring. 
+Acceptance:
+- Deterministic schema output
+- Parser rejects <0.4 confidence
+- prefs_extract_requests_total increments; prefs_latency_seconds recorded",High,"llm,langchain,preferences",assistant-backend
+Fallback: Rule-based extractor for budget/location/bedrooms,Task,,Sprint 6 – Preference Extraction,"Regex/heuristics for core fields when LLM is unavailable; confidence=0.6 (budget/location) and 0.5 (bedrooms).
+Acceptance:
+- Unit tests for common phrases
+- Toggleable via feature flag
+- prefs_extract_requests_total{result=""fallback""} increments",Medium,"fallback,robustness",assistant-backend
+Celery: Async extract_preferences_async task + retries,Task,,Sprint 6 – Preference Extraction,"Create background task to extract and persist prefs; 3 retries with backoff; never blocks chat path.
+Acceptance:
+- Task invoked on user messages
+- Retries on failure; DLQ metric if final fail
+- Structured log preferences_used=false when skipped",High,"celery,async",assistant-backend
+Supervisor: Inject user_preferences into AgentContext,Story,,Sprint 6 – Preference Extraction,"Enhance _apply_memory_context to include get_active_preferences(min_confidence=0.5) and pass to AgentContext.memory + ctx.user_preferences.
+Acceptance:
+- WS traces include preferences_used field in structured logs
+- Read path latency unchanged (<+20ms)",High,"supervisor,context",assistant-backend
+Real Estate agent: Apply precedence & pre-filter using saved preferences,Story,,Sprint 6 – Preference Extraction,"Implement precedence:
+current turn > explicit saved > strong inferred (≥0.7) > weak inferred (0.4–0.69).
+Pre-filter search with prefs; generate 'why' notes.
+Acceptance:
+- ≥80% of searches use ≥3 prefs when available
+- Reply includes transparent 'why' note
+- prefs_applied_total{agent=""real_estate""} increments",High,"agent,real_estate,preferences",assistant-backend
+Observability: Prometheus metrics & structured logs for preferences,Task,,Sprint 6 – Preference Extraction,"Add prefs_* metrics (extract_requests_total, saved_total, applied_total, contradictions_total, latency_seconds). Include preferences_used in per-turn logs.
+Acceptance:
+- Metrics exposed at /metrics
+- Grafana panels show live data",High,"observability,prometheus,grafana",observability
+Grafana & Alerts: Dashboard panels + PagerDuty alerts,Task,,Sprint 6 – Preference Extraction,"Create panels for prefs coverage, latency, contradictions, apply rate. Alerts:
+- High latency
+- Zero apply rate
+- Spike in contradictions
+Acceptance:
+- Panels committed to grafana/ JSON
+- Alerts tested in staging",Medium,"grafana,alerts",observability
+Frontend: Preference chips in chat header with 'Edit' and 'Pause',Story,,Sprint 6 – Preference Extraction,"Show active preferences as chips; 'Edit' opens modal to change values; per-thread 'Pause personalization' toggle.
+Acceptance:
+- Chips reflect applied prefs from context
+- Toggle disables pre-filtering for the thread
+- Unit tests for UI state",High,"frontend,ui,preferences",frontend
+Frontend: 'Why' note acknowledgment in agent replies,Task,,Sprint 6 – Preference Extraction,"Render concise 'why' note (source precedence) in the chat bubble/aux line.
+Acceptance:
+- Notes visible when prefs applied
+- No layout regressions",Medium,"frontend,ux",frontend
+QA: Build 100‑message eval dataset + accuracy harness,Story,,Sprint 6 – Preference Extraction,"Curate 100 real/seed messages; gold labels for prefs. Add harness to compute extraction accuracy and report (target ≥90%).
+Acceptance:
+- Dataset versioned
+- Report artifact attached to CI",High,"qa,eval,accuracy",assistant-backend
+Perf: TTFB regression guard (<+100ms),Task,,Sprint 6 – Preference Extraction,"Add benchmark to ensure pre-filtering & context injection do not add >100ms to p95 TTFB.
+Acceptance:
+- CI perf check passes
+- Baseline recorded in docs",Medium,"performance,ci",assistant-backend
+Feature flags & config for Sprint 6,Task,,Sprint 6 – Preference Extraction,"Add flags: PREFS_EXTRACT_ENABLED, PREFS_APPLY_ENABLED, PREFS_UI_ENABLED. Document env defaults and runbook entries.",High,"feature-flags,config",infra
+Rollout: Write‑only dark launch (staging),Task,,Sprint 6 – Preference Extraction,Enable extraction & persistence; keep apply off. Validate metrics/logs; no user-visible changes.,High,"rollout,staging",infra
+Rollout: Read canary (staging),Task,,Sprint 6 – Preference Extraction,"Enable apply for small cohort; verify accuracy ≥90%, no TTFB regression; UI chips render correctly.",High,"rollout,staging",infra
+Rollout: Production canary 10% + watch,Task,,Sprint 6 – Preference Extraction,Enable apply for 10% traffic; watch metrics for 24h; PageDuty alerts armed.,High,"rollout,prod",infra
+Rollout: 100% enable + docs,Task,,Sprint 6 – Preference Extraction,Ramp to 100%; finalize docs; close Sprint 6 with metrics screenshots and acceptance report.,High,"rollout,prod,docs","infra,observability"

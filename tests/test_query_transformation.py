@@ -510,4 +510,3 @@ class TestPerformance:
         assert all(r.embedding_ready for r in results)
 
 
-if __name__ == "__main__":

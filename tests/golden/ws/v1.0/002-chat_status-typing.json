@@ -1,0 +1,9 @@
+{
+  "type": "chat_status",
+  "event": "typing",
+  "thread_id": "golden-thread-001",
+  "payload": {
+    "value": true
+  },
+  "meta": {}
+}

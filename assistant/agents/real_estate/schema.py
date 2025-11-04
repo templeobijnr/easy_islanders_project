@@ -30,6 +30,7 @@ class SearchParams(TypedDict, total=False):
 
     All fields optional - policy fills missing with defaults.
     """
+    tenure: Literal['short_term', 'long_term']
     location: str  # "Kyrenia", "Girne", "Catalkoy"
     date_range: DateRange
     bedrooms: int

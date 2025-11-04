@@ -62,7 +62,7 @@ sequenceDiagram
    - Fetches the persisted user message and thread metadata.
    - Immediately emits a `chat_status` typing event so the UI shows progress while the agent runs.
    - Executes `run_supervisor_agent`, which orchestrates intent parsing and downstream agents (LLM, registry, etc.).
-   - Persists the assistant reply (type `assistant`), then emits a `chat_message` event on the channel layer with metadata (`recommendations`, `in_reply_to`, `queued_message_id`, `correlation_id`).
+   - Persists the assistant reply (type `assistant`), then emits a `chat_message` event on the channel layer with metadata (`recommendations`, `in_reply_to`, `queued_message_id`, `correlation_id`, `traces.memory`). The `traces.memory` block now carries `{used, mode, source}` so dashboards can see whether Zep mirrored the turn (`mode` = `off|write_only|read_only|read_write`).
    - On exceptions, emits `chat_error` and propagates retry/backoff via Celery.
    - Always emits a final `chat_status` event with `typing=False` in the `finally` block to clear the indicator.
 

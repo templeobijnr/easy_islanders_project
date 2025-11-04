@@ -212,14 +212,23 @@ def check_availability(
     return True
 
 
-def search_listings(params: SearchParams) -> list[PropertyCard]:
+def search_listings(
+    params: SearchParams,
+    page: int = 1,
+    page_size: int = MAX_RESULTS,
+    return_total: bool = False,
+) -> list[PropertyCard] | tuple[list[PropertyCard], int]:
     """
-    Search property listings with intelligent filtering.
+    Search property listings with intelligent filtering (S3: DB-backed with tenure).
 
     Intelligent margins:
     - Price: +10% on max budget (500-600 → search up to 660)
     - Bedrooms: +1 bedroom (user wants 2 → show 2 or 3)
     - Location: Fuzzy match ("Kyrenia" = "Girne")
+
+    Tenure support:
+    - short_term: Nightly rentals (price per night, check availability calendar)
+    - long_term: Monthly rentals (price per month, check move-in dates)
 
     Hard bounds:
     - Max 25 results (cap via params.max_results)
@@ -227,107 +236,152 @@ def search_listings(params: SearchParams) -> list[PropertyCard]:
     - Deterministic ordering (price ascending)
 
     Args:
-        params: SearchParams with optional filters
+        params: SearchParams with optional filters (must include 'tenure')
 
     Returns:
         List of PropertyCard dicts (max 25)
 
     Metrics:
-        - agent_re_search_total (counter)
+        - agent_re_search_total (counter, labels: tenure)
         - agent_re_search_results_count (histogram)
         - agent_re_search_duration_seconds (histogram)
+        - agent_re_db_query_duration_seconds (histogram, labels: tenure)
     """
-    # TODO: Add Prometheus metrics
+    from real_estate.models import Listing, Availability
+    from django.db.models import Q, Count
+    from datetime import date, timedelta
+    from time import perf_counter
 
-    listings = load_fixtures()
-    max_results = min(params.get("max_results", MAX_RESULTS), MAX_RESULTS)
+    # Extract tenure (REQUIRED field)
+    tenure = params.get("tenure", "short_term")
+    if tenure not in ["short_term", "long_term"]:
+        tenure = "short_term"  # Safe default
 
-    # Apply filters
-    filtered = listings
+    page = max(int(page), 1)
+    page_size = max(1, min(int(page_size), MAX_RESULTS))
+    max_results = max(page_size, min(params.get("max_results", MAX_RESULTS), MAX_RESULTS))
+
+    # Start DB query timer
+    db_start = perf_counter()
+
+    # Start with base queryset
+    qs = Listing.objects.filter(tenure=tenure, is_active=True)
 
     # Location filter (with fuzzy matching)
     if "location" in params and params["location"]:
         location_variants = normalize_location(params["location"])
-        filtered = [
-            lst for lst in filtered
-            if lst["location"].lower() in location_variants
-            or lst.get("district", "").lower() in location_variants
-        ]
+        location_q = Q()
+        for variant in location_variants:
+            location_q |= Q(city__iexact=variant) | Q(area__iexact=variant)
+        qs = qs.filter(location_q)
 
     # Budget filter (with 10% margin)
     if "budget" in params and params["budget"]:
         budget = params["budget"]
-        max_price = budget["max"] * (1 + PRICE_MARGIN_PERCENT / 100)
+        max_price = int(budget["max"] * (1 + PRICE_MARGIN_PERCENT / 100))
+        qs = qs.filter(price_amount__gte=budget["min"], price_amount__lte=max_price)
 
-        # Convert listing price if needed (S3: currency conversion)
-        filtered = [
-            lst for lst in filtered
-            if budget["min"] <= lst["price_per_night"] <= max_price
-        ]
-
-    # Bedrooms filter (with +1 flexibility)
+    # Bedrooms filter (with +1 flexibility) and relax-aware upper cap
     if "bedrooms" in params and params["bedrooms"] is not None:
-        requested_bedrooms = params["bedrooms"]
-        max_bedrooms = requested_bedrooms + BEDROOM_FLEXIBILITY
-
-        filtered = [
-            lst for lst in filtered
-            if requested_bedrooms <= lst["bedrooms"] <= max_bedrooms
-        ]
+        requested_bedrooms = int(params["bedrooms"])
+        relaxed = bool(params.get("bedrooms_relaxed"))
+        if relaxed:
+            qs = qs.filter(bedrooms__gte=requested_bedrooms)
+        else:
+            max_bedrooms = requested_bedrooms + BEDROOM_FLEXIBILITY
+            qs = qs.filter(bedrooms__gte=requested_bedrooms, bedrooms__lte=max_bedrooms)
 
     # Property type filter
     if "property_type" in params and params["property_type"]:
-        filtered = [
-            lst for lst in filtered
-            if lst["property_type"] == params["property_type"]
-        ]
+        qs = qs.filter(property_type=params["property_type"])
 
     # Amenities filter (must have ALL requested amenities)
     if "amenities" in params and params["amenities"]:
-        requested_amenities = set(params["amenities"])
-        filtered = [
-            lst for lst in filtered
-            if requested_amenities.issubset(set(lst.get("amenities", [])))
-        ]
+        for amenity in params["amenities"]:
+            qs = qs.filter(amenities__contains=[amenity])
 
-    # Date range filter (S2: stub)
+    # Date range filter (tenure-specific)
     if "date_range" in params and params["date_range"]:
-        filtered = [
-            lst for lst in filtered
-            if check_availability(lst, params["date_range"])
-        ]
+        date_range = params["date_range"]
+        start_date = datetime.fromisoformat(date_range["start"]).date() if isinstance(date_range["start"], str) else date_range["start"]
+        end_date = datetime.fromisoformat(date_range["end"]).date() if isinstance(date_range["end"], str) else date_range["end"]
+
+        if tenure == "short_term":
+            # Check nightly availability calendar
+            nights = (end_date - start_date).days
+            qs = qs.filter(
+                availability_calendar__date__range=(start_date, end_date),
+                availability_calendar__is_available=True
+            ).annotate(avail_count=Count('availability_calendar')).filter(
+                avail_count__gte=nights
+            ).distinct()
+
+        elif tenure == "long_term":
+            # Check move-in date
+            qs = qs.filter(available_from__lte=start_date)
 
     # Sort by price ascending (deterministic)
-    filtered.sort(key=lambda x: x["price_per_night"])
+    qs = qs.order_by('price_amount', 'title')
 
-    # Limit results
-    filtered = filtered[:max_results]
+    # Total before pagination (optional)
+    total_count = qs.count() if return_total else None
+
+    # Limit results with pagination
+    offset = (page - 1) * page_size
+    if offset >= max_results:
+        listings = []
+    else:
+        upper_bound = min(max_results, offset + page_size)
+        listings = list(qs[offset:upper_bound])
+
+    # Emit DB query latency metric
+    db_duration = perf_counter() - db_start
+    try:
+        from assistant.agents.real_estate.agent import RE_DB_QUERY_DURATION
+        RE_DB_QUERY_DURATION.labels(tenure=tenure).observe(db_duration)
+    except ImportError:
+        pass  # Metrics not available in test environment
 
     # Convert to PropertyCard format
     results = []
-    for lst in filtered:
+    for lst in listings:
         # Format price with currency symbol
         currency_symbols = {"GBP": "£", "EUR": "€", "USD": "$", "TRY": "₺"}
-        symbol = currency_symbols.get(lst["currency"], lst["currency"])
-        price_str = f"{symbol}{lst['price_per_night']:.0f}"
+        symbol = currency_symbols.get(lst.currency, lst.currency)
+
+        # Price display depends on tenure
+        if tenure == "short_term":
+            price_str = f"{symbol}{lst.price_amount}/night"
+        else:
+            price_str = f"{symbol}{lst.price_amount}/month"
+
+        # Location display
+        location_str = f"{lst.area}, {lst.city}" if lst.area else lst.city
 
         # Limit amenities to top 5
-        amenities = lst.get("amenities", [])[:5]
+        amenities = lst.amenities[:5] if lst.amenities else []
+
+        # Photos
+        photos = [lst.image_url] if lst.image_url else []
+        if lst.additional_images:
+            photos.extend(lst.additional_images[:4])  # Max 5 photos total
 
         card = PropertyCard(
-            id=lst["id"],
-            title=lst["title"],
-            location=lst["location"],
-            bedrooms=lst["bedrooms"],
-            bathrooms=lst["bathrooms"],
-            sleeps=lst["sleeps"],
+            id=lst.external_id,
+            title=lst.title,
+            location=location_str,
+            bedrooms=lst.bedrooms,
+            bathrooms=lst.bathrooms,
+            sleeps=lst.max_guests,
             price_per_night=price_str,
             amenities=amenities,
-            photos=lst.get("photos", []),
-            available=True,  # S2: always True, S3: check real availability
+            photos=photos,
+            available=True,  # Already filtered by availability
         )
         results.append(card)
 
+    if return_total:
+        return results, int(total_count or len(results))
     return results
 
 

@@ -13,13 +13,15 @@ from typing import List, Dict, Any, Optional, Literal, Set
 from uuid import UUID
 from django.conf import settings
 from django.db import transaction  # ISSUE-004 FIX: Import for atomic transactions
+from django.db import IntegrityError
 from listings.models import Listing
 from assistant.models import Message, ConversationThread
 from assistant.brain.agent import run_supervisor_agent
 from assistant.utils.correlation import set_correlation_id, reset_correlation_id
 from .utils.notifications import put_card_display, put_auto_display
 from .twilio_client import MediaProcessor
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+import uuid as _uuid
 from django.utils import timezone as dt_timezone
 # REMOVED incorrect import: from .utils.outreach import check_for_new_images, graph_run_event
 from .twilio_client import TwilioWhatsAppClient
@@ -27,8 +29,205 @@ from assistant.brain.resilience import resilient_api_call
 from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
 
 from assistant.monitoring.metrics import increment_ws_invalid_envelope
+from assistant.memory import current_mode, read_enabled, write_enabled
+from assistant.memory.zep_client import ZepClient
+from assistant.memory.flags import MemoryMode
+from assistant.memory.service import get_client, call_zep, invalidate_context
+from assistant.memory.pii import redact_pii
+from assistant.brain.config import PREFS_EXTRACT_ENABLED
+from assistant.services.preferences import PreferenceService
+from assistant.services.preference_extraction import extract_preferences_from_message
+from assistant.models import PreferenceExtractionEvent
+from assistant.monitoring.metrics import (
+    inc_prefs_extract_request,
+    inc_prefs_saved,
+    observe_prefs_latency,
+)
 
 logger = logging.getLogger(__name__)
+
+def _log_assistant_turn_safe(thread_id: str,
+                             mode: str,
+                             zep_used: bool,
+                             zep_meta: Dict[str, Any],
+                             user_write_ms: float,
+                             assistant_write_ms: float,
+                             user_redactions: Dict[str, int],
+                             assistant_redactions: Dict[str, int],
+                             result_dict: Dict[str, Any],
+                             ttfb_ms: int,
+                             *,
+                             user_msg_id: str | None = None,
+                             assistant_msg_id: str | None = None,
+                             client_msg_id_user: str | None = None,
+                             client_msg_id_assistant: str | None = None,
+                             correlation_id: str | None = None) -> None:
+    try:
+        logger.info(
+            "assistant_turn",
+            extra={
+                "thread_id": thread_id,
+                "mode": mode,
+                "zep": {
+                    "used": zep_used,
+                    "cached": bool(zep_meta.get("cached")),
+                    "read_ms": zep_meta.get("took_ms"),
+                    "write_ms": {"user": round(user_write_ms, 2), "assistant": round(assistant_write_ms, 2)},
+                    "redactions": {"user": user_redactions, "assistant": assistant_redactions},
+                    "strategy": zep_meta.get("strategy"),
+                },
+                "agent": result_dict.get("agent_name") or result_dict.get("current_node", "unknown"),
+                "intent": result_dict.get("intent_type") or None,
+                "slots": result_dict.get("extracted_criteria") or None,
+                "results": len(result_dict.get("recommendations") or []),
+                "ttfb_ms": ttfb_ms,
+                "status": "ok",
+                "user_msg_id": user_msg_id,
+                "assistant_msg_id": assistant_msg_id,
+                "client_msg_id_user": client_msg_id_user,
+                "client_msg_id_assistant": client_msg_id_assistant,
+                "correlation_id": correlation_id,
+            },
+        )
+    except Exception:
+        pass
+
+
+def _default_memory_trace() -> Dict[str, Any]:
+    """Default memory trace payload when memory is disabled or unused."""
+    return {
+        "used": False,
+        "mode": current_mode().value,
+        "source": "zep",
+    }
+
+
+class _ZepWriteContext:
+    __slots__ = ("client", "thread_id", "used")
+
+    def __init__(self, client: ZepClient, thread_id: str) -> None:
+        self.client = client
+        self.thread_id = thread_id
+        self.used = False
+
+    def add_message(self, op: str, payload: Dict[str, Any]) -> bool:
+        success, _ = call_zep(op, lambda: self.client.add_messages(self.thread_id, [payload]), observe_retry=True)
+        if success:
+            self.used = True
+        return success
+
+
+def _prepare_zep_write_context(thread: ConversationThread) -> Optional[_ZepWriteContext]:
+    """Ensure the Zep user/thread exist and return a write context."""
+    client = get_client(require_write=True)
+    if not client:
+        return None
+
+    user = getattr(thread, "user", None)
+    user_identifier = str(getattr(user, "id", thread.thread_id))
+
+    success, _ = call_zep("ensure_user", lambda: client.ensure_user(user_id=user_identifier))
+    if not success:
+        return None
+
+    success, _ = call_zep(
+        "ensure_thread",
+        lambda: client.ensure_thread(thread_id=thread.thread_id, user_id=user_identifier),
+    )
+    if not success:
+        return None
+
+    return _ZepWriteContext(client, thread.thread_id)
+
+
+def _build_zep_message_payload(
+    *,
+    role: Literal["user", "assistant"],
+    content: str,
+    message_id: str,
+    metadata: Dict[str, Any],
+) -> Dict[str, Any]:
+    created_at = dt_timezone.now().astimezone(timezone.utc).isoformat()
+    payload: Dict[str, Any] = {
+        "role": role,
+        "content": content,
+        "metadata": metadata,
+        "created_at": created_at,
+        "id": message_id,
+        "message_id": message_id,
+    }
+    return payload
+
+
+def _mirror_user_message(
+    zep_context: _ZepWriteContext,
+    message: Message,
+    text: str,
+    thread: ConversationThread,
+) -> tuple[bool, float, Dict[str, int]]:
+    redaction = redact_pii(text)
+    redacted_text = redaction["text"]
+    msg_id = str(message.client_msg_id or message.id)
+    metadata: Dict[str, Any] = {
+        "source": "django",
+        "message_type": "user",
+        "conversation_id": str(thread.thread_id),
+        "message_pk": str(message.id),
+    }
+    if redaction["redactions"]:
+        metadata["pii_redactions"] = redaction["redactions"]
+    if message.client_msg_id:
+        metadata["client_msg_id"] = str(message.client_msg_id)
+    payload = _build_zep_message_payload(
+        role="user",
+        content=redacted_text,
+        message_id=msg_id,
+        metadata=metadata,
+    )
+    start = time.perf_counter()
+    ok = zep_context.add_message("user_message", payload)
+    elapsed_ms = (time.perf_counter() - start) * 1000.0
+    return ok, elapsed_ms, redaction["redactions"]
+
+
+def _mirror_assistant_message(
+    zep_context: _ZepWriteContext,
+    message: Message,
+    reply_text: str,
+    thread: ConversationThread,
+    agent_result: Dict[str, Any],
+) -> tuple[bool, float, Dict[str, int]]:
+    redaction = redact_pii(reply_text)
+    redacted_reply = redaction["text"]
+    metadata: Dict[str, Any] = {
+        "source": "django",
+        "message_type": "assistant",
+        "conversation_id": str(thread.thread_id),
+        "message_pk": str(message.id),
+    }
+    if message.client_msg_id:
+        # Server-side dedupe hint for upstream
+        metadata["client_msg_id"] = str(message.client_msg_id)
+    if redaction["redactions"]:
+        metadata["pii_redactions"] = redaction["redactions"]
+    agent_name = agent_result.get("agent_name") if isinstance(agent_result, dict) else None
+    if agent_name:
+        metadata["agent"] = agent_name
+    recommendations = []
+    if isinstance(agent_result, dict):
+        recommendations = agent_result.get("recommendations") or []
+    if recommendations:
+        metadata["recommendation_count"] = len(recommendations)
+    payload = _build_zep_message_payload(
+        role="assistant",
+        content=redacted_reply,
+        message_id=str(message.id),
+        metadata=metadata,
+    )
+    start = time.perf_counter()
+    ok = zep_context.add_message("assistant_message", payload)
+    elapsed_ms = (time.perf_counter() - start) * 1000.0
+    return ok, elapsed_ms, redaction["redactions"]
 
 
 def _check_and_increment_rate_limit(conversation_id: str) -> bool:
@@ -305,7 +504,7 @@ def monitor_pending_outreaches(self) -> Dict[str, Any]:
     graph_run_event = None
 
     try:
-        now = datetime.now(dt_timezone.utc)
+        now = datetime.now(timezone.utc)
         # Find listings where the *last* outreach entry is pending and overdue
         # This is a more complex query that might be better handled in Python
         pending_listings = Listing.objects.filter(
@@ -332,7 +531,7 @@ def monitor_pending_outreaches(self) -> Dict[str, Any]:
                     continue
                 
                 try:
-                    follow_up_at = datetime.fromisoformat(follow_up_at_str).replace(tzinfo=dt_timezone.utc)
+                    follow_up_at = datetime.fromisoformat(follow_up_at_str).replace(tzinfo=timezone.utc)
                 except ValueError:
                     continue
 
@@ -1177,6 +1376,24 @@ class WsAssistantFrame(BaseModel):
         reply = value.get("in_reply_to")
         if not isinstance(reply, str) or not reply.strip():
             raise ValueError("meta.in_reply_to must be provided")
+        traces = value.setdefault("traces", {})
+        if not isinstance(traces, dict):
+            raise ValueError("meta.traces must be a dict when provided")
+        memory_trace = traces.setdefault("memory", {})
+        if not isinstance(memory_trace, dict):
+            raise ValueError("meta.traces.memory must be a dict when provided")
+        used = memory_trace.get("used")
+        if used is not None and not isinstance(used, bool):
+            raise ValueError("meta.traces.memory.used must be a boolean")
+        memory_trace.setdefault("used", write_enabled() or read_enabled())
+        mode = memory_trace.get("mode")
+        allowed_modes = {m.value for m in MemoryMode}
+        if mode is not None and mode not in allowed_modes:
+            raise ValueError(f"meta.traces.memory.mode must be one of {sorted(allowed_modes)}")
+        memory_trace.setdefault("mode", current_mode().value)
+        source = memory_trace.setdefault("source", "zep")
+        if not isinstance(source, str):
+            raise ValueError("meta.traces.memory.source must be a string")
         return value
 
 
@@ -1248,6 +1465,7 @@ def process_chat_message(self, message_id: str, thread_id: str, client_msg_id: O
     try:
         msg = Message.objects.get(id=message_id)
         thread = ConversationThread.objects.get(thread_id=thread_id)
+        zep_context = _prepare_zep_write_context(thread)
 
         # Step 1: notify typing/on-progress
         async_to_sync(channel_layer.group_send)(
@@ -1262,16 +1480,73 @@ def process_chat_message(self, message_id: str, thread_id: str, client_msg_id: O
 
         # Step 2: run the agent (slow path)
         user_text = (msg.content or "").strip()
-        result = run_supervisor_agent(user_text, thread.thread_id)
-        reply_text = result.get("message") or "Got it. I'll search options that match."
-        recommendations = result.get("recommendations") or []
+        user_write_ok = False
+        user_write_ms = 0.0
+        user_redactions: Dict[str, int] = {}
+        if zep_context:
+            user_write_ok, user_write_ms, user_redactions = _mirror_user_message(zep_context, msg, user_text, thread)
 
-        a = Message.objects.create(
-            type="assistant",
-            conversation_id=thread.thread_id,
-            content=reply_text,
-            sender=None,
+        # Fire-and-forget preference extraction (non-blocking)
+        try:
+            if PREFS_EXTRACT_ENABLED and msg.sender_id:
+                extract_preferences_async.apply_async(
+                    kwargs={
+                        "user_id": msg.sender_id,
+                        "thread_id": thread.thread_id,
+                        "message_id": str(msg.id),
+                        "utterance": user_text,
+                    }
+                )
+        except Exception:
+            pass
+
+        result = run_supervisor_agent(
+            user_text,
+            thread.thread_id,
+            client_msg_id=str(client_msg_id) if client_msg_id else None,
         )
+        result_dict = result if isinstance(result, dict) else {}
+        reply_text = result_dict.get("message") or "Got it. I'll search options that match."
+        recommendations = result_dict.get("recommendations") or []
+
+        # Assistant idempotency: deterministic client_msg_id per (thread,user_client_msg_id)
+        # Ensures retries do not create duplicate assistant messages
+        assistant_client_uuid = None
+        if client_msg_id:
+            try:
+                assistant_client_uuid = _uuid.uuid5(_uuid.NAMESPACE_URL, f"{thread.thread_id}:{client_msg_id}:assistant")
+            except Exception:
+                assistant_client_uuid = None
+
+        assistant_created = True
+        try:
+            a = Message.objects.create(
+                type="assistant",
+                conversation_id=thread.thread_id,
+                content=reply_text,
+                sender=None,
+                client_msg_id=assistant_client_uuid,
+            )
+        except IntegrityError:
+            # Fetch the existing assistant message created in a previous retry
+            if assistant_client_uuid is not None:
+                a = Message.objects.get(conversation_id=thread.thread_id, client_msg_id=assistant_client_uuid)
+                assistant_created = False
+            else:
+                raise
+        assistant_write_ok = False
+        assistant_write_ms = 0.0
+        assistant_redactions: Dict[str, int] = {}
+        if zep_context and assistant_created:
+            assistant_write_ok, assistant_write_ms, assistant_redactions = _mirror_assistant_message(
+                zep_context, a, reply_text, thread, result_dict
+            )
+        # Invalidate cached context after successful writes to avoid stale reads
+        try:
+            if zep_context and (user_write_ok or assistant_write_ok):
+                invalidate_context(thread.thread_id)
+        except Exception:
+            pass
 
         # Step 3: emit final assistant message
         in_reply_to = client_msg_id or (msg.client_msg_id and str(msg.client_msg_id))
@@ -1281,14 +1556,72 @@ def process_chat_message(self, message_id: str, thread_id: str, client_msg_id: O
         }
         if correlation_id:
             ws_meta["correlation_id"] = correlation_id
+        # Populate memory traces from supervisor result when present
+        memory_from_result = {}
+        if isinstance(result_dict.get("memory_trace"), dict):
+            memory_from_result = dict(result_dict["memory_trace"])
+        ws_meta["traces"] = {"memory": {**_default_memory_trace(), **memory_from_result}}
+        memory_trace = ws_meta["traces"]["memory"]
+        memory_trace["mode"] = current_mode().value
+        memory_trace["source"] = memory_trace.get("source", "zep")
+        # Attach client id references for incident reviews
+        try:
+            memory_trace.setdefault("client_ids", {})
+            memory_trace["client_ids"].update({
+                "user": str(msg.client_msg_id) if msg.client_msg_id else None,
+                "assistant": str(assistant_client_uuid) if assistant_client_uuid else None,
+            })
+        except Exception:
+            pass
+        writes_used = bool(zep_context and zep_context.used)
+        if zep_context:
+            memory_trace["write_mirrored"] = writes_used
+        memory_meta = result_dict.get("memory_trace") if isinstance(result_dict, dict) else None
+        if isinstance(memory_meta, dict):
+            for key, value in memory_meta.items():
+                if key in {"used", "mode", "source"}:
+                    continue
+                memory_trace[key] = value
+            memory_trace["mode"] = memory_meta.get("mode", memory_trace["mode"])
+            memory_trace["source"] = memory_meta.get("source", memory_trace["source"])
+            memory_trace["strategy"] = memory_meta.get("strategy", memory_trace.get("strategy"))
+            memory_trace["used"] = bool(memory_meta.get("used")) or writes_used
+        else:
+            memory_trace["used"] = writes_used
+        # Drop non-contract debug fields from outgoing WS traces
+        memory_trace.pop("strategy", None)
 
-        rich_payload_candidate = result.get("rich") if isinstance(result, dict) else {}
+        # Structured mirror log for ops
+        try:
+            redactions_total = {k: int(v) for k, v in (user_redactions | assistant_redactions).items()} if (user_redactions or assistant_redactions) else {}
+            logger.info(
+                "zep_mirror",
+                extra={
+                    "thread_id": str(thread.thread_id),
+                    "user_msg_id": str(msg.id),
+                    "assistant_msg_id": str(a.id),
+                    "mode": memory_trace.get("mode"),
+                    "write_ms": {
+                        "user": round(user_write_ms, 2),
+                        "assistant": round(assistant_write_ms, 2),
+                    },
+                    "result": {
+                        "user": user_write_ok,
+                        "assistant": assistant_write_ok,
+                    },
+                    "redactions": redactions_total,
+                },
+            )
+        except Exception:
+            pass
+
+        rich_payload_candidate = result_dict.get("rich") if isinstance(result_dict, dict) else {}
         rich_payload: Dict[str, Any] = rich_payload_candidate if isinstance(rich_payload_candidate, dict) else {}
         if recommendations:
             rich_payload.setdefault("recommendations", recommendations)
 
         # Extract agent name from supervisor result (Step 1.2: Agent tagging)
-        agent_name = result.get('agent_name') or result.get('current_node', 'unknown')
+        agent_name = result_dict.get('agent_name') or result_dict.get('current_node', 'unknown')
         if agent_name and agent_name.endswith('_agent'):
             agent_name = agent_name.replace('_agent', '')  # "real_estate_agent" → "real_estate"
 
@@ -1335,6 +1668,27 @@ def process_chat_message(self, message_id: str, thread_id: str, client_msg_id: O
                 "type": "chat.message",
                 "data": payload,
             },
+        )
+
+        # Structured per-turn log emission (PR-I)
+        zep_meta = ws_meta.get("traces", {}).get("memory", {})
+        ttfb_ms = int((time.time() - start_time) * 1000)
+        _log_assistant_turn_safe(
+            thread_id=str(thread.thread_id),
+            mode=current_mode().value,
+            zep_used=bool(zep_context and zep_context.used),
+            zep_meta=zep_meta,
+            user_write_ms=user_write_ms,
+            assistant_write_ms=assistant_write_ms,
+            user_redactions=user_redactions,
+            assistant_redactions=assistant_redactions,
+            result_dict=result_dict,
+            ttfb_ms=ttfb_ms,
+            user_msg_id=str(msg.id) if msg else None,
+            assistant_msg_id=str(a.id) if 'a' in locals() and a else None,
+            client_msg_id_user=str(msg.client_msg_id) if getattr(msg, 'client_msg_id', None) else None,
+            client_msg_id_assistant=str(assistant_client_uuid) if assistant_client_uuid else None,
+            correlation_id=correlation_id,
         )
 
     except MaxRetriesExceededError as e:
@@ -1444,4 +1798,88 @@ def dispatch_broadcast(self, request_id: int, vendor_ids: List[int]):
         
     except Exception as e:
         logger.error(f"Fatal error in dispatch_broadcast: request={request_id}, error={e}", exc_info=True)
+        raise
+@shared_task(bind=True, autoretry_for=(requests.exceptions.Timeout, requests.exceptions.ConnectionError), retry_backoff=True, retry_kwargs={"max_retries": 3})
+def extract_preferences_async(self, user_id: int, thread_id: str, message_id: str, utterance: str) -> Dict[str, Any]:
+    """
+    Async extraction and persistence of preferences from a user utterance.
+    Uses lightweight normalization and PII redaction. LLM/rule extraction
+    can be implemented in assistant/services/preference_extraction.py.
+    """
+    import time as _time
+    start = _time.perf_counter()
+    try:
+        import re
+        method = "skipped"
+        extracted: List[Dict[str, Any]] = []
+
+        # Try LLM structured extraction first (if OPENAI key configured)
+        llm_data = extract_preferences_from_message(utterance)
+        if llm_data and isinstance(llm_data.get("preferences"), list):
+            method = "llm"
+            for p in llm_data["preferences"]:
+                extracted.append({
+                    "category": p.get("category", "real_estate"),
+                    "preference_type": p.get("preference_type", "unknown"),
+                    "value": p.get("value") or {"type": "single", "value": "unknown"},
+                    "confidence": float(p.get("confidence", 0.7)),
+                    "source": p.get("source", "inferred"),
+                    "reasoning": p.get("reasoning", ""),
+                })
+
+        # Add minimal rule-based budget extraction (fallback/augment)
+        m = re.search(r"(€|\$|eur|usd|try)\s?([0-9]{2,6})", utterance, flags=re.IGNORECASE)
+        if m:
+            sym = m.group(1).upper()
+            amount = float(m.group(2))
+            unit = "EUR" if sym in {"€", "EUR"} else ("USD" if sym in {"$", "USD"} else ("TRY" if sym == "TRY" else "EUR"))
+            extracted.append({
+                "category": "real_estate",
+                "preference_type": "budget",
+                "value": {"type": "range", "min": amount, "max": None, "unit": unit},
+                "confidence": 0.6,
+                "source": "inferred",
+            })
+            if method == "skipped":
+                method = "fallback"
+
+        # Persist
+        saved = 0
+        for pref in extracted:
+            obj = PreferenceService.upsert_preference(
+                user_id=user_id,
+                category=pref["category"],
+                preference_type=pref["preference_type"],
+                value=pref["value"],
+                confidence=pref.get("confidence", 0.6),
+                source=pref.get("source", "inferred"),
+            )
+            inc_prefs_saved(obj.category, obj.preference_type, obj.source)
+            saved += 1
+
+        inc_prefs_extract_request(method if extracted else "skipped")
+        observe_prefs_latency(method if extracted else "skipped", _time.perf_counter() - start)
+
+        # Audit trail event
+        try:
+            PreferenceExtractionEvent.objects.create(
+                user_id=user_id,
+                thread_id=str(thread_id),
+                message_id=message_id,
+                utterance=utterance,
+                extracted_preferences=extracted,
+                confidence_scores={p.get("preference_type", "unknown"): p.get("confidence", 0.0) for p in extracted},
+                extraction_method=method if extracted else "fallback",
+                llm_reasoning=(llm_data or {}).get("overall_reasoning", "") if llm_data else "",
+                contradictions_detected=[],
+                processing_time_ms=int((_time.perf_counter() - start) * 1000),
+            )
+        except Exception:
+            pass
+
+        return {"saved": saved, "result": method if extracted else "skipped", "extracted": extracted}
+    except Exception as e:
+        inc_prefs_extract_request("error")
+        observe_prefs_latency("error", _time.perf_counter() - start)
+        logger.error(f"extract_preferences_async failed: {e}")
         raise

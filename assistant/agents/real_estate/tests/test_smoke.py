@@ -8,13 +8,28 @@ Basic tests to verify the agent works end-to-end:
 4. Empty results + relax
 """
 
-import unittest
+from django.test import TestCase
+from django.core.management import call_command
+from django.db import connection
+import pytest
+
 from assistant.agents.real_estate import handle_real_estate_request
 from assistant.agents.contracts import AgentRequest, AgentContext
 
+pytestmark = pytest.mark.skipif(
+    connection.vendor != "postgresql",
+    reason="Real estate agent smoke tests require PostgreSQL backend (ArrayField support).",
+)
 
-class RealEstateAgentSmokeTests(unittest.TestCase):
+
+class RealEstateAgentSmokeTests(TestCase):
     """Basic smoke tests for real estate agent."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        # Ensure canonical listings are present for each test run
+        call_command("load_real_estate_seed", truncate=True, verbosity=0)
 
     def setUp(self):
         """Set up test fixtures."""

@@ -26,6 +26,8 @@ class RouterState(TypedDict, total=False):
     prompt_assembly: Dict[str, Any]
     policy_action: str
     is_complete: bool
+    context_override: bool  # Flag if context was used to override routing
+    last_domain: str  # Previous message's domain for context
 
 
 TAU_CONF = float(getattr(settings, 'ROUTER_CONF_THRESHOLD', 0.72))
@@ -44,10 +46,66 @@ def node_safety(state: RouterState) -> RouterState:
     return {**state, 'safety': {'safe': bool(getattr(res, 'passed', True)), 'reasons': [getattr(res, 'reason', None)]}}
 
 
+def node_context_override(state: RouterState) -> RouterState:
+    """
+    Check conversation context to override routing for multi-turn conversations.
+
+    Sticky routing rules (deterministic):
+    - If last message was real_estate + current is location-only → stick to real_estate
+    - If last message was real_estate + current is low-conf fragment → stick to real_estate
+    """
+    thread_id = state.get('thread_id')
+    utterance = state.get('utterance', '').lower()
+    context_hint = state.get('context_hint') or {}
+
+    # Check if context_hint has last_domain (passed from supervisor)
+    last_domain = context_hint.get('last_domain')
+
+    if not last_domain:
+        # No context - continue with normal routing
+        return {**state, 'context_override': False}
+
+    # Context override rules
+    if last_domain == 'real_estate':
+        # Check if current utterance is a location-only fragment
+        location_signals = ['in', 'at', 'near', 'girne', 'kyrenia', 'nicosia', 'famagusta',
+                           'catalkoy', 'bellapais', 'alsancak']
+        words = utterance.split()
+        is_location_fragment = (
+            len(words) <= 4 and
+            any(sig in utterance for sig in location_signals)
+        )
+
+        if is_location_fragment:
+            # Override: Continue with real_estate
+            from assistant.monitoring.metrics import inc_router_context_override
+            try:
+                inc_router_context_override(from_domain='unknown', to_domain='real_estate')
+            except ImportError:
+                pass
+
+            return {
+                **state,
+                'context_override': True,
+                'last_domain': last_domain,
+                'domain_choice': {
+                    'domain': 'real_estate',
+                    'confidence': 0.9,  # High confidence due to context
+                    'calibrated': 0.9,
+                    'policy_action': 'dispatch',
+                    'reason': 'context_continuation'
+                },
+                'next_hop_agent': 'real_estate_agent'
+            }
+
+    # No override - continue with normal routing
+    return {**state, 'context_override': False, 'last_domain': last_domain}
+
+
 def _rule_votes(text: str) -> Dict[str, int]:
     t = text.lower()
     votes = {
-        'real_estate': int(any(k in t for k in ['apartment', 'villa', 'rent', 'property'])),
+        'real_estate': int(any(k in t for k in ['apartment', 'villa', 'rent', 'property', 'bedroom', 'house', 'flat'])),
         'marketplace': int(any(k in t for k in ['car', 'vehicle', 'auto', 'electronics'])),
         'local_info': int(any(k in t for k in ['pharmacy', 'hospital', 'doctor'])),
         'general_conversation': 1,
@@ -171,15 +229,28 @@ def node_assemble(state: RouterState) -> RouterState:
     return {**state, 'prompt_assembly': {'exemplar_ids': [], 'context_binds': state.get('context_hint') or {}}, 'is_complete': True}
 
 
+def should_skip_domain_router(state: RouterState) -> str:
+    """Conditional edge: Skip domain_router if context override succeeded."""
+    if state.get('context_override'):
+        return 'router_guardrail_node'
+    return 'domain_router'
+
+
 def build_router_graph():
     g = StateGraph(RouterState)
     g.add_node('safety_filter', node_safety)
+    g.add_node('context_override', node_context_override)
     g.add_node('domain_router', node_domain_router)
     g.add_node('router_guardrail_node', router_guardrail_node)
     g.add_node('in_domain_classifier', node_in_domain)
     g.add_node('assemble_prompt', node_assemble)
     g.set_entry_point('safety_filter')
-    g.add_edge('safety_filter', 'domain_router')
+    g.add_edge('safety_filter', 'context_override')
+    # Conditional: If context override succeeded, skip domain_router
+    g.add_conditional_edges('context_override', should_skip_domain_router, {
+        'domain_router': 'domain_router',
+        'router_guardrail_node': 'router_guardrail_node'
+    })
     g.add_edge('domain_router', 'router_guardrail_node')
     g.add_edge('router_guardrail_node', 'in_domain_classifier')
     g.add_edge('in_domain_classifier', 'assemble_prompt')

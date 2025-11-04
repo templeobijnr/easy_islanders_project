@@ -18,8 +18,14 @@ def set_correlation_id(value: Optional[str]) -> Token[str]:
 
 
 def reset_correlation_id(token: Token[str] | None) -> None:
-    if token is not None:
+    if token is None:
+        return
+    try:
         _correlation_id.reset(token)
+    except RuntimeError:
+        # Context token already consumed (e.g., double-reset in async scopes).
+        # Preserve current correlation id instead of crashing the websocket.
+        pass
 
 
 def get_correlation_id() -> str:

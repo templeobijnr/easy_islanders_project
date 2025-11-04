@@ -1,0 +1,59 @@
+{
+  "description": "Long-term property search - monthly rental with move-in date",
+  "request": {
+    "thread_id": "test-lt-001",
+    "client_msg_id": "msg-lt-001",
+    "intent": "property_search",
+    "input": "1 bedroom flat in Nicosia for 6 months rent, £650 per month",
+    "ctx": {
+      "user_id": "user-test-002",
+      "locale": "en",
+      "time": "2025-11-02T12:00:00Z"
+    }
+  },
+  "response": {
+    "reply": "I found 1 monthly rentals matching your search:",
+    "actions": [
+      {
+        "type": "show_listings",
+        "params": {
+          "listings": [
+            {
+              "id": "lt-nic-001",
+              "title": "1BR Central Flat - Available Now",
+              "location": "City Center, Nicosia",
+              "bedrooms": 1,
+              "bathrooms": 1,
+              "sleeps": 2,
+              "price_per_night": "£650/month",
+              "amenities": ["wifi", "ac", "kitchen", "furnished"],
+              "photos": ["https://example.com/listings/lt-nic-001.jpg"],
+              "available": true
+            }
+          ],
+          "tenure": "long_term",
+          "search_params": {
+            "tenure": "long_term",
+            "location": "Nicosia",
+            "bedrooms": 1,
+            "budget": {
+              "min": 0,
+              "max": 650,
+              "currency": "GBP"
+            }
+          },
+          "relaxed": false
+        }
+      }
+    ],
+    "traces": {
+      "states_visited": ["TENURE_DECIDE", "SLOT_FILL", "SEARCH"],
+      "tenure": "long_term",
+      "tenure_signals": {
+        "short_term_count": 0,
+        "long_term_count": 3
+      },
+      "search_result_count": 1
+    }
+  }
+}

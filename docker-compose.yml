@@ -34,6 +34,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+      zep:
+        condition: service_started
     networks:
       - easy_islanders_network
     env_file:
@@ -50,8 +52,12 @@ services:
     env_file:
       - ${ENV_FILE:-.env.docker}
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      zep:
+        condition: service_started
     networks:
       - easy_islanders_network
 
@@ -65,9 +71,55 @@ services:
     networks:
       - easy_islanders_network
 
+  zep_db:
+    image: pgvector/pgvector:pg15
+    container_name: easy_islanders_zep_db
+    environment:
+      POSTGRES_DB: zep
+      POSTGRES_USER: zep
+      POSTGRES_PASSWORD: zep
+    volumes:
+      - zep_db_data:/var/lib/postgresql/data/
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zep"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - easy_islanders_network
+
+  zep:
+    image: ghcr.io/getzep/zep:latest
+    container_name: easy_islanders_zep
+    env_file:
+      - ${ENV_FILE:-.env.docker}
+    environment:
+      POSTGRES_URL: postgresql://zep:zep@zep_db:5432/zep?sslmode=disable
+      # Secrets come from env_file; avoid overriding them here with defaults
+      # ZEP_API_KEY and ZEP_OPENAI_API_KEY are read from ${ENV_FILE}
+      ZEP_STORE_TYPE: postgres
+      ZEP_VECTOR_STORE_TYPE: postgres
+      STORE_TYPE: postgres
+      VECTOR_STORE_TYPE: postgres
+      STORE__TYPE: postgres
+      ZEP_DEBUG: "true"
+    ports:
+      - "8001:8000"
+    depends_on:
+      zep_db:
+        condition: service_healthy
+    volumes:
+      - zep_data:/var/lib/zep
+      - ./zep/config.yaml:/config/config.yaml:ro
+    command: ["--config", "/config/config.yaml"]
+    networks:
+      - easy_islanders_network
+
 volumes:
   postgres_data:
   redis_data:
+  zep_db_data:
+  zep_data:
 
 networks:
   easy_islanders_network:

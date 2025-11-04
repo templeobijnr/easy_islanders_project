@@ -1,0 +1,34 @@
+{
+  "type": "chat_message",
+  "event": "assistant_message",
+  "thread_id": "golden-thread-001",
+  "payload": {
+    "text": "I found 4 properties matching your search:",
+    "rich": {
+      "recommendations": [
+        {
+          "id": "prop-001",
+          "title": "Modern 2BR Apartment Near Sea",
+          "location": "Kyrenia",
+          "bedrooms": 2,
+          "price": 120,
+          "type": "property",
+          "agent": "real_estate"
+        }
+      ]
+    },
+    "agent": "real_estate"
+  },
+  "meta": {
+    "in_reply_to": "client-msg-001",
+    "trace": "trace-abc-123",
+    "queued_message_id": "qmsg-789",
+    "traces": {
+      "memory": {
+        "used": false,
+        "mode": "off",
+        "source": "zep"
+      }
+    }
+  }
+}

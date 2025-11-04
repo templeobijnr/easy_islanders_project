@@ -36,6 +36,7 @@ class SupervisorState(TypedDict):
     user_input: str
     thread_id: str
     messages: List[Dict]
+    history: List[Dict[str, str]]
     user_id: Optional[int]
     conversation_history: List[Dict]
 
@@ -61,6 +62,14 @@ class SupervisorState(TypedDict):
     # Agent response content
     final_response: Optional[str]
     recommendations: Optional[List[Dict]]
+    agent_name: Optional[str]
+    agent_traces: Optional[Dict[str, Any]]
+    conversation_ctx: Optional[Dict[str, Any]]
+    memory_trace: Optional[Dict[str, Any]]
+    memory_context_summary: Optional[str]
+    memory_context_facts: Optional[List[Dict[str, Any]]]
+    memory_context_recent: Optional[List[Dict[str, Any]]]
+    retrieved_context: Optional[str]
 
 
 class MapMarker(BaseModel):
@@ -80,4 +89,3 @@ class MapMarker(BaseModel):
     
     class Config:
         extra = "forbid"
-

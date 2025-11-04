@@ -11,6 +11,7 @@ const config = {
     AUTHENTICATION: process.env.REACT_APP_ENABLE_AUTH !== 'false',
     BOOKING: process.env.REACT_APP_ENABLE_BOOKING !== 'false',
     MULTILINGUAL: process.env.REACT_APP_ENABLE_MULTILINGUAL !== 'false',
+    PREFS_UI: process.env.REACT_APP_PREFS_UI_ENABLED !== 'false',
   },
   
   // Languages
@@ -102,7 +103,6 @@ const config = {
 };
 
 export default config;
-
 
 
 

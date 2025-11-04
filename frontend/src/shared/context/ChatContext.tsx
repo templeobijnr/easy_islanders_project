@@ -35,6 +35,10 @@ interface ChatState {
   pushAssistantMessage: (frame: AssistantFrame) => void;
   wsCorrelationId: string | null;
   handleAssistantError: (data: any) => void;
+
+  // Dev HUD (debug-only) fields
+  dev_lastMemoryTrace: any | null;
+  dev_lastCorrelationId: string | null;
 }
 
 const ChatCtx = createContext<ChatState | null>(null);
@@ -50,6 +54,11 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [connectionStatus, setConnectionStatusState] = useState<ConnectionStatus>('disconnected');
   const [threadId, setThreadId] = useState<string | null>(() => localStorage.getItem('threadId'));
   const [wsCorrelationId] = useState<string | null>(null);
+  const [lastMemoryTrace, setLastMemoryTrace] = useState<any | null>(null);
+  const [lastCorrelationId, setLastCorrelationId] = useState<string | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const pendingTraceRef = useRef<any | null>(null);
+  const pendingCorrRef = useRef<string | null>(null);
 
   const connectionStatusRef = useRef<ConnectionStatus>(connectionStatus);
   const pendingRepliesRef = useRef<Set<string>>(new Set());
@@ -88,6 +97,25 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const inReplyTo = frame.meta?.in_reply_to;
     if (!inReplyTo) return;
 
+    // Capture latest memory trace + correlation for Dev HUD
+    try {
+      const mem = (frame as any)?.meta?.traces?.memory ?? null;
+      const corr = (frame as any)?.meta?.correlation_id ?? null;
+      if (mem && typeof mem === 'object') pendingTraceRef.current = mem;
+      if (corr) pendingCorrRef.current = corr;
+      if (rafRef.current == null) {
+        rafRef.current = requestAnimationFrame(() => {
+          if (pendingTraceRef.current) setLastMemoryTrace(pendingTraceRef.current);
+          if (pendingCorrRef.current) setLastCorrelationId(pendingCorrRef.current);
+          pendingTraceRef.current = null;
+          pendingCorrRef.current = null;
+          rafRef.current = null;
+        });
+      }
+    } catch (e) {
+      // best-effort only
+    }
+
     const fallbackId = fallbackRepliesRef.current.get(inReplyTo);
     const text = typeof frame.payload?.text === 'string' ? frame.payload.text : '';
     const ts = Date.now();
@@ -115,7 +143,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         inReplyTo,
         pending: false,
       };
-      setMessages((prev) => [...prev, assistantMessage]);
+    setMessages((prev) => [...prev, assistantMessage]);
     }
 
     markPendingResolved(inReplyTo);
@@ -183,7 +211,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const shouldUseHttpFallback = async () => {
       const wsEnabled = config.WEBSOCKET?.ENABLED !== false;
       if (!wsEnabled) return true;
-      return false;
+      const status = connectionStatusRef.current;
+      // Only use HTTP fallback when WS is disabled or not healthy
+      return status === 'error' || status === 'disconnected';
     };
 
     try {
@@ -280,6 +310,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         pushAssistantMessage,
         wsCorrelationId,
         handleAssistantError,
+        // dev hud
+        dev_lastMemoryTrace: lastMemoryTrace,
+        dev_lastCorrelationId: lastCorrelationId,
       }}
     >
       {children}

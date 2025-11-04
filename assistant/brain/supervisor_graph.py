@@ -767,11 +767,19 @@ def _fuse_context(state: SupervisorState) -> SupervisorState:
     return {**state, "fused_context": fused}
 
 
-def _check_continuity_guard(state: SupervisorState, new_domain: str) -> tuple[bool, Optional[str]]:
+def _check_continuity_guard(
+    state: SupervisorState,
+    new_domain: str,
+    intent_confidence: float = 0.0
+) -> tuple[bool, Optional[str]]:
     """
     STEP 3: Continuity Guard
 
     Prevent unintentional domain drift on ambiguous follow-ups.
+
+    CRITICAL FIX: Check intent confidence BEFORE pattern matching.
+    High-confidence intent switches should be allowed even if they contain
+    patterns like "in " (e.g., "i want an apartment in girne").
 
     Returns (should_maintain_continuity, reason)
     - True: Keep active_domain, don't switch
@@ -785,6 +793,18 @@ def _check_continuity_guard(state: SupervisorState, new_domain: str) -> tuple[bo
         return False, None  # Same domain, no drift
 
     user_input = state.get("user_input", "").lower().strip()
+
+    # CRITICAL FIX: Check intent confidence first
+    # If we have a high-confidence intent switch, allow it regardless of patterns
+    if intent_confidence >= 0.65:
+        logger.info(
+            "[%s] Continuity guard: high confidence intent (%0.2f) - allowing domain change %s → %s",
+            state.get("thread_id"),
+            intent_confidence,
+            active_domain,
+            new_domain
+        )
+        return False, f"high_confidence:{intent_confidence:.2f}"
 
     # Explicit switch signals (override continuity)
     explicit_switch_patterns = [
@@ -805,6 +825,7 @@ def _check_continuity_guard(state: SupervisorState, new_domain: str) -> tuple[bo
             return False, f"explicit_switch:{pattern}"
 
     # Ambiguous follow-ups (should maintain continuity)
+    # Only apply this logic for LOW confidence intents
     ambiguous_patterns = [
         "in ", "near ", "around ", "at ",  # Location refinements
         "cheaper", "bigger", "smaller", "better",  # Comparatives
@@ -815,9 +836,10 @@ def _check_continuity_guard(state: SupervisorState, new_domain: str) -> tuple[bo
     for pattern in ambiguous_patterns:
         if user_input.startswith(pattern) or f" {pattern}" in user_input:
             logger.info(
-                "[%s] Continuity guard: ambiguous follow-up detected ('%s') - maintaining domain %s",
+                "[%s] Continuity guard: ambiguous follow-up detected ('%s', low conf=%0.2f) - maintaining domain %s",
                 state.get("thread_id"),
                 pattern,
+                intent_confidence,
                 active_domain
             )
             return True, f"ambiguous_followup:{pattern}"

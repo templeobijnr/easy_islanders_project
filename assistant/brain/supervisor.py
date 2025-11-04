@@ -153,9 +153,13 @@ class CentralSupervisor:
             target_agent = self._map_intent_to_agent(intent_result.intent_type, intent_result.category)
 
             # STEP 3: Apply continuity guard to prevent unintentional domain drift
+            # CRITICAL FIX: Pass intent confidence to allow high-confidence switches
             from .supervisor_graph import _check_continuity_guard
             active_domain = state.get("active_domain")
-            should_maintain, continuity_reason = _check_continuity_guard(state, target_agent)
+            intent_confidence = getattr(intent_result, "confidence", 0.0)
+            should_maintain, continuity_reason = _check_continuity_guard(
+                state, target_agent, intent_confidence
+            )
 
             if should_maintain and active_domain:
                 logger.info(

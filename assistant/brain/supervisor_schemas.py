@@ -91,6 +91,15 @@ class SupervisorState(TypedDict):
     agent_context_summaries: Optional[Dict[str, str]]  # Per-agent summarized contexts
     last_summary_timestamp: Optional[float]  # Last time contexts were summarized
     summary_version: Optional[int]  # Version counter for summary updates
+    conversation_summary: Optional[str]  # Rolling conversation summary
+
+    # STEP 7: Context-Primed Router & Sticky-Intent Orchestration
+    current_intent: Optional[str]  # Current classified intent (e.g., "property_search")
+    last_intent: Optional[str]  # Previous intent before current turn
+    router_confidence: Optional[float]  # Confidence score from router (0-1)
+    router_reason: Optional[str]  # Explanation for routing decision (stick/switch/clarify)
+    router_evidence: Optional[Dict[str, Any]]  # Evidence dict (logits, probs, tokens)
+    clarify: Optional[bool]  # Flag to request user clarification
 
 
 class MapMarker(BaseModel):

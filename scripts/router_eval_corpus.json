@@ -1,37 +1,152 @@
 [
-  {"utterance": "hi there", "expected_domain": "general_conversation"},
-  {"utterance": "hello", "expected_domain": "general_conversation"},
-  {"utterance": "good morning", "expected_domain": "general_conversation"},
-  {"utterance": "how are you", "expected_domain": "general_conversation"},
-  {"utterance": "what can you help me with", "expected_domain": "general_conversation"},
-
-  {"utterance": "apartment in kyrenia", "expected_domain": "real_estate"},
-  {"utterance": "looking for a villa to rent", "expected_domain": "real_estate"},
-  {"utterance": "house for sale in famagusta", "expected_domain": "real_estate"},
-  {"utterance": "property listings", "expected_domain": "real_estate"},
-  {"utterance": "real estate in cyprus", "expected_domain": "real_estate"},
-  {"utterance": "find me an apartment", "expected_domain": "real_estate"},
-  {"utterance": "rent a house", "expected_domain": "real_estate"},
-
-  {"utterance": "used car for sale", "expected_domain": "marketplace"},
-  {"utterance": "buy a second hand phone", "expected_domain": "marketplace"},
-  {"utterance": "electronics for sale", "expected_domain": "marketplace"},
-  {"utterance": "looking for a car", "expected_domain": "marketplace"},
-  {"utterance": "sell my laptop", "expected_domain": "marketplace"},
-  {"utterance": "marketplace items", "expected_domain": "marketplace"},
-  {"utterance": "buy used furniture", "expected_domain": "marketplace"},
-
-  {"utterance": "pharmacy in nicosia", "expected_domain": "local_info"},
-  {"utterance": "hospital near me", "expected_domain": "local_info"},
-  {"utterance": "doctor appointment", "expected_domain": "local_info"},
-  {"utterance": "find a pharmacy", "expected_domain": "local_info"},
-  {"utterance": "emergency room", "expected_domain": "local_info"},
-  {"utterance": "dentist in kyrenia", "expected_domain": "local_info"},
-  {"utterance": "local services", "expected_domain": "local_info"},
-
-  {"utterance": "what's the weather like", "expected_domain": "general_conversation"},
-  {"utterance": "tell me a joke", "expected_domain": "general_conversation"},
-  {"utterance": "I need help with something", "expected_domain": "general_conversation"},
-  {"utterance": "can you assist me", "expected_domain": "general_conversation"}
+  {
+    "x": "i need a 2-bedroom apartment",
+    "y": "property_search",
+    "note": "Initial property search"
+  },
+  {
+    "x": "in girne",
+    "y": "property_search",
+    "note": "Short refinement - should stick to property_search"
+  },
+  {
+    "x": "show me apartments in kyrenia",
+    "y": "property_search",
+    "note": "Explicit property search with location"
+  },
+  {
+    "x": "cheaper",
+    "y": "property_search",
+    "note": "Refinement lexicon - should stick if active_domain is property"
+  },
+  {
+    "x": "looking for a villa to rent",
+    "y": "property_search",
+    "note": "Property search with type specification"
+  },
+  {
+    "x": "house for sale in famagusta",
+    "y": "property_search",
+    "note": "Property search with transaction type"
+  },
+  {
+    "x": "actually show me cars",
+    "y": "vehicle_search",
+    "note": "Explicit switch marker - should switch from property to vehicle"
+  },
+  {
+    "x": "i want to buy a car",
+    "y": "vehicle_search",
+    "note": "Vehicle search intent"
+  },
+  {
+    "x": "show me sedans",
+    "y": "vehicle_search",
+    "note": "Vehicle type specification"
+  },
+  {
+    "x": "used car for sale",
+    "y": "vehicle_search",
+    "note": "Vehicle marketplace search"
+  },
+  {
+    "x": "instead show me motorcycles",
+    "y": "vehicle_search",
+    "note": "Explicit switch marker 'instead'"
+  },
+  {
+    "x": "duty pharmacy",
+    "y": "local_lookup",
+    "note": "Local info - pharmacy lookup"
+  },
+  {
+    "x": "where can i eat",
+    "y": "local_lookup",
+    "note": "Local info - restaurant lookup"
+  },
+  {
+    "x": "pharmacies nearby",
+    "y": "local_lookup",
+    "note": "Local info - proximity search"
+  },
+  {
+    "x": "hospitals in nicosia",
+    "y": "local_lookup",
+    "note": "Local info - healthcare facility lookup"
+  },
+  {
+    "x": "pharmacy in nicosia",
+    "y": "local_lookup",
+    "note": "Local info - pharmacy with location"
+  },
+  {
+    "x": "hospital near me",
+    "y": "local_lookup",
+    "note": "Local info - proximity healthcare"
+  },
+  {
+    "x": "hello",
+    "y": "general_help",
+    "note": "Greeting - general conversation"
+  },
+  {
+    "x": "how does this work",
+    "y": "general_help",
+    "note": "Help request - general conversation"
+  },
+  {
+    "x": "thank you",
+    "y": "general_help",
+    "note": "Gratitude - general conversation"
+  },
+  {
+    "x": "what can you help me with",
+    "y": "general_help",
+    "note": "Capability inquiry - general conversation"
+  },
+  {
+    "x": "hi there",
+    "y": "general_help",
+    "note": "Greeting variant"
+  },
+  {
+    "x": "good morning",
+    "y": "general_help",
+    "note": "Greeting with time"
+  },
+  {
+    "x": "bigger",
+    "y": "property_search",
+    "note": "Refinement - should stick to property if active"
+  },
+  {
+    "x": "near the beach",
+    "y": "property_search",
+    "note": "Refinement with location - should stick to property"
+  },
+  {
+    "x": "forget that, where are the atms",
+    "y": "local_lookup",
+    "note": "Explicit switch to local_lookup"
+  },
+  {
+    "x": "similar apartments",
+    "y": "property_search",
+    "note": "Refinement lexicon 'similar'"
+  },
+  {
+    "x": "what else",
+    "y": "property_search",
+    "note": "Refinement continuation"
+  },
+  {
+    "x": "more options",
+    "y": "property_search",
+    "note": "Refinement - more results"
+  },
+  {
+    "x": "another one",
+    "y": "property_search",
+    "note": "Refinement - next result"
+  }
 ]
-

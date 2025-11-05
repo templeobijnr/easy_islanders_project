@@ -1462,6 +1462,11 @@ def build_supervisor_graph():
             state = _fuse_context(state)  # STEP 3: Merge all context sources
             state = _enforce_token_budget(state, max_tokens=6000)  # STEP 5: Enforce token budget
             state = rotate_inactive_contexts(state, ttl=1800)  # STEP 6: Lifecycle management
+
+            # STEP 7: Context-Primed Router & Sticky-Intent Orchestration
+            from .supervisor import route_with_sticky
+            state = route_with_sticky(state)  # Apply hysteresis-based routing
+
             sticky_agent, updated_ctx = _maybe_route_sticky(state)
             if sticky_agent:
                 logger.info(

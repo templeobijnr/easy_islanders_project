@@ -284,3 +284,85 @@ class CentralSupervisor:
             "GENERAL_CONVERSATION": "general_conversation_agent",
         }
         return mapping.get(domain, "general_conversation_agent")
+
+
+# =========================================================================
+# STEP 7: Context-Primed Router & Sticky-Intent Orchestration
+# =========================================================================
+
+def route_with_sticky(state: dict) -> dict:
+    """
+    STEP 7: Route with sticky-intent orchestration using hysteresis.
+
+    This function implements context-primed routing with hysteresis thresholds
+    to prevent intent oscillation ("Girne" drift bug). It uses the fused context
+    from STEP 6 to make intelligent routing decisions.
+
+    Process:
+    1. Classify intent using context-primed router (user_input + fused_context)
+    2. Apply continuity decision (stick/switch/clarify) based on:
+       - Confidence thresholds (stick < 0.55, switch > 0.72)
+       - Short input detection (≤5 words → stick)
+       - Refinement lexicon ("in girne", "cheaper" → stick)
+       - Explicit switch markers ("actually show me cars" → switch)
+    3. Update state with routing decision and metadata
+
+    Args:
+        state: SupervisorState with user_input, fused_context, active_domain
+
+    Returns:
+        Updated state with:
+        - target_agent: Agent to route to
+        - current_intent: Classified intent label
+        - router_confidence: Classification confidence (0-1)
+        - router_reason: Explanation for routing decision
+        - router_evidence: Debug info (logits, probs, tokens)
+        - clarify: Flag if user clarification needed
+    """
+    from . import intent_router
+
+    # Classify intent with context-primed routing
+    new_intent, new_agent, confidence, evidence = intent_router.classify(state)
+
+    # Store router metadata
+    state["router_confidence"] = confidence
+    state["router_evidence"] = evidence
+    state["last_intent"] = state.get("current_intent")
+
+    # Apply continuity decision (hysteresis)
+    decision = intent_router.continuity_decision(state, new_intent, new_agent, confidence)
+    state["router_reason"] = decision["reason"]
+
+    # Determine target agent based on decision
+    if decision["decision"] == "stick" and state.get("active_domain"):
+        # Stick with current domain
+        target_agent = state["active_domain"]
+        state["current_intent"] = state.get("current_intent") or new_intent
+        logger.info(
+            f"[ROUTER] STICK decision: maintaining {target_agent} "
+            f"(reason: {decision['reason']})"
+        )
+
+    elif decision["decision"] == "clarify":
+        # Ask for clarification, don't change domain
+        target_agent = state.get("active_domain") or "general_conversation_agent"
+        state["clarify"] = True
+        state["current_intent"] = new_intent
+        logger.info(
+            f"[ROUTER] CLARIFY decision: staying in {target_agent} "
+            f"(reason: {decision['reason']}, conf={confidence:.3f})"
+        )
+
+    else:
+        # Switch to new domain
+        target_agent = new_agent
+        state["current_intent"] = new_intent
+        state["active_domain"] = new_agent
+        logger.info(
+            f"[ROUTER] SWITCH decision: {state.get('active_domain')} → {target_agent} "
+            f"(reason: {decision['reason']}, conf={confidence:.3f})"
+        )
+
+    state["target_agent"] = target_agent
+
+    return state

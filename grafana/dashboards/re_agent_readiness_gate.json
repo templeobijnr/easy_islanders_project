@@ -1,0 +1,306 @@
+{
+  "dashboard": {
+    "title": "RE Agent Readiness Gate",
+    "tags": ["real-estate", "validation", "rehydration", "zep"],
+    "timezone": "browser",
+    "refresh": "10s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Acts by Turn (Rate/5m)",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "sum by (act)(rate(re_agent_act_total[5m]))",
+            "legendFormat": "{{act}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "requests/sec"},
+          {"format": "short"}
+        ],
+        "legend": {"show": true, "alignAsTable": true, "values": true, "current": true}
+      },
+      {
+        "id": 2,
+        "title": "Turn Latency p50/p95/p99 (ms)",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, sum by (le)(rate(re_turn_total_ms_bucket[5m])))",
+            "legendFormat": "p50",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, sum by (le)(rate(re_turn_total_ms_bucket[5m])))",
+            "legendFormat": "p95 (SLO: 1200ms)",
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.99, sum by (le)(rate(re_turn_total_ms_bucket[5m])))",
+            "legendFormat": "p99",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          {"format": "ms", "label": "latency"},
+          {"format": "short"}
+        ],
+        "alert": {
+          "conditions": [
+            {
+              "evaluator": {"params": [1200], "type": "gt"},
+              "operator": {"type": "and"},
+              "query": {"params": ["B", "5m", "now"]},
+              "reducer": {"params": [], "type": "avg"},
+              "type": "query"
+            }
+          ],
+          "frequency": "60s",
+          "handler": 1,
+          "name": "RE Turn Latency High",
+          "message": "RE turn p95 latency exceeded 1200ms SLO"
+        }
+      },
+      {
+        "id": 3,
+        "title": "Backend Search Latency p50/p95/p99 (ms)",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, sum by (le)(rate(re_backend_search_ms_bucket[5m])))",
+            "legendFormat": "p50",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, sum by (le)(rate(re_backend_search_ms_bucket[5m])))",
+            "legendFormat": "p95 (SLO: 450ms)",
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.99, sum by (le)(rate(re_backend_search_ms_bucket[5m])))",
+            "legendFormat": "p99",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          {"format": "ms", "label": "latency"},
+          {"format": "short"}
+        ],
+        "alert": {
+          "conditions": [
+            {
+              "evaluator": {"params": [450], "type": "gt"},
+              "operator": {"type": "and"},
+              "query": {"params": ["B", "5m", "now"]},
+              "reducer": {"params": [], "type": "avg"},
+              "type": "query"
+            }
+          ],
+          "frequency": "60s",
+          "handler": 1,
+          "name": "RE Search Latency High",
+          "message": "RE backend search p95 latency exceeded 450ms SLO"
+        }
+      },
+      {
+        "id": 4,
+        "title": "JSON Contract Failures (Rate/5m)",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(re_json_parse_fail_total[5m])",
+            "legendFormat": "parse failures",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(re_agent_act_total[5m])",
+            "legendFormat": "total acts",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "failures/sec"},
+          {"format": "short"}
+        ],
+        "alert": {
+          "conditions": [
+            {
+              "evaluator": {"params": [0.005], "type": "gt"},
+              "operator": {"type": "and"},
+              "query": {"params": ["A", "10m", "now"]},
+              "reducer": {"params": [], "type": "avg"},
+              "type": "query"
+            }
+          ],
+          "frequency": "60s",
+          "handler": 1,
+          "name": "RE JSON Contract High",
+          "message": "RE JSON contract violations exceeded 0.5% threshold"
+        }
+      },
+      {
+        "id": 5,
+        "title": "Cards Emitted by Variant (Rate/5m)",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 16, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "sum by (variant)(rate(re_card_emitted_total[5m]))",
+            "legendFormat": "{{variant}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "cards/sec"},
+          {"format": "short"}
+        ],
+        "legend": {"show": true, "alignAsTable": true, "values": true, "current": true}
+      },
+      {
+        "id": 6,
+        "title": "Circuit Breaker State",
+        "type": "stat",
+        "gridPos": {"x": 12, "y": 16, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "re_circuit_breaker_state{service=\"backend_search\"}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "graphMode": "none",
+          "colorMode": "background",
+          "justifyMode": "center",
+          "textMode": "value_and_name"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {"type": "value", "options": {"0": {"text": "CLOSED", "color": "green"}}},
+              {"type": "value", "options": {"1": {"text": "OPEN", "color": "red"}}}
+            ],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": null, "color": "green"},
+                {"value": 1, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 7,
+        "title": "Errors by Type (Rate/5m)",
+        "type": "graph",
+        "gridPos": {"x": 18, "y": 16, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "sum by (type)(rate(re_error_total[5m]))",
+            "legendFormat": "{{type}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "errors/sec"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Rehydration Success/Fail (Rate/5m)",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 20, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(rehydration_success_total[5m])",
+            "legendFormat": "success",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(rehydration_fail_total[5m])",
+            "legendFormat": "fail",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "rehydrations/sec"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Zep Write Skipped by Reason (Rate/5m)",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 20, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "sum by (reason)(rate(zep_write_skipped_total[5m]))",
+            "legendFormat": "{{reason}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "skipped writes/sec"},
+          {"format": "short"}
+        ],
+        "legend": {"show": true, "alignAsTable": true, "values": true, "current": true}
+      },
+      {
+        "id": 10,
+        "title": "Slot Funnel Conversion (Sessions)",
+        "type": "bargauge",
+        "gridPos": {"x": 0, "y": 28, "w": 24, "h": 8},
+        "targets": [
+          {
+            "expr": "sum(re_agent_act_total{act=\"ASK_SLOT\"})",
+            "legendFormat": "ASK_SLOT",
+            "refId": "A"
+          },
+          {
+            "expr": "sum(re_agent_act_total{act=\"SEARCH_AND_RECOMMEND\"})",
+            "legendFormat": "SEARCH_AND_RECOMMEND",
+            "refId": "B"
+          },
+          {
+            "expr": "sum(re_agent_act_total{act=\"ESCALATE\"})",
+            "legendFormat": "ESCALATE",
+            "refId": "C"
+          },
+          {
+            "expr": "sum(re_agent_act_total{act=\"CLARIFY\"})",
+            "legendFormat": "CLARIFY",
+            "refId": "D"
+          }
+        ],
+        "options": {
+          "orientation": "horizontal",
+          "displayMode": "gradient",
+          "showUnfilled": true
+        }
+      }
+    ],
+    "annotations": {
+      "list": [
+        {
+          "datasource": "Prometheus",
+          "enable": true,
+          "expr": "ALERTS{alertname=~\"RE.*\",alertstate=\"firing\"}",
+          "iconColor": "red",
+          "name": "RE Alerts",
+          "tagKeys": "alertname,severity"
+        }
+      ]
+    }
+  }
+}

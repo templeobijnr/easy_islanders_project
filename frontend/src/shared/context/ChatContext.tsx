@@ -15,6 +15,18 @@ type AssistantFrame = {
   meta: Record<string, any> & { in_reply_to: string };
 };
 
+type RehydrationData = {
+  rehydrated: boolean;
+  active_domain?: string;
+  current_intent?: string;
+  conversation_summary?: string;
+  turn_count?: number;
+  agent_contexts?: Record<string, any>;
+  shared_context?: Record<string, any>;
+  recent_turns?: any[];
+  user_profile?: Record<string, any>;
+};
+
 interface ChatState {
   messages: Message[];
   input: string;
@@ -36,6 +48,10 @@ interface ChatState {
   wsCorrelationId: string | null;
   handleAssistantError: (data: any) => void;
 
+  // Rehydration data from server-side push (eliminates REST fetches)
+  rehydrationData: RehydrationData | null;
+  setRehydrationData: (data: RehydrationData) => void;
+
   // Dev HUD (debug-only) fields
   dev_lastMemoryTrace: any | null;
   dev_lastCorrelationId: string | null;
@@ -56,6 +72,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [wsCorrelationId] = useState<string | null>(null);
   const [lastMemoryTrace, setLastMemoryTrace] = useState<any | null>(null);
   const [lastCorrelationId, setLastCorrelationId] = useState<string | null>(null);
+  const [rehydrationData, setRehydrationData] = useState<RehydrationData | null>(null);
   const rafRef = useRef<number | null>(null);
   const pendingTraceRef = useRef<any | null>(null);
   const pendingCorrRef = useRef<string | null>(null);
@@ -310,6 +327,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         pushAssistantMessage,
         wsCorrelationId,
         handleAssistantError,
+        // rehydration (server-side push)
+        rehydrationData,
+        setRehydrationData,
         // dev hud
         dev_lastMemoryTrace: lastMemoryTrace,
         dev_lastCorrelationId: lastCorrelationId,

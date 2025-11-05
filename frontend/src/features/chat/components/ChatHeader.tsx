@@ -8,36 +8,65 @@ import config from '../../../config';
 type PrefItem = { type: string; value: any; confidence?: number; source?: string };
 
 export const ChatHeader: React.FC = () => {
-  const { threadId } = useChat();
+  const { threadId, rehydrationData } = useChat();
   const [prefs, setPrefs] = useState<PrefItem[]>([]);
   const [paused, setPaused] = useState<boolean>(false);
   const [editOpen, setEditOpen] = useState<boolean>(false);
-  const prefsUiEnabled = config?.FEATURES?.PREFS_UI ?? (process.env.REACT_APP_PREFS_UI_ENABLED !== 'false');
+  const prefsUiEnabled = config?.FEATURES?.PREFS_UI_ENABLED ?? (process.env.REACT_APP_PREFS_UI_ENABLED !== 'false');
 
+  // Extract preferences from rehydration data (server-side push)
+  // No more REST calls - eliminates 403 errors on reconnect
   useEffect(() => {
-    let mounted = true;
-    const fetchAll = async () => {
-      try {
-        const res = await api.getActivePreferences('real_estate', 0.5);
-        const list = (res?.preferences?.real_estate || []) as PrefItem[];
-        if (mounted) setPrefs(list);
-      } catch (e) {
-        // ignore
+    if (!rehydrationData) return;
+
+    // Extract preferences from shared_context
+    const extractedPrefs: PrefItem[] = [];
+    const sharedCtx = rehydrationData.shared_context;
+
+    if (sharedCtx) {
+      // Location preference
+      if (sharedCtx.location) {
+        extractedPrefs.push({
+          type: 'location',
+          value: sharedCtx.location,
+          confidence: 0.9,
+          source: 'rehydration',
+        });
       }
-      try {
-        if (threadId) {
-          const st = await api.getThreadPersonalization(threadId);
-          if (mounted && st?.ok === true && typeof st.paused === 'boolean') setPaused(st.paused);
-        }
-      } catch (e) {
-        // ignore
+
+      // Budget preference
+      if (sharedCtx.budget) {
+        extractedPrefs.push({
+          type: 'budget',
+          value: sharedCtx.budget,
+          confidence: 0.9,
+          source: 'rehydration',
+        });
       }
-    };
-    fetchAll();
-    return () => {
-      mounted = false;
-    };
-  }, [threadId]);
+
+      // Bedrooms preference
+      if (sharedCtx.bedrooms !== undefined) {
+        extractedPrefs.push({
+          type: 'bedrooms',
+          value: { count: sharedCtx.bedrooms },
+          confidence: 0.9,
+          source: 'rehydration',
+        });
+      }
+
+      // Property type preference
+      if (sharedCtx.property_type) {
+        extractedPrefs.push({
+          type: 'property_type',
+          value: sharedCtx.property_type,
+          confidence: 0.9,
+          source: 'rehydration',
+        });
+      }
+    }
+
+    setPrefs(extractedPrefs);
+  }, [rehydrationData]);
 
   const prettyChips = useMemo(() => {
     const chips: string[] = [];

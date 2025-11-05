@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import api from '../../../../api';
+import { useChat } from '../../../../shared/context/ChatContext';
 
 type Props = {
   open: boolean;
@@ -17,6 +18,7 @@ type PrefsForm = {
 };
 
 export const PreferencesModal: React.FC<Props> = ({ open, onClose }) => {
+  const { rehydrationData } = useChat();
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState<PrefsForm>({
     location: '',
@@ -28,46 +30,50 @@ export const PreferencesModal: React.FC<Props> = ({ open, onClose }) => {
     amenities: '',
   });
 
+  // Load preferences from rehydration data (server-side push)
+  // No more REST calls - eliminates 403 errors
   useEffect(() => {
-    if (!open) return;
-    let mounted = true;
-    (async () => {
-      try {
-        const res = await api.getActivePreferences('real_estate', 0.3);
-        const items = (res?.preferences?.real_estate || []) as any[];
-        if (!mounted) return;
-        const next = { ...form };
-        for (const p of items) {
-          const t = String(p.type || p.preference_type || '').toLowerCase();
-          if (t === 'location') {
-            const v = p.value?.value || p.value?.city || p.value;
-            if (v) next.location = String(v);
-          } else if (t === 'budget') {
-            const min = p.value?.min;
-            const max = p.value?.max;
-            const cur = p.value?.currency || p.value?.unit || 'EUR';
-            if (min != null) next.budgetMin = String(min);
-            if (max != null) next.budgetMax = String(max);
-            if (cur) next.budgetCurrency = String(cur).toUpperCase();
-          } else if (t === 'bedrooms') {
-            const c = p.value?.count ?? p.value?.value ?? p.value;
-            if (c != null) next.bedrooms = String(c);
-          } else if (t === 'property_type') {
-            const v = p.value?.value || p.value;
-            if (v) next.propertyType = String(v);
-          } else if (t === 'amenities') {
-            const vs = p.value?.values || p.value;
-            if (Array.isArray(vs)) next.amenities = vs.join(', ');
-          }
-        }
-        setForm(next);
-      } catch (e) {
-        // ignore
+    if (!open || !rehydrationData) return;
+
+    const next = { ...form };
+    const sharedCtx = rehydrationData.shared_context;
+
+    if (sharedCtx) {
+      // Location
+      if (sharedCtx.location) {
+        const v = sharedCtx.location.value || sharedCtx.location.city || sharedCtx.location;
+        if (v) next.location = String(v);
       }
-    })();
-    return () => { mounted = false; };
+
+      // Budget
+      if (sharedCtx.budget) {
+        const min = sharedCtx.budget.min;
+        const max = sharedCtx.budget.max;
+        const cur = sharedCtx.budget.currency || sharedCtx.budget.unit || 'EUR';
+        if (min != null) next.budgetMin = String(min);
+        if (max != null) next.budgetMax = String(max);
+        if (cur) next.budgetCurrency = String(cur).toUpperCase();
+      }
+
+      // Bedrooms
+      if (sharedCtx.bedrooms !== undefined) {
+        next.bedrooms = String(sharedCtx.bedrooms);
+      }
+
+      // Property type
+      if (sharedCtx.property_type) {
+        next.propertyType = String(sharedCtx.property_type);
+      }
+
+      // Amenities
+      if (sharedCtx.amenities && Array.isArray(sharedCtx.amenities)) {
+        next.amenities = sharedCtx.amenities.join(', ');
+      }
+    }
+
+    setForm(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, rehydrationData]);
 
   const canSave = useMemo(() => !loading, [loading]);
 

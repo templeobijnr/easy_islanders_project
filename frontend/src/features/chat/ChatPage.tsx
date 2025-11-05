@@ -19,6 +19,7 @@ const ChatPage: React.FC = () => {
     setTyping,
     wsCorrelationId,
     handleAssistantError,
+    setRehydrationData,
   } = useChat();
 
   // Connect to WebSocket for real-time updates
@@ -32,8 +33,18 @@ const ChatPage: React.FC = () => {
         turnCount: wsMessage.turn_count,
         summary: wsMessage.conversation_summary?.substring(0, 50),
       });
-      // TODO: Store rehydration data in context or state if needed
-      // For now, just log it - the context is already restored server-side
+      // Store rehydration data in context (eliminates need for REST fetches)
+      setRehydrationData({
+        rehydrated: wsMessage.rehydrated,
+        active_domain: wsMessage.active_domain,
+        current_intent: wsMessage.current_intent,
+        conversation_summary: wsMessage.conversation_summary,
+        turn_count: wsMessage.turn_count,
+        agent_contexts: wsMessage.agent_contexts,
+        shared_context: wsMessage.shared_context,
+        recent_turns: wsMessage.recent_turns,
+        user_profile: wsMessage.user_profile,
+      });
       return;
     }
 
@@ -44,7 +55,7 @@ const ChatPage: React.FC = () => {
     if (wsMessage.type === 'chat_error') {
       handleAssistantError(wsMessage);
     }
-  }, [pushAssistantMessage, handleAssistantError]);
+  }, [pushAssistantMessage, handleAssistantError, setRehydrationData]);
 
   const handleWsError = useCallback((error: string) => {
     console.error('[Chat] WebSocket error:', error);

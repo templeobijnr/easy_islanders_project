@@ -146,7 +146,12 @@ def handle_real_estate_prompt_driven(state: SupervisorState) -> SupervisorState:
         )
         record_json_parse_fail()
         record_error("json_contract")
-        return _build_error_response(state, "I apologize, I need to reformulate my response. Could you repeat that?")
+        # Cause-aware fallback: Parse failure
+        fallback_msg = (
+            "I missed that. I can continue with your last details "
+            "or you can tell me what you're looking for again."
+        )
+        return _build_error_response(state, fallback_msg)
 
     act = parsed.get("act")
     speak = parsed.get("speak", "")

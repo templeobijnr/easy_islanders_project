@@ -89,6 +89,22 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             try:
                 from assistant.brain.supervisor_graph import rehydrate_state
                 rehydrated = rehydrate_state(self.thread_id)
+
+                # Build rehydration payload for client
+                rehydration_payload = {
+                    "type": "rehydration",
+                    "event": "rehydration",  # For metrics tracking
+                    "rehydrated": rehydrated.get("rehydrated", False),
+                    "thread_id": self.thread_id,
+                    "active_domain": rehydrated.get("active_domain"),
+                    "current_intent": rehydrated.get("current_intent"),
+                    "conversation_summary": rehydrated.get("conversation_summary"),
+                    "turn_count": rehydrated.get("turn_count", 0),
+                }
+
+                # Send rehydration payload to client (server-side push)
+                await self.safe_send_json(rehydration_payload)
+
                 if rehydrated.get("rehydrated"):
                     logger.info(
                         "ws_connect_rehydrated",
@@ -97,6 +113,15 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                             "domain": rehydrated.get("active_domain"),
                             "intent": rehydrated.get("current_intent"),
                             "turns": rehydrated.get("turn_count"),
+                            "pushed_to_client": True,
+                        }
+                    )
+                else:
+                    logger.info(
+                        "ws_connect_rehydration_empty",
+                        extra={
+                            "thread_id": self.thread_id,
+                            "reason": "no_snapshot_or_disabled",
                         }
                     )
             except Exception as rehydrate_error:
@@ -107,6 +132,14 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                         "error": str(rehydrate_error),
                     }
                 )
+                # Send failure payload to client
+                await self.safe_send_json({
+                    "type": "rehydration",
+                    "event": "rehydration",
+                    "rehydrated": False,
+                    "thread_id": self.thread_id,
+                    "error": "rehydration_failed",
+                })
 
             logger.info(
                 "ws_connect_ok",

@@ -33,6 +33,17 @@ def _should_pin_to_real_estate(state: SupervisorState) -> Tuple[bool, Optional[s
     agent_contexts = state.get("agent_contexts") or {}
     re_context_dict = agent_contexts.get("real_estate_agent", {})
 
+    # Check if awaiting_slot is set (router continuity pin)
+    # If agent is waiting for a specific slot, keep pinned to avoid router flapping
+    awaiting_slot = re_context_dict.get("awaiting_slot")
+    if awaiting_slot:
+        logger.info(
+            "[slot_filling_guard] Router continuity: awaiting_slot=%s",
+            awaiting_slot,
+            extra={"thread_id": state.get("thread_id")}
+        )
+        return True, f"awaiting_slot_{awaiting_slot}"
+
     # Check if in slot_filling stage
     stage = re_context_dict.get("stage", "discovery")
     if stage != "slot_filling":

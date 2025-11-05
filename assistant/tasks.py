@@ -111,6 +111,35 @@ class _ZepWriteContext:
         self.used = False
 
     def add_message(self, op: str, payload: Dict[str, Any]) -> bool:
+        # Guard: Do not enqueue empty or invalid messages to Zep
+        # Prevents "MessageEmbedderTask messageTaskPayloadToMessages returned no messages" spam
+        if not payload:
+            logger.debug(
+                "zep_write_skipped_empty_payload",
+                extra={"thread_id": self.thread_id, "op": op, "reason": "empty_payload"}
+            )
+            return False
+
+        content = payload.get("content", "").strip()
+        if not content or len(content) < 2:
+            logger.debug(
+                "zep_write_skipped_empty_content",
+                extra={
+                    "thread_id": self.thread_id,
+                    "op": op,
+                    "reason": "empty_or_short_content",
+                    "content_len": len(content),
+                }
+            )
+            # Track skipped writes in metrics
+            try:
+                from assistant.monitoring.metrics import inc_zep_write_skipped
+                inc_zep_write_skipped("empty_content")
+            except ImportError:
+                pass
+            return False
+
+        # Proceed with write
         success, _ = call_zep(op, lambda: self.client.add_messages(self.thread_id, [payload]), observe_retry=True)
         if success:
             self.used = True

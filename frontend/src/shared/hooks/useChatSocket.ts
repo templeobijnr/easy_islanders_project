@@ -270,6 +270,17 @@ export function useChatSocket(threadId: string | null, opts: Options = {}) {
             }
           }
 
+          // Handle rehydration (server-side push on reconnect)
+          if (parsed.type === 'rehydration') {
+            console.log('[WebSocket] Received rehydration data:', {
+              rehydrated: parsed.rehydrated,
+              active_domain: parsed.active_domain,
+              turn_count: parsed.turn_count,
+            });
+            onMessageRef.current?.(parsed);
+            return;
+          }
+
           // Handle typing status
           if (parsed.type === 'chat_status' && parsed.event === 'typing') {
             if (typeof parsed.value === 'boolean') {

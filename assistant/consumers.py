@@ -85,13 +85,86 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             if _PROMETHEUS_AVAILABLE and WEBSOCKET_CONNECTIONS:
                 WEBSOCKET_CONNECTIONS.labels(thread_id=str(self.thread_id)).inc()
 
-            # STEP 6: Rehydrate conversation state on reconnect
+            # STEP 6 + FIX: Rehydrate conversation state on reconnect and PUSH to client
             try:
-                from assistant.brain.supervisor_graph import rehydrate_state
+                from assistant.brain.supervisor_graph import rehydrate_state, _get_checkpoint_state
+
+                # Get rehydrated state from Zep
                 rehydrated = rehydrate_state(self.thread_id)
+
+                # Build comprehensive rehydration payload
+                rehydration_payload = {
+                    "type": "rehydration",
+                    "thread_id": self.thread_id,
+                    "rehydrated": rehydrated.get("rehydrated", False),
+                    "active_domain": rehydrated.get("active_domain"),
+                    "current_intent": rehydrated.get("current_intent"),
+                    "conversation_summary": rehydrated.get("conversation_summary", "")[:500],  # Truncate to 500 chars
+                    "turn_count": rehydrated.get("turn_count", 0),
+                }
+
+                # Try to get additional context from checkpoint
+                try:
+                    checkpoint_state = _get_checkpoint_state(self.thread_id)
+                    if checkpoint_state:
+                        # Add agent contexts
+                        agent_contexts = checkpoint_state.get("agent_contexts", {})
+                        if agent_contexts:
+                            # Prune agent contexts to essential fields only
+                            pruned_contexts = {}
+                            for agent_name, agent_ctx in agent_contexts.items():
+                                if isinstance(agent_ctx, dict):
+                                    pruned_contexts[agent_name] = {
+                                        "filled_slots": agent_ctx.get("filled_slots", {}),
+                                        "stage": agent_ctx.get("stage"),
+                                        "awaiting_slot": agent_ctx.get("awaiting_slot"),
+                                    }
+                            rehydration_payload["agent_contexts"] = pruned_contexts
+
+                        # Add shared context (location, budget, etc.)
+                        shared_context = {}
+                        re_ctx = agent_contexts.get("real_estate_agent", {})
+                        if isinstance(re_ctx, dict):
+                            filled_slots = re_ctx.get("filled_slots", {})
+                            if "location" in filled_slots:
+                                shared_context["user_location"] = filled_slots["location"]
+                            if "budget" in filled_slots:
+                                shared_context["user_budget"] = filled_slots["budget"]
+                        rehydration_payload["shared_context"] = shared_context
+
+                        # Add recent turns (last 3)
+                        messages = checkpoint_state.get("messages", [])
+                        if messages:
+                            recent_turns = messages[-6:]  # Last 3 exchanges (user + assistant)
+                            rehydration_payload["recent_turns"] = [
+                                {
+                                    "role": msg.get("role"),
+                                    "content": str(msg.get("content", ""))[:200]  # Truncate content
+                                }
+                                for msg in recent_turns
+                            ]
+                except Exception as checkpoint_error:
+                    logger.debug(
+                        "ws_connect_checkpoint_fetch_failed",
+                        extra={"thread_id": self.thread_id, "error": str(checkpoint_error)}
+                    )
+
+                # Try to get user profile (minimal, PII-safe)
+                try:
+                    user_profile = {
+                        "user_id": str(getattr(user, "id", None)),
+                        "language": getattr(user, "preferred_language", "en"),
+                    }
+                    rehydration_payload["user_profile"] = user_profile
+                except Exception:
+                    pass
+
+                # PUSH rehydration payload to client immediately
+                await self.safe_send_json(rehydration_payload)
+
                 if rehydrated.get("rehydrated"):
                     logger.info(
-                        "ws_connect_rehydrated",
+                        "ws_connect_rehydrated_pushed",
                         extra={
                             "thread_id": self.thread_id,
                             "domain": rehydrated.get("active_domain"),
@@ -99,6 +172,12 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                             "turns": rehydrated.get("turn_count"),
                         }
                     )
+                else:
+                    logger.info(
+                        "ws_connect_no_rehydration_data",
+                        extra={"thread_id": self.thread_id}
+                    )
+
             except Exception as rehydrate_error:
                 logger.warning(
                     "ws_connect_rehydrate_failed",
@@ -107,6 +186,16 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                         "error": str(rehydrate_error),
                     }
                 )
+                # Send minimal rehydration payload on error
+                try:
+                    await self.safe_send_json({
+                        "type": "rehydration",
+                        "thread_id": self.thread_id,
+                        "rehydrated": False,
+                        "error": "rehydration_failed"
+                    })
+                except Exception:
+                    pass
 
             logger.info(
                 "ws_connect_ok",

@@ -165,6 +165,20 @@ def _mirror_user_message(
     text: str,
     thread: ConversationThread,
 ) -> tuple[bool, float, Dict[str, int]]:
+    # GUARD: Never mirror empty or too-short messages
+    text_stripped = (text or "").strip()
+    if not text_stripped or len(text_stripped) < 2:
+        logger.info(
+            "zep_mirror_skipped_empty_user_message",
+            extra={
+                "thread_id": thread.thread_id,
+                "message_id": message.id,
+                "reason": "empty" if not text_stripped else "too_short",
+                "length": len(text_stripped)
+            }
+        )
+        return False, 0.0, {}
+
     redaction = redact_pii(text)
     redacted_text = redaction["text"]
     msg_id = str(message.client_msg_id or message.id)
@@ -197,6 +211,20 @@ def _mirror_assistant_message(
     thread: ConversationThread,
     agent_result: Dict[str, Any],
 ) -> tuple[bool, float, Dict[str, int]]:
+    # GUARD: Never mirror empty or too-short messages
+    reply_stripped = (reply_text or "").strip()
+    if not reply_stripped or len(reply_stripped) < 2:
+        logger.info(
+            "zep_mirror_skipped_empty_assistant_message",
+            extra={
+                "thread_id": thread.thread_id,
+                "message_id": message.id,
+                "reason": "empty" if not reply_stripped else "too_short",
+                "length": len(reply_stripped)
+            }
+        )
+        return False, 0.0, {}
+
     redaction = redact_pii(reply_text)
     redacted_reply = redaction["text"]
     metadata: Dict[str, Any] = {

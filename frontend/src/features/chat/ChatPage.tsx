@@ -23,6 +23,20 @@ const ChatPage: React.FC = () => {
 
   // Connect to WebSocket for real-time updates
   const handleWsMessage = useCallback((wsMessage: any) => {
+    // Handle server-side rehydration push on reconnect
+    if (wsMessage.type === 'rehydration') {
+      console.log('[Chat] Rehydration data received:', {
+        rehydrated: wsMessage.rehydrated,
+        domain: wsMessage.active_domain,
+        intent: wsMessage.current_intent,
+        turnCount: wsMessage.turn_count,
+        summary: wsMessage.conversation_summary?.substring(0, 50),
+      });
+      // TODO: Store rehydration data in context or state if needed
+      // For now, just log it - the context is already restored server-side
+      return;
+    }
+
     if (wsMessage.type === 'chat_message' && wsMessage.event === 'assistant_message') {
       pushAssistantMessage(wsMessage);
       return;

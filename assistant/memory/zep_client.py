@@ -21,6 +21,15 @@ from email.utils import parsedate_to_datetime
 
 logger = logging.getLogger(__name__)
 
+# Import metrics for skipped writes
+try:
+    from assistant.monitoring.metrics import inc_zep_write_skipped
+    _METRICS_AVAILABLE = True
+except ImportError:
+    _METRICS_AVAILABLE = False
+    def inc_zep_write_skipped(op: str, reason: str) -> None:
+        pass
+
 
 class ZepClientError(RuntimeError):
     """Base error for Zep client failures."""
@@ -352,7 +361,52 @@ class ZepClient:
         thread_id: str,
         messages: Iterable[Dict[str, Any]],
     ) -> Dict[str, Any]:
-        payload = {"messages": list(messages)}
+        # Convert to list and validate messages
+        messages_list = list(messages)
+
+        # GUARD: Never enqueue empty messages arrays to Zep
+        if not messages_list:
+            logger.info(
+                "zep_write_skipped_empty_array",
+                extra={"thread_id": thread_id, "reason": "empty"}
+            )
+            inc_zep_write_skipped("add_messages", "empty_array")
+            return {}
+
+        # GUARD: Filter out messages with empty or too-short content
+        valid_messages = []
+        for msg in messages_list:
+            content = (msg.get("content") or "").strip()
+            role = msg.get("role", "")
+
+            if not content:
+                logger.info(
+                    "zep_write_skipped_empty_content",
+                    extra={"thread_id": thread_id, "role": role, "reason": "empty"}
+                )
+                inc_zep_write_skipped("add_messages", "empty_content")
+                continue
+
+            if len(content) < 2:
+                logger.info(
+                    "zep_write_skipped_short_content",
+                    extra={"thread_id": thread_id, "role": role, "length": len(content), "reason": "too_short"}
+                )
+                inc_zep_write_skipped("add_messages", "content_too_short")
+                continue
+
+            valid_messages.append(msg)
+
+        # If no valid messages after filtering, skip write
+        if not valid_messages:
+            logger.info(
+                "zep_write_skipped_no_valid_messages",
+                extra={"thread_id": thread_id, "original_count": len(messages_list), "reason": "empty"}
+            )
+            inc_zep_write_skipped("add_messages", "no_valid_messages")
+            return {}
+
+        payload = {"messages": valid_messages}
         paths: List[tuple[str, str]] = []
         seen: set[str] = set()
         for version in self._preferred_versions():

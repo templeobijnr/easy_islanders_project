@@ -1096,6 +1096,36 @@ def rehydrate_state(thread_id: str) -> Dict[str, Any]:
         return {"rehydrated": False}
 
 
+def _get_checkpoint_state(thread_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Helper to retrieve the latest checkpoint state from MemorySaver.
+
+    Args:
+        thread_id: Thread identifier
+
+    Returns:
+        Dict with checkpoint state or None if not found
+    """
+    try:
+        from langgraph.checkpoint.base import CheckpointTuple
+
+        # Get checkpoint from MemorySaver
+        config = {"configurable": {"thread_id": thread_id}}
+        checkpoint_tuple = _SUPERVISOR_MEMORY.get(config)
+
+        if checkpoint_tuple and hasattr(checkpoint_tuple, 'checkpoint'):
+            checkpoint = checkpoint_tuple.checkpoint
+            if hasattr(checkpoint, 'channel_values'):
+                return checkpoint.channel_values
+            elif isinstance(checkpoint, dict):
+                return checkpoint.get("channel_values") or checkpoint
+
+        return None
+    except Exception as e:
+        logger.debug("_get_checkpoint_state failed for thread %s: %s", thread_id, e)
+        return None
+
+
 def _fuse_context(state: SupervisorState) -> SupervisorState:
     """
     STEP 6: Enhanced Context Fusion

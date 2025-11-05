@@ -115,6 +115,51 @@ def _get_step6_defaults() -> Dict[str, Any]:
     }
 
 
+def load_re_slots_config(yaml_path: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Load Real Estate slots configuration from YAML.
+
+    Args:
+        yaml_path: Optional path to config file (defaults to config/real_estate_slots.yaml)
+
+    Returns:
+        Dict with real_estate config, or defaults if file not found
+
+    Example:
+        cfg = load_re_slots_config()
+        required_slots = cfg.get("required_slots", [])
+    """
+    if not yaml_path:
+        yaml_path = Path(__file__).parent.parent.parent / "config" / "real_estate_slots.yaml"
+
+    try:
+        with open(yaml_path, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+            return data.get("real_estate", {}) if data else _get_re_slots_defaults()
+    except (FileNotFoundError, yaml.YAMLError) as e:
+        print(f"Warning: Could not load RE slots config from {yaml_path}: {e}")
+        return _get_re_slots_defaults()
+
+
+def _get_re_slots_defaults() -> Dict[str, Any]:
+    """Get default Real Estate slots config values."""
+    return {
+        "required_slots": ["rental_type", "location", "budget"],
+        "optional_slots": ["bedrooms", "check_in", "check_out", "property_type"],
+        "slot_filling_guard": {
+            "enabled": True,
+            "max_input_words": 7,
+            "refinement_keywords": ["cheaper", "bigger", "smaller"],
+            "explicit_switch_keywords": ["actually", "instead", "show me"],
+        },
+        "search": {
+            "max_results": 20,
+            "timeout_seconds": 2.0,
+            "default_currency": "GBP",
+        },
+    }
+
+
 def validate_env() -> None:
     """Best-effort validation of required environment variables.
 

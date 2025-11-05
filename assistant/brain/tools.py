@@ -504,3 +504,53 @@ def search_external_web(query: str, search_type: str, language: str) -> List[Dic
     """Search external web (legacy compatibility)"""
     tool = ExternalWebSearchTool()
     return tool._run(query, search_type, language)
+
+# ============================================================================
+# RECOMMENDATION CARD TOOL SCHEMAS (STEP 7.1)
+# ============================================================================
+
+from pydantic import BaseModel, Field
+
+
+class CardItem(BaseModel):
+    """
+    Single recommendation card item.
+
+    Used for rendering property/listing cards in the UI.
+    """
+
+    id: str = Field(description="Unique identifier (UUID or ID)")
+    title: str = Field(description="Card title (e.g., '2BR Apartment in Girne')")
+    subtitle: Optional[str] = Field(default=None, description="Card subtitle (e.g., 'Girne, Karakum')")
+    price: Optional[str] = Field(default=None, description="Formatted price string (e.g., '£500/mo')")
+    image_url: Optional[str] = Field(default=None, description="Primary image URL")
+    metadata: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Additional metadata (bedrooms, bathrooms, amenities, etc.)"
+    )
+
+    class Config:
+        extra = "allow"
+
+
+class RecommendationCardPayload(BaseModel):
+    """
+    Tool call payload for recommendation_card tool.
+
+    This schema is emitted by the real_estate_agent when search results are ready.
+    The frontend consumes this to render recommendation cards.
+    """
+
+    items: List[CardItem] = Field(description="List of recommendation cards to display")
+    count: int = Field(description="Total number of results")
+    filters_used: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Filters applied to the search (for transparency)"
+    )
+    summary: Optional[str] = Field(
+        default=None,
+        description="Natural language summary (e.g., 'Found 12 apartments in Girne under £500/mo')"
+    )
+
+    class Config:
+        extra = "allow"

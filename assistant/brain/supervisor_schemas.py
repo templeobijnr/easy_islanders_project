@@ -2,6 +2,51 @@ from typing import TypedDict, Optional, Dict, List, Literal, Any
 from pydantic import BaseModel, Field
 
 
+class RealEstateAgentContext(BaseModel):
+    """
+    Typed context for real_estate_agent slot-filling and search flow.
+
+    Used in SupervisorState.agent_contexts["real_estate_agent"] for tracking
+    slot collection progress and preventing re-ask loops.
+    """
+
+    # Slot tracking
+    needed_slots: List[str] = Field(
+        default_factory=lambda: ["rental_type", "location", "budget"],
+        description="Required slots for search (order matters)"
+    )
+    filled_slots: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Collected slot values: {location: 'Girne', budget: 500, ...}"
+    )
+    awaiting_slot: Optional[str] = Field(
+        default=None,
+        description="Slot currently being asked for (e.g., 'rental_type')"
+    )
+
+    # Conversation stage
+    stage: Literal["discovery", "slot_filling", "presenting", "transaction"] = Field(
+        default="discovery",
+        description="Current stage in RE conversation flow"
+    )
+
+    # Search state
+    last_search_filters: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Filters from last search for refinement"
+    )
+    result_count: int = Field(default=0, description="Number of results from last search")
+
+    # Timestamps
+    last_active: float = Field(
+        default=0.0,
+        description="Unix timestamp of last activity (for TTL)"
+    )
+
+    class Config:
+        extra = "allow"  # Allow additional fields for flexibility
+
+
 class SupervisorRoutingDecision(BaseModel):
     """Structured output for Central Supervisor Agent routing decisions"""
 

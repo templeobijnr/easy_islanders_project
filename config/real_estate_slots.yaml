@@ -1,0 +1,92 @@
+# Real Estate Slot Configuration
+#
+# Defines required slots for property search and their collection order.
+#
+# Usage:
+#   from assistant.brain.config import load_re_slots_config
+#   slots = load_re_slots_config()
+
+real_estate:
+  # Required slots for search (order = ask priority)
+  required_slots:
+    - rental_type  # "short_term" or "long_term" (ask first for context)
+    - location     # City/area (Girne, Lefkoşa, etc.)
+    - budget       # Price constraint (monthly or nightly depending on rental_type)
+
+  # Optional slots (nice-to-have, don't block search)
+  optional_slots:
+    - bedrooms
+    - check_in     # For short-term only
+    - check_out    # For short-term only
+    - property_type  # apartment, villa, studio, etc.
+
+  # Slot extraction patterns (for NLP extractors)
+  patterns:
+    rental_type:
+      short_term_keywords:
+        - "short"
+        - "nightly"
+        - "week"
+        - "weekend"
+        - "holiday"
+        - "vacation"
+      long_term_keywords:
+        - "long"
+        - "monthly"
+        - "year"
+        - "lease"
+        - "rent"
+
+    location:
+      known_cities:
+        - "Girne"
+        - "Kyrenia"
+        - "Lefkoşa"
+        - "Nicosia"
+        - "Lefkosa"
+        - "Gazimağusa"
+        - "Famagusta"
+        - "İskele"
+        - "Iskele"
+
+    budget:
+      currency_symbols:
+        - "£"
+        - "€"
+        - "$"
+        - "₺"
+      currency_codes:
+        - "GBP"
+        - "EUR"
+        - "USD"
+        - "TRY"
+
+  # Confirmation prompts (ask before search if filled)
+  confirmation:
+    enabled: true
+    prompt_template: "Got it — {location}, ~{budget} {currency}. Is this for {rental_type}?"
+
+  # Search execution settings
+  search:
+    max_results: 20
+    timeout_seconds: 2.0
+    cache_ttl_seconds: 60
+    default_currency: "GBP"
+
+  # Slot-filling guard settings (context pinning)
+  slot_filling_guard:
+    enabled: true
+    max_input_words: 7  # Short refinements stay pinned
+    refinement_keywords:
+      - "cheaper"
+      - "bigger"
+      - "smaller"
+      - "nicer"
+      - "closer"
+      - "further"
+    explicit_switch_keywords:
+      - "actually"
+      - "instead"
+      - "show me"
+      - "find me"
+      - "look for"

@@ -24,6 +24,7 @@ from django.core.cache import cache
 
 from .supervisor import CentralSupervisor
 from .supervisor_schemas import SupervisorState
+from .slot_filling_guard import apply_slot_filling_guard
 from .tools_local import (
     get_on_duty_pharmacies,
     find_places,
@@ -1735,6 +1736,9 @@ def build_supervisor_graph():
             state = _fuse_context(state)  # STEP 3/6: Merge all context sources (summary + retrieved + recent)
             state = _enforce_token_budget(state, max_tokens=6000)  # STEP 5: Enforce token budget
             state = rotate_inactive_contexts(state, ttl=1800)  # STEP 6: Lifecycle management
+
+            # STEP 7.1: Slot-filling continuity guard (prevents router flapping during RE slot collection)
+            state = apply_slot_filling_guard(state)
 
             # STEP 7: Context-Primed Router & Sticky-Intent Orchestration
             from .supervisor import route_with_sticky

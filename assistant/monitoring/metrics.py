@@ -485,8 +485,6 @@ else:
         "WebSocket reconnect advice given by reason",
         ["why"],  # auth, network, transient
     )
-else:
-    WS_OUT_INVALID_ENVELOPE_TOTAL = None
 
 
 @dataclass

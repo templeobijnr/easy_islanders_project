@@ -1,0 +1,63 @@
+version: 1
+domain: real_estate
+
+# Required slots for property search
+required_slots:
+  - one_of: ["location", "anywhere"]
+  - "rental_type"          # short_term | long_term
+  - "budget"               # numeric
+
+# Optional slots that refine search
+optional_slots:
+  - "budget_currency"
+  - "bedrooms"
+  - "property_type"        # apartment|villa|studio...
+
+# Order of questions to ask when slots are missing
+ask_order:
+  - "rental_type"
+  - "location_or_anywhere"
+  - "budget"
+  - "bedrooms"
+
+# Dialogue acts and their templates
+acts:
+  OFFER_SUMMARY:
+    reply_template: |
+      Here's what we currently have{scope}:
+      {lines}
+      {next_step}
+
+  ZERO_RESULTS:
+    reply_template: |
+      I couldn't find matches for {criteria}.
+      We can relax {relax_suggestions}. Want to try {options}?
+
+  ACK_WITH_SLOTS:
+    reply_template: "Got it — {criteria}. {next_step}"
+
+# Templates for questions and formatting
+templates:
+  questions:
+    location_or_anywhere: "Do you have a preferred area (e.g., Kyrenia), or anywhere is fine?"
+    rental_type: "Is this for short-term (nightly/weekly) or long-term (monthly/yearly) rent?"
+    budget: "What's your budget (e.g., £600 per month)?"
+    bedrooms: "How many bedrooms do you prefer?"
+
+  summary_line:
+    by_city: "- {city}: {count} listings{range_hint}"
+
+  range_hint:
+    budget: " (from ~{min} to ~{max} {currency})"
+
+# Relaxation strategy for zero-results scenarios
+relaxation:
+  # Order to relax constraints when no results found
+  sequence: ["location_radius", "budget_widen", "ignore_bedrooms"]
+  budget_widen_percent: 20
+  location_radius_km: 20
+
+# Limits and performance tuning
+limits:
+  summary_top_cities: 5
+  cache_ttl_seconds: 60

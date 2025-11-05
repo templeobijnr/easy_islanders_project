@@ -1,0 +1,133 @@
+# STEP 7: Context-Primed Router Configuration
+# Hysteresis thresholds, continuity rules, and domain priors for sticky-intent orchestration
+
+version: 1
+
+# Intent labels and their corresponding agent mappings
+intent_labels:
+  - property_search
+  - vehicle_search
+  - local_lookup
+  - general_help
+
+agents:
+  property_search: real_estate_agent
+  vehicle_search: marketplace_agent
+  local_lookup: local_info_agent
+  general_help: general_conversation_agent
+
+# Hysteresis thresholds for stick/switch/clarify decisions
+thresholds:
+  stick: 0.55        # Keep current domain if new intent prob < stick
+  switch: 0.72       # Switch only if prob >= switch
+  ask_clarify: 0.60  # Between stick..switch and short/ambiguous → ask
+
+# Continuity rules for detecting refinements vs switches
+continuity:
+  short_input_max_words: 5
+
+  # Refinement lexicon: phrases that typically refine current context
+  refinement_lexicon:
+    - "in "
+    - "near "
+    - "around "
+    - "cheaper"
+    - "bigger"
+    - "smaller"
+    - "another"
+    - "similar"
+    - "what else"
+    - "more"
+    - "less"
+    - "other"
+    - "different"
+
+  # Explicit switch markers: phrases that signal intent change
+  explicit_switch_markers:
+    - "actually"
+    - "instead"
+    - "show me cars"
+    - "show me vehicles"
+    - "switch to"
+    - "let's talk about"
+    - "what about"
+    - "now show"
+    - "forget that"
+    - "never mind"
+    - "change topic"
+
+# Feature engineering: domain-specific priors
+features:
+  # Weight priors for active domain compatibility
+  # Positive weight favors sticking to current domain
+  domain_priors:
+    property_search:
+      compatible_tokens:
+        - "apartment"
+        - "apartments"
+        - "flat"
+        - "flats"
+        - "villa"
+        - "villas"
+        - "house"
+        - "houses"
+        - "rent"
+        - "bedroom"
+        - "bedrooms"
+        - "girne"
+        - "kyrenia"
+        - "nicosia"
+        - "famagusta"
+        - "morphou"
+        - "lefkoşa"
+        - "gazimağusa"
+        - "güzelyurt"
+      weight: 0.08  # STEP 7.1: Increased from 0.06 to prevent borderline flips
+
+    vehicle_search:
+      compatible_tokens:
+        - "car"
+        - "cars"
+        - "vehicle"
+        - "vehicles"
+        - "sedan"
+        - "sedans"
+        - "suv"
+        - "suvs"
+        - "rent car"
+        - "hire"
+        - "motorcycle"
+        - "motorcycles"
+        - "bike"
+        - "bikes"
+        - "auto"
+        - "autos"
+        - "transport"
+      weight: 0.06
+
+    local_lookup:
+      compatible_tokens:
+        - "pharmacy"
+        - "pharmacies"
+        - "hospital"
+        - "hospitals"
+        - "duty"
+        - "atm"
+        - "atms"
+        - "restaurant"
+        - "restaurants"
+        - "directions"
+        - "where"
+        - "location"
+        - "address"
+        - "open"
+        - "hours"
+      weight: 0.06
+
+# Feedback learning configuration
+feedback:
+  enable_learning: true
+  min_reports_to_adjust: 5       # Minimum feedback reports before adjusting thresholds
+  max_delta_per_update: 0.03     # Maximum change per calibration update
+  storage: jsonl                 # Storage format: jsonl or postgres
+  file_path: data/router_feedback.jsonl

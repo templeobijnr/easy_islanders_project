@@ -63,13 +63,21 @@ class CentralSupervisor:
 
         try:
             # Phase B.1: Parse intent with structured output
+            # STEP 6: Router Memory Fusion - Build context-primed input
+            from .supervisor_graph import _build_router_context
+
+            # Build router context that includes active domain, entities, and recent turns
+            router_context = _build_router_context(state, user_input)
+
+            # Use router context for intent classification
             context = {
                 "language": language,
                 "location": location,
                 "last_action": state.get("current_node", "conversation_start"),
-                "history_summary": "",  # Could be enriched from message history
+                "history_summary": router_context,  # STEP 6: Use context-primed router input
+                "active_domain": state.get("active_domain"),  # STEP 3: Include active domain
             }
-            
+
             intent_result = intent_parser.parse_intent_robust(user_input, context, thread_id)
 
             # Backwards compatibility: accept legacy SupervisorRoutingDecision outputs
@@ -115,6 +123,7 @@ class CentralSupervisor:
                     "intent_reasoning": decision.reasoning,
                     "requires_hitl": decision.requires_clarification,
                     "extracted_criteria": decision.extracted_entities,
+                    "active_domain": target_agent,  # STEP 3: Track domain for continuity
                 }
             
             registry_hits = []
@@ -144,9 +153,39 @@ class CentralSupervisor:
                 f"[CSA:{thread_id}] Intent: {intent_label} "
                 f"(conf={confidence_display}, flow={flow_label}, node={node_label})"
             )
-            
+
             # Determine target agent based on intent type
             target_agent = self._map_intent_to_agent(intent_result.intent_type, intent_result.category)
+
+            # STEP 3: Apply continuity guard to prevent unintentional domain drift
+            # CRITICAL FIX: Pass intent confidence to allow high-confidence switches
+            from .supervisor_graph import _check_continuity_guard
+            active_domain = state.get("active_domain")
+            intent_confidence = getattr(intent_result, "confidence", 0.0)
+            should_maintain, continuity_reason = _check_continuity_guard(
+                state, target_agent, intent_confidence
+            )
+
+            if should_maintain and active_domain:
+                logger.info(
+                    "[CSA:%s] Continuity guard active: maintaining domain %s (reason: %s)",
+                    thread_id,
+                    active_domain,
+                    continuity_reason
+                )
+                target_agent = active_domain  # Keep existing agent
+                # Mark in normalized decision for observability
+                normalized_decision_extra = {
+                    "continuity_maintained": True,
+                    "continuity_reason": continuity_reason,
+                    "original_target": self._map_intent_to_agent(intent_result.intent_type, intent_result.category)
+                }
+            else:
+                normalized_decision_extra = {
+                    "continuity_maintained": False
+                }
+                if continuity_reason:
+                    normalized_decision_extra["continuity_reason"] = continuity_reason
 
             normalized_decision = {
                 "intent_type": intent_result.intent_type,
@@ -156,8 +195,9 @@ class CentralSupervisor:
                 "primary_node": intent_result.primary_node,
                 "attributes": intent_result.attributes,
                 "requires_hitl": intent_result.requires_hitl,
+                **normalized_decision_extra,  # STEP 3: Include continuity guard info
             }
-            
+
             # Update state with structured routing decision
             return {
                 **state,
@@ -174,6 +214,7 @@ class CentralSupervisor:
                 "extracted_criteria": intent_result.attributes,
                 "normalized_query": normalized_query,
                 "registry_hits": registry_hits,
+                "active_domain": target_agent,  # STEP 3: Update active domain for next turn
             }
         
         except Exception as e:
@@ -243,3 +284,85 @@ class CentralSupervisor:
             "GENERAL_CONVERSATION": "general_conversation_agent",
         }
         return mapping.get(domain, "general_conversation_agent")
+
+
+# =========================================================================
+# STEP 7: Context-Primed Router & Sticky-Intent Orchestration
+# =========================================================================
+
+def route_with_sticky(state: dict) -> dict:
+    """
+    STEP 7: Route with sticky-intent orchestration using hysteresis.
+
+    This function implements context-primed routing with hysteresis thresholds
+    to prevent intent oscillation ("Girne" drift bug). It uses the fused context
+    from STEP 6 to make intelligent routing decisions.
+
+    Process:
+    1. Classify intent using context-primed router (user_input + fused_context)
+    2. Apply continuity decision (stick/switch/clarify) based on:
+       - Confidence thresholds (stick < 0.55, switch > 0.72)
+       - Short input detection (≤5 words → stick)
+       - Refinement lexicon ("in girne", "cheaper" → stick)
+       - Explicit switch markers ("actually show me cars" → switch)
+    3. Update state with routing decision and metadata
+
+    Args:
+        state: SupervisorState with user_input, fused_context, active_domain
+
+    Returns:
+        Updated state with:
+        - target_agent: Agent to route to
+        - current_intent: Classified intent label
+        - router_confidence: Classification confidence (0-1)
+        - router_reason: Explanation for routing decision
+        - router_evidence: Debug info (logits, probs, tokens)
+        - clarify: Flag if user clarification needed
+    """
+    from . import intent_router
+
+    # Classify intent with context-primed routing
+    new_intent, new_agent, confidence, evidence = intent_router.classify(state)
+
+    # Store router metadata
+    state["router_confidence"] = confidence
+    state["router_evidence"] = evidence
+    state["last_intent"] = state.get("current_intent")
+
+    # Apply continuity decision (hysteresis)
+    decision = intent_router.continuity_decision(state, new_intent, new_agent, confidence)
+    state["router_reason"] = decision["reason"]
+
+    # Determine target agent based on decision
+    if decision["decision"] == "stick" and state.get("active_domain"):
+        # Stick with current domain
+        target_agent = state["active_domain"]
+        state["current_intent"] = state.get("current_intent") or new_intent
+        logger.info(
+            f"[ROUTER] STICK decision: maintaining {target_agent} "
+            f"(reason: {decision['reason']})"
+        )
+
+    elif decision["decision"] == "clarify":
+        # Ask for clarification, don't change domain
+        target_agent = state.get("active_domain") or "general_conversation_agent"
+        state["clarify"] = True
+        state["current_intent"] = new_intent
+        logger.info(
+            f"[ROUTER] CLARIFY decision: staying in {target_agent} "
+            f"(reason: {decision['reason']}, conf={confidence:.3f})"
+        )
+
+    else:
+        # Switch to new domain
+        target_agent = new_agent
+        state["current_intent"] = new_intent
+        state["active_domain"] = new_agent
+        logger.info(
+            f"[ROUTER] SWITCH decision: {state.get('active_domain')} → {target_agent} "
+            f"(reason: {decision['reason']}, conf={confidence:.3f})"
+        )
+
+    state["target_agent"] = target_agent
+
+    return state

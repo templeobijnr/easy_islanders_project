@@ -1,0 +1,107 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://easyislanders.com/schema/agent/real_estate/1.1/request.schema.json",
+  "title": "Real Estate Agent Request v1.1",
+  "description": "Frozen contract for RE agent input with tenure support. DO NOT MODIFY without version bump.",
+  "type": "object",
+  "required": ["thread_id", "client_msg_id", "intent", "input", "ctx"],
+  "properties": {
+    "thread_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Conversation thread ID"
+    },
+    "client_msg_id": {
+      "type": "string",
+      "description": "Client-side message ID for deduplication"
+    },
+    "intent": {
+      "type": "string",
+      "enum": ["property_search", "property_qa"],
+      "description": "User intent classification"
+    },
+    "input": {
+      "type": "string",
+      "minLength": 1,
+      "description": "User's natural language input"
+    },
+    "ctx": {
+      "type": "object",
+      "required": ["user_id", "locale", "time"],
+      "properties": {
+        "user_id": {
+          "type": "string",
+          "description": "User ID"
+        },
+        "locale": {
+          "type": "string",
+          "pattern": "^(en|tr|ru|pl|de)$",
+          "description": "User locale for i18n"
+        },
+        "time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Request timestamp (ISO 8601)"
+        }
+      }
+    },
+    "search_params": {
+      "type": "object",
+      "description": "Optional pre-filled search parameters",
+      "properties": {
+        "tenure": {
+          "type": "string",
+          "enum": ["short_term", "long_term", "auto"],
+          "description": "Rental mode: short_term (nightly), long_term (monthly), or auto (agent decides)"
+        },
+        "location": {
+          "type": "string",
+          "description": "City or district"
+        },
+        "bedrooms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of bedrooms (0 = studio)"
+        },
+        "budget": {
+          "type": "object",
+          "properties": {
+            "min": {"type": "integer", "minimum": 0},
+            "max": {"type": "integer", "minimum": 0},
+            "currency": {"type": "string", "pattern": "^(GBP|EUR|USD|TRY)$"}
+          },
+          "required": ["max", "currency"]
+        },
+        "dates": {
+          "type": "object",
+          "description": "Date range for short-term rentals",
+          "properties": {
+            "check_in": {"type": "string", "format": "date"},
+            "check_out": {"type": "string", "format": "date"}
+          },
+          "required": ["check_in", "check_out"]
+        },
+        "move_in": {
+          "type": "string",
+          "format": "date",
+          "description": "Desired move-in date for long-term rentals"
+        },
+        "min_lease_months": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Minimum lease duration (months) for long-term"
+        },
+        "amenities": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Required amenities"
+        },
+        "property_type": {
+          "type": "string",
+          "enum": ["apartment", "villa", "house", "studio"],
+          "description": "Property type filter"
+        }
+      }
+    }
+  }
+}

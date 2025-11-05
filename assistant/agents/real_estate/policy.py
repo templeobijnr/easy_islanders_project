@@ -2,15 +2,17 @@
 Real Estate Agent Policy - Deterministic state machine controller.
 
 State Flow:
-    SLOT_FILL → SEARCH → SHOW_LISTINGS (success path)
-                      ↓
-                   RELAX → SHOW_LISTINGS (empty results, relaxed)
-                      ↓
-                   CLARIFY (still empty after relax)
+    TENURE_DECIDE → SLOT_FILL → SEARCH → SHOW_LISTINGS (success path)
+                                       ↓
+                                    RELAX → SHOW_LISTINGS (empty results, relaxed)
+                                       ↓
+                                    CLARIFY (still empty after relax)
 
     ANSWER_QA (property question path)
 
 No free-form LLM routing - all transitions are rule-based.
+
+S3 Update: Added TENURE_DECIDE as first state to determine rental mode (short_term vs long_term).
 """
 
 from typing import Literal, Any
@@ -19,10 +21,115 @@ from dataclasses import dataclass
 from assistant.agents.contracts import AgentRequest, AgentResponse, AgentAction, AgentContext
 from assistant.agents.real_estate.schema import SearchParams, PropertyCard, QAAnswer
 from assistant.agents.real_estate import tools
+from assistant.monitoring.metrics import inc_prefs_applied
+
+FOLLOWUP_EXACT = {
+    "show",
+    "show me",
+    "show more",
+    "more",
+    "next",
+    "next please",
+    "another",
+    "more please",
+}
+
+FOLLOWUP_PREFIXES = ("show me", "details", "tell me more")
+
+
+def detect_followup_intent(text: str) -> str | None:
+    """
+    Detect simple follow-up intents from user utterances.
+    Returns a string key (e.g., 'paginate_next') or None.
+    """
+    if not text:
+        return None
+    normalized = text.strip().lower()
+    if normalized in FOLLOWUP_EXACT or any(normalized.startswith(prefix) for prefix in FOLLOWUP_PREFIXES):
+        return "paginate_next"
+    return None
+
+
+def build_followup_response(
+    request: AgentRequest,
+    capsule: dict[str, Any],
+    followup_type: str,
+) -> AgentResponse | None:
+    """
+    Handle deterministic follow-up actions (pagination, details).
+    Returns AgentResponse if follow-up handled, else None to continue policy.
+    """
+    if followup_type != "paginate_next":
+        return None
+
+    search_params = (capsule.get("search_params") or {}).copy()
+    if not search_params:
+        return None
+
+    page_size = int(capsule.get("page_size") or 10)
+    current_page = int(capsule.get("page") or 1)
+    next_page = current_page + 1
+
+    tenure = capsule.get("tenure") or search_params.get("tenure") or "short_term"
+    search_params["tenure"] = tenure
+    if "max_results" not in search_params:
+        search_params["max_results"] = capsule.get("max_results", page_size * next_page)
+
+    listings, total = tools.search_listings(
+        search_params,
+        page=next_page,
+        page_size=page_size,
+        return_total=True,
+    )
+
+    has_more = bool(total) and (total > next_page * page_size)
+
+    reply = (
+        f"Here are more options (page {next_page})."
+        if listings
+        else "That’s everything I can find for now."
+    )
+
+    action_params: dict[str, Any] = {
+        "listings": listings,
+        "search_params": search_params,
+        "tenure": tenure,
+        "relaxed": False,
+        "page": next_page,
+        "page_size": page_size,
+        "total": total,
+        "has_more": has_more,
+    }
+
+    traces = {
+        "states_visited": ["FOLLOWUP_PAGINATE"],
+        "tenure": tenure,
+        "extracted_params": search_params,
+        "followup": {
+            "type": "paginate_next",
+            "page": next_page,
+            "page_size": page_size,
+            "total": total,
+        },
+        "search_result_count": len(listings),
+        "total_results": total,
+    }
+
+    return AgentResponse(
+        reply=reply,
+        actions=[
+            AgentAction(
+                type="show_listings",
+                params=action_params,
+            )
+        ],
+        traces=traces,
+    )
 
 
 # State machine states
 State = Literal[
+    "TENURE_DECIDE",  # Determine rental mode (short_term vs long_term)
     "SLOT_FILL",      # Extract search params from input
     "SEARCH",         # Execute search with params
     "RELAX",          # Relax constraints if empty results
@@ -37,6 +144,7 @@ State = Literal[
 class PolicyState:
     """Internal state for policy execution."""
     current_state: State
+    tenure: str | None  # 'short_term' or 'long_term'
     search_params: SearchParams | None
     results: list[PropertyCard]
     relax_attempt: int  # 0 = no relax, 1 = first relax, 2+ = give up
@@ -44,12 +152,16 @@ class PolicyState:
     qa_question: str | None
     error_msg: str | None
     traces: dict[str, Any]  # Observability data
+    page: int
+    page_size: int
+    total_results: int | None
 
 
 def initial_state() -> PolicyState:
     """Create initial policy state."""
     return PolicyState(
-        current_state="SLOT_FILL",
+        current_state="TENURE_DECIDE",
+        tenure=None,
         search_params=None,
         results=[],
         relax_attempt=0,
@@ -57,7 +169,68 @@ def initial_state() -> PolicyState:
         qa_question=None,
         error_msg=None,
         traces={"states_visited": []},
+        page=1,
+        page_size=10,
+        total_results=None,
     )
+
+
+def tenure_decide(request: AgentRequest, state: PolicyState) -> PolicyState:
+    """
+    Determine rental mode (short_term vs long_term) from input.
+
+    Rule-based detection:
+    - Short-term indicators: "night", "nightly", "week", "weekend", "vacation", "holiday"
+    - Long-term indicators: "month", "monthly", "rent", "lease", "6 months", "year"
+    - Ambiguous: Default to short_term
+
+    Transition:
+    - → SLOT_FILL with tenure set
+    """
+    state.traces["states_visited"].append("TENURE_DECIDE")
+
+    input_text = request["input"].lower()
+
+    # Short-term signals
+    short_term_signals = [
+        "night", "nightly", "per night", "/night",
+        "week", "weekly", "weekend",
+        "vacation", "holiday", "getaway",
+        "stay", "staying",
+        "day", "days",
+    ]
+
+    # Long-term signals
+    long_term_signals = [
+        "month", "monthly", "per month", "/month",
+        "rent", "rental", "lease", "leasing",
+        "6 months", "year", "annual",
+        "long term", "long-term", "longterm",
+        "move in", "move-in", "relocate",
+    ]
+
+    # Count signals
+    short_term_count = sum(1 for signal in short_term_signals if signal in input_text)
+    long_term_count = sum(1 for signal in long_term_signals if signal in input_text)
+
+    # Decide tenure
+    if long_term_count > short_term_count:
+        tenure = "long_term"
+    elif short_term_count > 0:
+        tenure = "short_term"
+    else:
+        # Ambiguous - default to short_term (most common use case)
+        tenure = "short_term"
+
+    state.tenure = tenure
+    state.current_state = "SLOT_FILL"
+    state.traces["tenure"] = tenure
+    state.traces["tenure_signals"] = {
+        "short_term_count": short_term_count,
+        "long_term_count": long_term_count,
+    }
+
+    return state
 
 
 def slot_fill(request: AgentRequest, state: PolicyState) -> PolicyState:
@@ -65,6 +238,7 @@ def slot_fill(request: AgentRequest, state: PolicyState) -> PolicyState:
     Extract search parameters from natural language input.
 
     Rule-based extraction:
+    - Tenure: Already set by TENURE_DECIDE
     - Location: Look for city/district names
     - Budget: Use normalize_budget() tool
     - Bedrooms: Use extract_bedrooms() tool
@@ -80,6 +254,10 @@ def slot_fill(request: AgentRequest, state: PolicyState) -> PolicyState:
 
     input_text = request["input"]
     params = SearchParams(max_results=25)
+
+    # Set tenure from state (already decided)
+    if state.tenure:
+        params["tenure"] = state.tenure
 
     # Extract location (required)
     location_keywords = ["kyrenia", "girne", "famagusta", "magusa", "nicosia", "lefkosa",
@@ -120,6 +298,109 @@ def slot_fill(request: AgentRequest, state: PolicyState) -> PolicyState:
     if date_range:
         params["date_range"] = date_range
 
+    # Apply saved user preferences (precedence: current turn > explicit > inferred)
+    try:
+        capsule = (request.get("ctx", {}).get("conversation_capsule") or {})  # type: ignore
+        # Respect per-thread pause flag if provided by supervisor/frontend later
+        personalization_paused = bool(capsule.get("personalization_paused") or capsule.get("prefs_paused"))
+        prefs = (capsule.get("preferences") or {}) if not personalization_paused else {}
+        applied: list[str] = []
+
+        if isinstance(prefs, dict):
+            re_prefs = prefs.get("real_estate") or prefs.get("realestate") or prefs.get("property")
+            if isinstance(re_prefs, list):
+                # Helper readers
+                def _from_val(v: Any) -> Any:
+                    if isinstance(v, dict):
+                        if v.get("type") == "single":
+                            return v.get("value")
+                        if v.get("type") == "list":
+                            vs = v.get("values") or []
+                            return vs[0] if vs else None
+                    return v
+
+                # Build a simple map type->(value, confidence, source) with highest confidence per type
+                best: dict[str, tuple[Any, float, str]] = {}
+                for item in re_prefs:
+                    try:
+                        ptype = str(item.get("type") or item.get("preference_type") or "").lower()
+                        val = item.get("value")
+                        conf = float(item.get("confidence") or 0.0)
+                        src = str(item.get("source") or "")
+                        if not ptype:
+                            continue
+                        prev = best.get(ptype)
+                        if (prev is None) or (conf > prev[1]):
+                            best[ptype] = (val, conf, src)
+                    except Exception:
+                        continue
+
+                # Fill only missing fields; current-turn extraction wins
+                # location
+                if not params.get("location") and "location" in best:
+                    v, _, _ = best["location"]
+                    loc = _from_val(v)
+                    if isinstance(loc, str) and loc.strip():
+                        params["location"] = loc.strip().title()
+                        applied.append("location")
+
+                # budget
+                if not params.get("budget") and "budget" in best:
+                    v, _, _ = best["budget"]
+                    bud = v if isinstance(v, dict) else {}
+                    try:
+                        # Accept either {'min','max','currency'} or {'type':'range','min','max','unit'}
+                        min_v = bud.get("min")
+                        max_v = bud.get("max")
+                        if min_v is None and isinstance(bud.get("exact"), (int, float)):
+                            min_v = max_v = bud.get("exact")
+                        cur = bud.get("currency") or bud.get("unit") or "EUR"
+                        if isinstance(min_v, (int, float)) and isinstance(max_v, (int, float)):
+                            params["budget"] = {"min": int(min_v), "max": int(max_v), "currency": str(cur).upper()}
+                            applied.append("budget")
+                    except Exception:
+                        pass
+
+                # bedrooms
+                if params.get("bedrooms") is None and "bedrooms" in best:
+                    v, _, _ = best["bedrooms"]
+                    count = None
+                    if isinstance(v, dict):
+                        count = v.get("count") or v.get("value")
+                    elif isinstance(v, (int, float)):
+                        count = v
+                    if isinstance(count, (int, float)):
+                        params["bedrooms"] = int(count)
+                        applied.append("bedrooms")
+
+                # property_type
+                if not params.get("property_type") and "property_type" in best:
+                    v, _, _ = best["property_type"]
+                    p = _from_val(v)
+                    if isinstance(p, str) and p.strip():
+                        params["property_type"] = p.strip().lower()
+                        applied.append("property_type")
+
+                # amenities
+                if not params.get("amenities") and "amenities" in best:
+                    v, _, _ = best["amenities"]
+                    am = v.get("values") if isinstance(v, dict) else v
+                    if isinstance(am, list) and am:
+                        params["amenities"] = [str(a).lower().replace(" ", "_") for a in am if a]
+                        applied.append("amenities")
+
+                if applied:
+                    # Metric: preferences applied for this agent
+                    try:
+                        inc_prefs_applied("real_estate")
+                    except Exception:
+                        pass
+                    state.traces["preferences_applied"] = True
+                    state.traces["preferences_applied_fields"] = applied
+    except Exception:
+        # Never block on preference application
+        pass
+
     # Check if we have minimum required params (location OR budget)
     has_location = "location" in params and params["location"]
     has_budget = "budget" in params and params["budget"]
@@ -159,10 +440,21 @@ def search(state: PolicyState) -> PolicyState:
         state.error_msg = "No search params available"
         return state
 
-    # Execute search
-    results = tools.search_listings(state.search_params)
+    # Execute search (page 1)
+    state.page = 1
+    state.page_size = min(state.search_params.get("max_results", 25) or 25, 10)
+    results, total = tools.search_listings(
+        state.search_params,
+        page=state.page,
+        page_size=state.page_size,
+        return_total=True,
+    )
     state.results = results
+    state.total_results = total
     state.traces["search_result_count"] = len(results)
+    state.traces["total_results"] = total
+    state.traces["page_size"] = state.page_size
+    state.traces["page"] = state.page
 
     # TODO: Emit Prometheus metric: agent_re_search_results_count
 
@@ -188,8 +480,8 @@ def relax(state: PolicyState) -> PolicyState:
     Relax search constraints to find more results.
 
     Relaxation strategy (bounded):
-    1. First relax: Remove property_type filter
-    2. Second relax: Remove amenities filter
+    1. First relax: Remove property_type filter and widen budget max by +15%
+    2. Second relax: Remove amenities filter and drop bedrooms upper cap (keep >= requested)
 
     Transition:
     - → SEARCH with relaxed params
@@ -204,17 +496,34 @@ def relax(state: PolicyState) -> PolicyState:
 
     params = state.search_params.copy()
 
-    # First relax: Remove property type constraint
+    # First relax: Remove property type constraint and widen budget
     if state.relax_attempt == 1:
         if "property_type" in params:
             del params["property_type"]
             state.traces["relax_1"] = "Removed property_type filter"
+        # Widen budget by +15%
+        try:
+            b = params.get("budget")
+            if isinstance(b, dict) and isinstance(b.get("max"), (int, float)):
+                b = dict(b)
+                b["max"] = int(b["max"] * 1.15)
+                params["budget"] = b
+                state.traces["relax_1_budget"] = "+15% max"
+        except Exception:
+            pass
 
-    # Second relax: Remove amenities constraint
+    # Second relax: Remove amenities constraint and bedrooms upper cap
     elif state.relax_attempt == 2:
         if "amenities" in params:
             del params["amenities"]
             state.traces["relax_2"] = "Removed amenities filter"
+        # Drop bedrooms upper cap by signalling relaxed mode (search handles this)
+        try:
+            if params.get("bedrooms") is not None:
+                params["bedrooms_relaxed"] = True
+                state.traces["relax_2_bedrooms"] = "Dropped upper cap"
+        except Exception:
+            pass
 
     state.search_params = params
     state.current_state = "SEARCH"
@@ -330,6 +639,13 @@ def execute_policy(request: AgentRequest) -> AgentResponse:
     # Initialize state
     state = initial_state()
 
+    capsule = request["ctx"].get("conversation_capsule") if isinstance(request.get("ctx"), dict) else {}
+    followup_type = detect_followup_intent(request["input"])
+    if followup_type and capsule:
+        followup_response = build_followup_response(request, capsule, followup_type)
+        if followup_response:
+            return followup_response
+
     # Check if this is a Q&A intent
     if is_qa_intent(request):
         state.current_state = "ANSWER_QA"
@@ -349,7 +665,9 @@ def execute_policy(request: AgentRequest) -> AgentResponse:
             break
 
         # State transitions
-        if current == "SLOT_FILL":
+        if current == "TENURE_DECIDE":
+            state = tenure_decide(request, state)
+        elif current == "SLOT_FILL":
             state = slot_fill(request, state)
         elif current == "SEARCH":
             state = search(state)
@@ -407,18 +725,42 @@ def build_response(request: AgentRequest, state: PolicyState) -> AgentResponse:
             actions = []  # No show_listings action for Q&A
         else:
             # Search response
-            count = len(state.results)
-            reply = t("found_properties").format(count=count)
+            total = state.total_results if state.total_results is not None else len(state.results)
+            tenure_text = "nightly rentals" if state.tenure == "short_term" else "monthly rentals"
+            if state.page > 1:
+                reply = f"Here are more {tenure_text} (page {state.page}):"
+            else:
+                reply = f"I found {total} {tenure_text} matching your search:"
+            has_more = bool(total) and (total > state.page * state.page_size)
+            state.traces["has_more"] = has_more
+            max_results = (state.search_params or {}).get("max_results")
+            if max_results is None and state.total_results is not None:
+                max_results = state.total_results
+            action_params = {
+                "listings": state.results,
+                "search_params": state.search_params or {},
+                "tenure": state.tenure,
+                "relaxed": state.relax_attempt > 0,
+                "page": state.page,
+                "page_size": state.page_size,
+                "total": total,
+                "has_more": has_more,
+            }
+            if max_results is not None:
+                action_params["max_results"] = max_results
             actions = [
                 AgentAction(
                     type="show_listings",
-                    params={
-                        "listings": state.results,
-                        "search_params": state.search_params,
-                        "relaxed": state.relax_attempt > 0,
-                    }
+                    params=action_params,
                 )
             ]
+
+        # Append a short "why" note if preferences were applied
+        if state.traces.get("preferences_applied"):
+            applied = state.traces.get("preferences_applied_fields") or []
+            if applied:
+                pretty = ", ".join(applied)
+                reply = f"{reply} Using your saved preferences ({pretty})."
 
         return AgentResponse(
             reply=reply,

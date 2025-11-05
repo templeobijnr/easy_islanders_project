@@ -16,7 +16,9 @@
       "Bash(docker compose build:*)",
       "Bash(docker compose:*)",
       "Bash(mkdir:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(chmod:*)",
+      "Bash(export PGPASSWORD=easy_pass:*)"
     ],
     "deny": [],
     "ask": []

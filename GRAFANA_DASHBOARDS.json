@@ -1,0 +1,292 @@
+{
+  "dashboard": {
+    "title": "Real Estate Agent - Prompt-Driven v1.0",
+    "tags": ["real-estate", "agent", "canary"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 1,
+    "refresh": "30s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Agent Actions by Type (acts/sec)",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "sum by (act)(rate(re_agent_act_total[5m]))",
+            "legendFormat": "{{act}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "ops", "label": "acts/sec"},
+          {"format": "short"}
+        ],
+        "tooltip": {"shared": true, "sort": 2, "value_type": "individual"},
+        "legend": {"show": true, "alignAsTable": true, "avg": true, "max": true},
+        "stack": true,
+        "fill": 2
+      },
+      {
+        "id": 2,
+        "title": "Backend Search Latency (p50, p95, p99)",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, sum by (le)(rate(re_backend_search_ms_bucket[5m])))",
+            "legendFormat": "p50",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, sum by (le)(rate(re_backend_search_ms_bucket[5m])))",
+            "legendFormat": "p95",
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.99, sum by (le)(rate(re_backend_search_ms_bucket[5m])))",
+            "legendFormat": "p99",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          {"format": "ms", "label": "Latency"},
+          {"format": "short"}
+        ],
+        "tooltip": {"shared": true, "sort": 0, "value_type": "individual"},
+        "legend": {"show": true, "alignAsTable": true, "current": true, "max": true},
+        "alert": {
+          "conditions": [
+            {
+              "evaluator": {"params": [600], "type": "gt"},
+              "operator": {"type": "and"},
+              "query": {"params": ["B", "10m", "now"]},
+              "reducer": {"params": [], "type": "avg"},
+              "type": "query"
+            }
+          ],
+          "executionErrorState": "alerting",
+          "for": "10m",
+          "frequency": "1m",
+          "name": "Search Latency p95 > 600ms"
+        }
+      },
+      {
+        "id": 3,
+        "title": "JSON Parse Failures (rate)",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 8, "w": 8, "h": 6},
+        "targets": [
+          {
+            "expr": "rate(re_json_parse_fail_total[5m])",
+            "legendFormat": "parse_fail_rate",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "percentunit", "label": "Fail Rate"},
+          {"format": "short"}
+        ],
+        "tooltip": {"shared": true, "sort": 0, "value_type": "individual"},
+        "legend": {"show": true},
+        "alert": {
+          "conditions": [
+            {
+              "evaluator": {"params": [0.005], "type": "gt"},
+              "operator": {"type": "and"},
+              "query": {"params": ["A", "10m", "now"]},
+              "reducer": {"params": [], "type": "avg"},
+              "type": "query"
+            }
+          ],
+          "executionErrorState": "alerting",
+          "for": "10m",
+          "frequency": "1m",
+          "name": "JSON Parse Fail Rate > 0.5%"
+        }
+      },
+      {
+        "id": 4,
+        "title": "Recommendation Cards Emitted (by variant)",
+        "type": "graph",
+        "gridPos": {"x": 8, "y": 8, "w": 8, "h": 6},
+        "targets": [
+          {
+            "expr": "sum by (variant)(rate(re_card_emitted_total[5m]))",
+            "legendFormat": "{{variant}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "ops", "label": "cards/sec"},
+          {"format": "short"}
+        ],
+        "tooltip": {"shared": true, "sort": 2, "value_type": "individual"},
+        "legend": {"show": true, "alignAsTable": true, "total": true},
+        "stack": false,
+        "fill": 2
+      },
+      {
+        "id": 5,
+        "title": "Turn Total Latency (p50, p95, p99)",
+        "type": "graph",
+        "gridPos": {"x": 16, "y": 8, "w": 8, "h": 6},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, sum by (le)(rate(re_turn_total_ms_bucket[5m])))",
+            "legendFormat": "p50",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, sum by (le)(rate(re_turn_total_ms_bucket[5m])))",
+            "legendFormat": "p95",
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.99, sum by (le)(rate(re_turn_total_ms_bucket[5m])))",
+            "legendFormat": "p99",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          {"format": "ms", "label": "Latency"},
+          {"format": "short"}
+        ],
+        "tooltip": {"shared": true, "sort": 0, "value_type": "individual"},
+        "legend": {"show": true, "alignAsTable": true, "current": true, "max": true},
+        "alert": {
+          "conditions": [
+            {
+              "evaluator": {"params": [1500], "type": "gt"},
+              "operator": {"type": "and"},
+              "query": {"params": ["B", "10m", "now"]},
+              "reducer": {"params": [], "type": "avg"},
+              "type": "query"
+            }
+          ],
+          "executionErrorState": "alerting",
+          "for": "10m",
+          "frequency": "1m",
+          "name": "Turn Latency p95 > 1500ms"
+        }
+      },
+      {
+        "id": 6,
+        "title": "Circuit Breaker State",
+        "type": "singlestat",
+        "gridPos": {"x": 0, "y": 14, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "re_circuit_breaker_state{service=\"backend_search\"}",
+            "refId": "A"
+          }
+        ],
+        "valueName": "current",
+        "valueMaps": [
+          {"value": "0", "text": "CLOSED"},
+          {"value": "1", "text": "OPEN"}
+        ],
+        "colors": ["#299c46", "#e24d42", "#e24d42"],
+        "thresholds": "0.5,1"
+      },
+      {
+        "id": 7,
+        "title": "Router Pinning Events (by reason)",
+        "type": "graph",
+        "gridPos": {"x": 6, "y": 14, "w": 9, "h": 4},
+        "targets": [
+          {
+            "expr": "sum by (reason)(rate(re_router_pinned_total[5m]))",
+            "legendFormat": "{{reason}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "ops", "label": "pins/sec"},
+          {"format": "short"}
+        ],
+        "tooltip": {"shared": true, "sort": 2, "value_type": "individual"},
+        "legend": {"show": true, "alignAsTable": true, "total": true},
+        "stack": true,
+        "fill": 2
+      },
+      {
+        "id": 8,
+        "title": "Errors by Type",
+        "type": "graph",
+        "gridPos": {"x": 15, "y": 14, "w": 9, "h": 4},
+        "targets": [
+          {
+            "expr": "sum by (type)(rate(re_error_total[5m]))",
+            "legendFormat": "{{type}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "ops", "label": "errors/sec"},
+          {"format": "short"}
+        ],
+        "tooltip": {"shared": true, "sort": 2, "value_type": "individual"},
+        "legend": {"show": true, "alignAsTable": true, "total": true},
+        "stack": true,
+        "fill": 2
+      },
+      {
+        "id": 9,
+        "title": "Prompt End-to-End Latency (p50, p95, p99)",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 18, "w": 12, "h": 6},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, sum by (le)(rate(re_prompt_end_to_end_ms_bucket[5m])))",
+            "legendFormat": "p50",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, sum by (le)(rate(re_prompt_end_to_end_ms_bucket[5m])))",
+            "legendFormat": "p95",
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.99, sum by (le)(rate(re_prompt_end_to_end_ms_bucket[5m])))",
+            "legendFormat": "p99",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          {"format": "ms", "label": "Latency"},
+          {"format": "short"}
+        ],
+        "tooltip": {"shared": true, "sort": 0, "value_type": "individual"},
+        "legend": {"show": true, "alignAsTable": true, "current": true, "max": true}
+      },
+      {
+        "id": 10,
+        "title": "Domain Handoffs (by target)",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 18, "w": 12, "h": 6},
+        "targets": [
+          {
+            "expr": "sum by (to_domain)(rate(re_handoff_total[5m]))",
+            "legendFormat": "→ {{to_domain}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "ops", "label": "handoffs/sec"},
+          {"format": "short"}
+        ],
+        "tooltip": {"shared": true, "sort": 2, "value_type": "individual"},
+        "legend": {"show": true, "alignAsTable": true, "total": true},
+        "stack": false,
+        "fill": 2
+      }
+    ],
+    "time": {"from": "now-1h", "to": "now"},
+    "timepicker": {
+      "refresh_intervals": ["10s", "30s", "1m", "5m", "15m"],
+      "time_options": ["5m", "15m", "1h", "6h", "12h", "24h", "2d", "7d"]
+    }
+  }
+}

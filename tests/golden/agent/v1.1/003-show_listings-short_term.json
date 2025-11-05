@@ -1,0 +1,59 @@
+{
+  "description": "Short-term property search - nightly rental with date range",
+  "request": {
+    "thread_id": "test-st-001",
+    "client_msg_id": "msg-st-001",
+    "intent": "property_search",
+    "input": "2 bedroom apartment in Kyrenia for a week in January, £120 per night",
+    "ctx": {
+      "user_id": "user-test-001",
+      "locale": "en",
+      "time": "2025-11-02T12:00:00Z"
+    }
+  },
+  "response": {
+    "reply": "I found 1 nightly rentals matching your search:",
+    "actions": [
+      {
+        "type": "show_listings",
+        "params": {
+          "listings": [
+            {
+              "id": "st-kyr-001",
+              "title": "Modern 2BR Apartment Near Sea",
+              "location": "Alsancak, Kyrenia",
+              "bedrooms": 2,
+              "bathrooms": 1,
+              "sleeps": 4,
+              "price_per_night": "£120/night",
+              "amenities": ["wifi", "ac", "kitchen", "parking", "balcony"],
+              "photos": ["https://example.com/listings/st-kyr-001.jpg"],
+              "available": true
+            }
+          ],
+          "tenure": "short_term",
+          "search_params": {
+            "tenure": "short_term",
+            "location": "Kyrenia",
+            "bedrooms": 2,
+            "budget": {
+              "min": 0,
+              "max": 120,
+              "currency": "GBP"
+            }
+          },
+          "relaxed": false
+        }
+      }
+    ],
+    "traces": {
+      "states_visited": ["TENURE_DECIDE", "SLOT_FILL", "SEARCH"],
+      "tenure": "short_term",
+      "tenure_signals": {
+        "short_term_count": 2,
+        "long_term_count": 0
+      },
+      "search_result_count": 1
+    }
+  }
+}

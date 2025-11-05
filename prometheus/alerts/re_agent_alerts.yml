@@ -1,0 +1,160 @@
+groups:
+  - name: re_agent_readiness
+    interval: 60s
+    rules:
+      # Critical: JSON Contract Violations
+      - alert: REJsonContractHigh
+        expr: rate(re_json_parse_fail_total[10m]) > 0.005
+        for: 10m
+        labels:
+          severity: page
+          component: re_agent
+          tier: critical
+        annotations:
+          summary: "RE JSON contract violations >0.5%"
+          description: "RE prompt-driven handler is producing invalid JSON responses at {{ $value | humanizePercentage }} (threshold: 0.5%). Check prompt format and LLM output."
+          runbook_url: "https://docs.internal/runbooks/re-agent-json-contract"
+          dashboard_url: "http://grafana/d/re-agent-readiness"
+
+      # Critical: Turn Latency SLO Breach
+      - alert: RETurnLatencyHigh
+        expr: histogram_quantile(0.95, sum by (le)(rate(re_turn_total_ms_bucket[10m]))) > 1.5
+        for: 10m
+        labels:
+          severity: warn
+          component: re_agent
+          tier: performance
+        annotations:
+          summary: "RE turn p95 latency >1500ms"
+          description: "RE agent turn latency p95 is {{ $value | humanizeDuration }} (SLO: 1200ms). Check LLM response time, Zep latency, and backend search performance."
+          runbook_url: "https://docs.internal/runbooks/re-agent-latency"
+          dashboard_url: "http://grafana/d/re-agent-readiness"
+
+      # Warning: Search Latency High
+      - alert: RESearchLatencyHigh
+        expr: histogram_quantile(0.95, sum by (le)(rate(re_backend_search_ms_bucket[10m]))) > 0.6
+        for: 10m
+        labels:
+          severity: warn
+          component: re_agent_backend
+          tier: performance
+        annotations:
+          summary: "RE backend search p95 >600ms"
+          description: "RE backend search latency p95 is {{ $value | humanizeDuration }} (SLO: 450ms). Check database query performance and listing index."
+          runbook_url: "https://docs.internal/runbooks/re-backend-search"
+          dashboard_url: "http://grafana/d/re-agent-readiness"
+
+      # Critical: Circuit Breaker Open
+      - alert: RECircuitBreakerOpen
+        expr: re_circuit_breaker_state{service="backend_search"} == 1
+        for: 2m
+        labels:
+          severity: page
+          component: re_agent_backend
+          tier: availability
+        annotations:
+          summary: "RE backend search circuit breaker OPEN"
+          description: "RE backend search circuit breaker has opened after {{ $value }} consecutive failures. Users are seeing fallback messages."
+          runbook_url: "https://docs.internal/runbooks/re-circuit-breaker"
+          dashboard_url: "http://grafana/d/re-agent-readiness"
+
+      # Warning: High Error Rate
+      - alert: REErrorRateHigh
+        expr: sum(rate(re_error_total[10m])) / sum(rate(re_agent_act_total[10m])) > 0.05
+        for: 10m
+        labels:
+          severity: warn
+          component: re_agent
+          tier: reliability
+        annotations:
+          summary: "RE error rate >5%"
+          description: "RE agent error rate is {{ $value | humanizePercentage }} (threshold: 5%). Check error logs and downstream service health."
+          runbook_url: "https://docs.internal/runbooks/re-error-rate"
+          dashboard_url: "http://grafana/d/re-agent-readiness"
+
+      # Warning: Rehydration Failure Rate High
+      - alert: RERehydrationFailureHigh
+        expr: rate(rehydration_fail_total[10m]) / (rate(rehydration_success_total[10m]) + rate(rehydration_fail_total[10m])) > 0.01
+        for: 10m
+        labels:
+          severity: warn
+          component: rehydration
+          tier: reliability
+        annotations:
+          summary: "Rehydration failure rate >1%"
+          description: "WebSocket rehydration is failing at {{ $value | humanizePercentage }} (threshold: 1%). Check Zep connectivity and checkpoint state."
+          runbook_url: "https://docs.internal/runbooks/rehydration-failures"
+          dashboard_url: "http://grafana/d/re-agent-readiness"
+
+      # Info: Zep Write Skipped (High Volume)
+      - alert: REZepWriteSkippedHigh
+        expr: sum(rate(zep_write_skipped_total{reason="empty_content"}[10m])) > 0.1
+        for: 10m
+        labels:
+          severity: info
+          component: zep_guard
+          tier: observability
+        annotations:
+          summary: "High volume of empty Zep writes blocked"
+          description: "Zep empty message guard is blocking {{ $value }} writes/sec (reason: empty_content). This is expected behavior but high volume may indicate client issues."
+          runbook_url: "https://docs.internal/runbooks/zep-write-guard"
+          dashboard_url: "http://grafana/d/re-agent-readiness"
+
+      # Warning: Slot Filling Loop (users stuck)
+      - alert: RESlotFillingLoop
+        expr: sum(increase(re_agent_act_total{act="ASK_SLOT"}[5m])) / sum(increase(re_agent_act_total{act="SEARCH_AND_RECOMMEND"}[5m])) > 4
+        for: 15m
+        labels:
+          severity: warn
+          component: re_agent_slots
+          tier: ux
+        annotations:
+          summary: "High ASK_SLOT to SEARCH ratio (>4:1)"
+          description: "Users are stuck in slot-filling loops. ASK_SLOT/SEARCH ratio is {{ $value }}:1 (threshold: 4:1). Check slot extraction logic and router continuity."
+          runbook_url: "https://docs.internal/runbooks/slot-filling-loops"
+          dashboard_url: "http://grafana/d/re-agent-readiness"
+
+  - name: zep_health
+    interval: 60s
+    rules:
+      # Critical: Zep Unavailable
+      - alert: ZepUnavailable
+        expr: up{job="zep"} == 0
+        for: 2m
+        labels:
+          severity: page
+          component: zep
+          tier: availability
+        annotations:
+          summary: "Zep memory service is DOWN"
+          description: "Zep service has been unavailable for 2+ minutes. RE agent will degrade to memory-less operation."
+          runbook_url: "https://docs.internal/runbooks/zep-down"
+          dashboard_url: "http://grafana/d/re-agent-readiness"
+
+      # Warning: Zep High Error Rate
+      - alert: ZepErrorRateHigh
+        expr: sum(rate(zep_write_failure_total[10m])) / sum(rate(zep_write_request_total[10m])) > 0.05
+        for: 10m
+        labels:
+          severity: warn
+          component: zep
+          tier: reliability
+        annotations:
+          summary: "Zep write error rate >5%"
+          description: "Zep is failing {{ $value | humanizePercentage }} of write requests. Check Zep logs and database connectivity."
+          runbook_url: "https://docs.internal/runbooks/zep-errors"
+          dashboard_url: "http://grafana/d/re-agent-readiness"
+
+      # Warning: Zep Latency High
+      - alert: ZepLatencyHigh
+        expr: histogram_quantile(0.95, sum by (le)(rate(zep_write_latency_seconds_bucket[10m]))) > 2.0
+        for: 10m
+        labels:
+          severity: warn
+          component: zep
+          tier: performance
+        annotations:
+          summary: "Zep write latency p95 >2s"
+          description: "Zep write latency p95 is {{ $value | humanizeDuration }}. This may impact overall turn latency."
+          runbook_url: "https://docs.internal/runbooks/zep-latency"
+          dashboard_url: "http://grafana/d/re-agent-readiness"

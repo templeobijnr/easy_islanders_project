@@ -1,0 +1,103 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://easyislanders.com/schema/ws/1.0/assistant_message.schema.json",
+  "title": "Assistant Message Event v1.0",
+  "description": "Frozen schema for assistant_message events. DO NOT MODIFY without version bump.",
+  "type": "object",
+  "required": ["type", "event", "thread_id", "payload", "meta"],
+  "properties": {
+    "type": {
+      "const": "chat_message"
+    },
+    "event": {
+      "const": "assistant_message"
+    },
+    "thread_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "payload": {
+      "type": "object",
+      "required": ["text"],
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Assistant reply text"
+        },
+        "rich": {
+          "type": "object",
+          "description": "Rich content (recommendations, cards, etc.)",
+          "properties": {
+            "recommendations": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["id", "type"],
+                "properties": {
+                  "id": {"type": "string"},
+                  "type": {"type": "string"},
+                  "agent": {"type": "string"}
+                }
+              }
+            }
+          }
+        },
+        "agent": {
+          "type": "string",
+          "description": "Agent that handled the request (e.g., 'real_estate', 'general')"
+        }
+      },
+      "additionalProperties": true
+    },
+    "meta": {
+      "type": "object",
+      "required": ["in_reply_to"],
+      "properties": {
+        "in_reply_to": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Client message ID this is replying to"
+        },
+        "trace": {
+          "type": "string",
+          "description": "Trace ID for observability"
+        },
+        "queued_message_id": {
+          "type": "string",
+          "description": "Server-side message ID"
+        },
+        "traces": {
+          "type": "object",
+          "description": "Observability traces for the assistant execution",
+          "properties": {
+            "memory": {
+              "type": "object",
+              "description": "Memory subsystem usage indicators",
+              "required": ["used", "mode"],
+              "properties": {
+                "used": {
+                  "type": "boolean",
+                  "description": "True when Zep memory was consulted"
+                },
+                "mode": {
+                  "type": "string",
+                  "enum": ["off", "write_only", "read_only", "read_write"],
+                  "description": "Memory capability mode for the turn"
+                },
+                "source": {
+                  "type": "string",
+                  "description": "Memory provider identifier"
+                }
+              },
+              "additionalProperties": true
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

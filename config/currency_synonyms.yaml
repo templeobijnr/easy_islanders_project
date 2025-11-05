@@ -1,0 +1,101 @@
+# Currency Synonyms and Normalization Rules
+#
+# Maps user-provided currency terms to ISO 4217 codes.
+# Used by real estate agent for budget normalization.
+
+currencies:
+  # British Pound
+  GBP:
+    canonical: "GBP"
+    symbol: "£"
+    name: "British Pound"
+    synonyms:
+      - "pound"
+      - "pounds"
+      - "gbp"
+      - "GBP"
+      - "£"
+      - "pound sterling"
+      - "sterling"
+      - "quid"
+
+  # Euro
+  EUR:
+    canonical: "EUR"
+    symbol: "€"
+    name: "Euro"
+    synonyms:
+      - "euro"
+      - "euros"
+      - "eur"
+      - "EUR"
+      - "€"
+
+  # US Dollar
+  USD:
+    canonical: "USD"
+    symbol: "$"
+    name: "US Dollar"
+    synonyms:
+      - "dollar"
+      - "dollars"
+      - "usd"
+      - "USD"
+      - "$"
+      - "buck"
+      - "bucks"
+
+  # Turkish Lira
+  TRY:
+    canonical: "TRY"
+    symbol: "₺"
+    name: "Turkish Lira"
+    synonyms:
+      - "lira"
+      - "liras"
+      - "try"
+      - "TRY"
+      - "₺"
+      - "turkish lira"
+      - "tl"
+      - "TL"
+
+# Default currency (if not specified)
+default_currency: "GBP"
+
+# Normalization rules
+normalization:
+  # Case handling
+  case_insensitive: true
+
+  # Number formatting
+  decimal_separator: "."
+  thousands_separator: ","
+
+  # Common abbreviations
+  abbreviations:
+    k: 1000      # 5k → 5000
+    K: 1000
+    m: 1000000   # 1m → 1000000
+    M: 1000000
+
+# Currency priority (for ambiguous cases)
+# Used when user says just "500" without currency
+priority:
+  - "GBP"   # Most common in North Cyprus expat market
+  - "EUR"   # Second most common
+  - "USD"   # Less common but used
+  - "TRY"   # Local currency
+
+# Conversion hints (informational only; not for auto-conversion)
+# Backend should store in requested currency + timestamp for accurate conversion
+approximate_rates:
+  GBP_to_EUR: 1.17
+  GBP_to_USD: 1.27
+  GBP_to_TRY: 43.5
+  EUR_to_USD: 1.09
+  EUR_to_TRY: 37.2
+  USD_to_TRY: 34.1
+
+  # Note: These are approximate rates as of Nov 2024
+  # Do NOT use for actual conversion; fetch live rates from API

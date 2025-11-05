@@ -112,6 +112,28 @@ const api = {
     });
     return response.data; // { results, page, limit, has_next }
   },
+
+  // Preferences API
+  getActivePreferences: async (category = 'real_estate', minConfidence = 0.5) => {
+    const response = await http.get('/api/preferences/active/', {
+      params: { category, min_confidence: minConfidence },
+    });
+    return response.data; // { preferences: { real_estate: [...] } }
+  },
+
+  setThreadPersonalization: async (threadId, paused) => {
+    const response = await http.put(`/api/chat/thread/${threadId}/personalization/`, { paused });
+    return response.data; // { ok, thread_id, paused }
+  },
+  getThreadPersonalization: async (threadId) => {
+    const response = await http.get(`/api/chat/thread/${threadId}/personalization/state/`);
+    return response.data; // { ok, thread_id, paused }
+  },
+
+  upsertPreference: async (payload) => {
+    const response = await http.post('/api/preferences/', payload);
+    return response.data; // { ok, preference }
+  },
 };
 
 export default api;

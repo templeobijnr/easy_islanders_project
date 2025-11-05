@@ -27,6 +27,11 @@ OPENAI_CHAT_MODEL: str = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini")
 DEFAULT_REQUEST_TIMEOUT_SECONDS: int = int(os.getenv("LC_DEFAULT_TIMEOUT", "60"))
 DEFAULT_MAX_RETRIES: int = int(os.getenv("LC_DEFAULT_MAX_RETRIES", "2"))
 
+# Sprint 6 feature flags
+PREFS_EXTRACT_ENABLED: bool = os.getenv("PREFS_EXTRACT_ENABLED", "true").lower() in {"1", "true", "yes"}
+PREFS_APPLY_ENABLED: bool = os.getenv("PREFS_APPLY_ENABLED", "false").lower() in {"1", "true", "yes"}
+PREFS_UI_ENABLED: bool = os.getenv("PREFS_UI_ENABLED", "false").lower() in {"1", "true", "yes"}
+
 
 def load_router_thresholds(yaml_path: Optional[str] = None) -> Dict[str, Any]:
     """Load per-domain router thresholds from YAML configuration.
@@ -53,6 +58,225 @@ def get_domain_threshold(domain: str, default_tau: float = 0.72) -> float:
     thresholds = load_router_thresholds()
     domain_config = thresholds.get('domains', {}).get(domain, {})
     return domain_config.get('tau', default_tau)
+
+
+def load_step6_config(yaml_path: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Load STEP 6 context lifecycle configuration from YAML.
+
+    Args:
+        yaml_path: Optional path to config file (defaults to config/step6_context_lifecycle.yaml)
+
+    Returns:
+        Dict with step6 config, or defaults if file not found
+
+    Example:
+        cfg = load_step6_config()
+        cadence = cfg.get("summary", {}).get("cadence", 10)
+    """
+    if not yaml_path:
+        yaml_path = Path(__file__).parent.parent.parent / "config" / "step6_context_lifecycle.yaml"
+
+    try:
+        with open(yaml_path, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+            return data.get("step6", {}) if data else _get_step6_defaults()
+    except (FileNotFoundError, yaml.YAMLError) as e:
+        print(f"Warning: Could not load STEP6 config from {yaml_path}: {e}")
+        return _get_step6_defaults()
+
+
+def _get_step6_defaults() -> Dict[str, Any]:
+    """Get default STEP 6 config values."""
+    return {
+        "enabled": True,
+        "summary": {
+            "cadence": 10,
+            "max_chars": 500,
+            "max_sentences": 3,
+            "strip_pii": True,
+        },
+        "fusion": {
+            "history_tail_turns": 5,
+            "max_fused_chars": 2000,
+        },
+        "retrieval": {
+            "max_snippets": 5,
+            "min_score": 0.5,
+            "timeout_seconds": 2.0,
+        },
+        "persistence": {
+            "enabled": True,
+        },
+        "rehydration": {
+            "enabled": True,
+            "max_snapshot_age": 3600,
+        },
+    }
+
+
+def load_re_slots_config(yaml_path: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Load Real Estate slots configuration from YAML.
+
+    Args:
+        yaml_path: Optional path to config file (defaults to config/real_estate_slots.yaml)
+
+    Returns:
+        Dict with real_estate config, or defaults if file not found
+
+    Example:
+        cfg = load_re_slots_config()
+        required_slots = cfg.get("required_slots", [])
+    """
+    if not yaml_path:
+        yaml_path = Path(__file__).parent.parent.parent / "config" / "real_estate_slots.yaml"
+
+    try:
+        with open(yaml_path, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+            return data.get("real_estate", {}) if data else _get_re_slots_defaults()
+    except (FileNotFoundError, yaml.YAMLError) as e:
+        print(f"Warning: Could not load RE slots config from {yaml_path}: {e}")
+        return _get_re_slots_defaults()
+
+
+def _get_re_slots_defaults() -> Dict[str, Any]:
+    """Get default Real Estate slots config values."""
+    return {
+        "required_slots": ["rental_type", "location", "budget"],
+        "optional_slots": ["bedrooms", "check_in", "check_out", "property_type"],
+        "slot_filling_guard": {
+            "enabled": True,
+            "max_input_words": 7,
+            "refinement_keywords": ["cheaper", "bigger", "smaller"],
+            "explicit_switch_keywords": ["actually", "instead", "show me"],
+        },
+        "search": {
+            "max_results": 20,
+            "timeout_seconds": 2.0,
+            "default_currency": "GBP",
+        },
+    }
+
+
+def load_geo_synonyms(yaml_path: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Load geographic synonyms configuration from YAML.
+
+    Args:
+        yaml_path: Optional path to config file (defaults to config/geo_synonyms.yaml)
+
+    Returns:
+        Dict with cities, districts, and normalization rules
+
+    Example:
+        cfg = load_geo_synonyms()
+        kyrenia_canonical = cfg["cities"]["Girne"]["canonical"]
+    """
+    if not yaml_path:
+        yaml_path = Path(__file__).parent.parent.parent / "config" / "geo_synonyms.yaml"
+
+    try:
+        with open(yaml_path, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+            return data if data else _get_geo_synonyms_defaults()
+    except (FileNotFoundError, yaml.YAMLError) as e:
+        print(f"Warning: Could not load geo synonyms from {yaml_path}: {e}")
+        return _get_geo_synonyms_defaults()
+
+
+def _get_geo_synonyms_defaults() -> Dict[str, Any]:
+    """Get default geographic synonyms."""
+    return {
+        "cities": {
+            "Girne": {
+                "canonical": "Girne",
+                "synonyms": ["Kyrenia", "kyrenia", "girne"]
+            },
+            "Lefkoşa": {
+                "canonical": "Lefkoşa",
+                "synonyms": ["Nicosia", "nicosia", "lefkosa"]
+            },
+            "Gazimağusa": {
+                "canonical": "Gazimağusa",
+                "synonyms": ["Famagusta", "famagusta", "gazimagusa"]
+            },
+            "İskele": {
+                "canonical": "İskele",
+                "synonyms": ["Iskele", "iskele"]
+            }
+        },
+        "districts": [],
+        "normalization": {
+            "case_insensitive": True,
+            "replacements": {},
+            "stop_words": []
+        }
+    }
+
+
+def load_currency_synonyms(yaml_path: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Load currency synonyms configuration from YAML.
+
+    Args:
+        yaml_path: Optional path to config file (defaults to config/currency_synonyms.yaml)
+
+    Returns:
+        Dict with currencies, default currency, and normalization rules
+
+    Example:
+        cfg = load_currency_synonyms()
+        default_currency = cfg["default_currency"]
+    """
+    if not yaml_path:
+        yaml_path = Path(__file__).parent.parent.parent / "config" / "currency_synonyms.yaml"
+
+    try:
+        with open(yaml_path, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+            return data if data else _get_currency_synonyms_defaults()
+    except (FileNotFoundError, yaml.YAMLError) as e:
+        print(f"Warning: Could not load currency synonyms from {yaml_path}: {e}")
+        return _get_currency_synonyms_defaults()
+
+
+def _get_currency_synonyms_defaults() -> Dict[str, Any]:
+    """Get default currency synonyms."""
+    return {
+        "currencies": {
+            "GBP": {
+                "canonical": "GBP",
+                "symbol": "£",
+                "name": "British Pound",
+                "synonyms": ["pound", "pounds", "gbp", "£"]
+            },
+            "EUR": {
+                "canonical": "EUR",
+                "symbol": "€",
+                "name": "Euro",
+                "synonyms": ["euro", "euros", "eur", "€"]
+            },
+            "USD": {
+                "canonical": "USD",
+                "symbol": "$",
+                "name": "US Dollar",
+                "synonyms": ["dollar", "dollars", "usd", "$"]
+            },
+            "TRY": {
+                "canonical": "TRY",
+                "symbol": "₺",
+                "name": "Turkish Lira",
+                "synonyms": ["lira", "liras", "try", "₺", "tl"]
+            }
+        },
+        "default_currency": "GBP",
+        "normalization": {
+            "case_insensitive": True
+        },
+        "priority": ["GBP", "EUR", "USD", "TRY"]
+    }
 
 
 def validate_env() -> None:

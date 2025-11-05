@@ -267,50 +267,50 @@ class ExternalWebSearchTool(BaseTool):
         """Search using Tavily API (preferred)"""
         try:
             with create_tool_span("tavily", "search"):
-            # Tavily API configuration
-            url = "https://api.tavily.com/search"
-            headers = {
-                "Authorization": f"Bearer {self.tavily_api_key}",
-                "Content-Type": "application/json"
-            }
-            
-            # Build search parameters
-            search_params = {
-                "query": query,
-                "search_depth": "basic",
-                "include_answer": True,
-                "include_raw_content": False,
-                "max_results": limit,
-                "include_domains": [],
-                "exclude_domains": []
-            }
-            
-            # Add language-specific parameters
-            if language != "en":
-                search_params["language"] = language
-            
-            # Execute search
-            response = safe_request("post", url, json=search_params, headers=headers)
-            data = response.json()
-            
-            # Format results
-            results = []
-            for item in data.get('results', []):
-                results.append({
-                    'title': item.get('title', ''),
-                    'description': item.get('content', ''),
-                    'category': search_type,
-                    'source': 'tavily',
-                    'relevance_score': item.get('score', 0.0),
-                    'metadata': {
-                        'url': item.get('url', ''),
-                        'published_date': item.get('published_date', ''),
-                        'language': language
-                    }
-                })
-            
-            logger.info(f"Tavily search returned {len(results)} results")
-            return results
+                # Tavily API configuration
+                url = "https://api.tavily.com/search"
+                headers = {
+                    "Authorization": f"Bearer {self.tavily_api_key}",
+                    "Content-Type": "application/json"
+                }
+                
+                # Build search parameters
+                search_params = {
+                    "query": query,
+                    "search_depth": "basic",
+                    "include_answer": True,
+                    "include_raw_content": False,
+                    "max_results": limit,
+                    "include_domains": [],
+                    "exclude_domains": []
+                }
+                
+                # Add language-specific parameters
+                if language != "en":
+                    search_params["language"] = language
+                
+                # Execute search
+                response = safe_request("post", url, json=search_params, headers=headers)
+                data = response.json()
+                
+                # Format results
+                results = []
+                for item in data.get('results', []):
+                    results.append({
+                        'title': item.get('title', ''),
+                        'description': item.get('content', ''),
+                        'category': search_type,
+                        'source': 'tavily',
+                        'relevance_score': item.get('score', 0.0),
+                        'metadata': {
+                            'url': item.get('url', ''),
+                            'published_date': item.get('published_date', ''),
+                            'language': language
+                        }
+                    })
+                
+                logger.info(f"Tavily search returned {len(results)} results")
+                return results
             
         except Exception as e:
             logger.error(f"Tavily search failed: {e}")
@@ -320,53 +320,53 @@ class ExternalWebSearchTool(BaseTool):
         """Search using DuckDuckGo (fallback)"""
         try:
             with create_tool_span("duckduckgo", "search"):
-            # Simple DuckDuckGo search implementation
-            # In production, use a proper DuckDuckGo API wrapper
-            url = "https://api.duckduckgo.com/"
-            params = {
-                'q': query,
-                'format': 'json',
-                'no_html': '1',
-                'skip_disambig': '1'
-            }
+                # Simple DuckDuckGo search implementation
+                # In production, use a proper DuckDuckGo API wrapper
+                url = "https://api.duckduckgo.com/"
+                params = {
+                    'q': query,
+                    'format': 'json',
+                    'no_html': '1',
+                    'skip_disambig': '1'
+                }
 
-            response = safe_request("get", url, params=params)
-            data = response.json()
-            
-            # Format results
-            results = []
-            
-            # Process abstract (main result)
-            if data.get('Abstract'):
-                results.append({
-                    'title': data.get('Heading', 'DuckDuckGo Result'),
-                    'description': data.get('Abstract', ''),
-                    'category': search_type,
-                    'source': 'duckduckgo',
-                    'relevance_score': 0.9,
-                    'metadata': {
-                        'url': data.get('AbstractURL', ''),
-                        'language': language
-                    }
-                })
-            
-            # Process related topics
-            for topic in data.get('RelatedTopics', [])[:limit-1]:
-                if isinstance(topic, dict) and topic.get('Text'):
+                response = safe_request("get", url, params=params)
+                data = response.json()
+                
+                # Format results
+                results = []
+                
+                # Process abstract (main result)
+                if data.get('Abstract'):
                     results.append({
-                        'title': topic.get('FirstURL', '').split('/')[-1].replace('_', ' ').title(),
-                        'description': topic.get('Text', ''),
+                        'title': data.get('Heading', 'DuckDuckGo Result'),
+                        'description': data.get('Abstract', ''),
                         'category': search_type,
                         'source': 'duckduckgo',
-                        'relevance_score': 0.7,
+                        'relevance_score': 0.9,
                         'metadata': {
-                            'url': topic.get('FirstURL', ''),
+                            'url': data.get('AbstractURL', ''),
                             'language': language
                         }
                     })
-            
-            logger.info(f"DuckDuckGo search returned {len(results)} results")
-            return results
+                
+                # Process related topics
+                for topic in data.get('RelatedTopics', [])[:limit-1]:
+                    if isinstance(topic, dict) and topic.get('Text'):
+                        results.append({
+                            'title': topic.get('FirstURL', '').split('/')[-1].replace('_', ' ').title(),
+                            'description': topic.get('Text', ''),
+                            'category': search_type,
+                            'source': 'duckduckgo',
+                            'relevance_score': 0.7,
+                            'metadata': {
+                                'url': topic.get('FirstURL', ''),
+                                'language': language
+                            }
+                        })
+                
+                logger.info(f"DuckDuckGo search returned {len(results)} results")
+                return results
             
         except Exception as e:
             logger.error(f"DuckDuckGo search failed: {e}")

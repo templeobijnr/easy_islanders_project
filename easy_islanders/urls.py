@@ -29,12 +29,19 @@ from drf_spectacular.views import (
     SpectacularSwaggerView,
     SpectacularRedocView,
 )
+from real_estate.views import ListingSearchViewSet
+
+# Real estate search endpoint
+listing_search = ListingSearchViewSet.as_view({"get": "list"})
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('users.urls')),
     path('api/', include('assistant.urls')),
     path('api/', include('router_service.urls')),
+
+    # Real Estate Search API
+    path('api/v1/real_estate/search', listing_search, name='real-estate-search'),
 
     # JWT Authentication (Cookie-enabled - PR D: Auth Hardening)
     path('api/token/', CookieTokenObtainPairView.as_view(), name='token_obtain_pair'),

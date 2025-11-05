@@ -45,3 +45,14 @@ groups:
         annotations:
           summary: "Router calibration parameters are stale"
           description: "Calibration parameters for domain {{ $labels.domain }} haven't been updated in 7+ days"
+
+  - name: preferences_health
+    rules:
+      - alert: ZeroPrefsApplyRate
+        expr: increase(prefs_applied_total[1h]) == 0
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "No preferences are being applied"
+          description: "prefs_applied_total has not increased in the last hour. Check extraction/apply paths and flags."

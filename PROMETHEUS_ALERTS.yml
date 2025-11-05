@@ -1,0 +1,257 @@
+# Prometheus Alert Rules for Real Estate Agent (Prompt-Driven v1.0)
+#
+# Load these rules into Prometheus configuration:
+# prometheus.yml:
+#   rule_files:
+#     - "PROMETHEUS_ALERTS.yml"
+
+groups:
+  - name: real_estate_agent
+    interval: 30s
+    rules:
+      # =====================================================================
+      # P0 ALERTS (Page-worthy, immediate action required)
+      # =====================================================================
+
+      - alert: REJsonContractHigh
+        expr: rate(re_json_parse_fail_total[10m]) > 0.005
+        for: 10m
+        labels:
+          severity: page
+          component: real_estate_agent
+          slo: json_contract
+        annotations:
+          summary: "Real Estate Agent JSON contract violations > 0.5%"
+          description: |
+            JSON parse failures from LLM responses exceed 0.5% threshold.
+            Current rate: {{ $value | humanizePercentage }}
+
+            Impact: Users may see error messages instead of property search results.
+
+            Action:
+            1. Check recent LLM outputs: `grep 'JSON parsing failed' logs/app.log | tail -50`
+            2. Reduce canary: `export RE_PROMPT_CANARY_PERCENT=5 && docker compose restart web`
+            3. Inspect failure patterns and adjust prompt template or validation
+
+            Runbook: CANARY_ROLLOUT.md#symptom-json-contract-violations-spike
+          dashboard: "http://grafana/d/re-agent?from=now-1h&to=now&var-severity=page"
+
+      - alert: RECircuitBreakerOpenProlonged
+        expr: re_circuit_breaker_state{service="backend_search"} == 1
+        for: 10m
+        labels:
+          severity: page
+          component: real_estate_agent
+          slo: availability
+        annotations:
+          summary: "Real Estate backend search circuit breaker OPEN for >10 minutes"
+          description: |
+            Backend search circuit breaker has been open for more than 10 minutes.
+            Users are receiving graceful fallback messages instead of listings.
+
+            Impact: No property search results available, degraded UX.
+
+            Action:
+            1. Check backend health: `curl http://localhost:8000/api/v1/real_estate/search?city=Test`
+            2. Check DB connection pool: `SELECT count(*) FROM pg_stat_activity WHERE state = 'active';`
+            3. If backend down, keep breaker open (fail-fast) and fix root cause
+            4. If backend recovered, breaker will auto-close after next successful request
+
+            Runbook: CANARY_ROLLOUT.md#symptom-circuit-breaker-flapping
+          dashboard: "http://grafana/d/re-agent?from=now-1h&to=now&var-panel=circuit_breaker"
+
+      # =====================================================================
+      # P1 ALERTS (Warn, action within 30 minutes)
+      # =====================================================================
+
+      - alert: RESearchLatencyHigh
+        expr: histogram_quantile(0.95, sum by (le)(rate(re_backend_search_ms_bucket[10m]))) > 0.6
+        for: 10m
+        labels:
+          severity: warn
+          component: real_estate_agent
+          slo: latency
+        annotations:
+          summary: "Real Estate backend search p95 latency > 600ms"
+          description: |
+            Backend search p95 latency exceeds 600ms threshold.
+            Current p95: {{ $value | humanizeDuration }}
+
+            Impact: Slower property search results, degraded UX.
+
+            Action:
+            1. Check cache hit rate: `rate(re_search_cache_hits_total[10m])/rate(re_backend_search_ms_count[10m])`
+            2. Increase cache TTL if needed: `SEARCH_CACHE_TTL=60`
+            3. Check DB slow queries:
+               ```sql
+               SELECT query, mean_exec_time FROM pg_stat_statements
+               WHERE query LIKE '%real_estate_listing%'
+               ORDER BY mean_exec_time DESC LIMIT 10;
+               ```
+            4. If persistent, consider increasing timeout: `RE_SEARCH_TIMEOUT_MS=1000`
+
+            Runbook: CANARY_ROLLOUT.md#symptom-search-latency-p95-breach
+          dashboard: "http://grafana/d/re-agent?from=now-1h&to=now&var-panel=search_latency"
+
+      - alert: RETurnLatencyHigh
+        expr: histogram_quantile(0.95, sum by (le)(rate(re_turn_total_ms_bucket[10m]))) > 1.5
+        for: 10m
+        labels:
+          severity: warn
+          component: real_estate_agent
+          slo: latency
+        annotations:
+          summary: "Real Estate agent turn p95 latency > 1500ms"
+          description: |
+            Total turn processing p95 latency exceeds 1500ms threshold.
+            Current p95: {{ $value | humanizeDuration }}
+
+            Impact: Slow responses to user messages, poor UX.
+
+            Action:
+            1. Break down by component:
+               - Prompt duration: `histogram_quantile(0.95, re_prompt_end_to_end_ms_bucket[10m])`
+               - Search duration: `histogram_quantile(0.95, re_backend_search_ms_bucket[10m])`
+            2. If prompt duration high: Check LLM service health
+            3. If search duration high: See RESearchLatencyHigh runbook
+            4. Check context fusion duration in supervisor logs
+
+            Runbook: CANARY_ROLLOUT.md#phase-1-10-canary-60-minutes
+          dashboard: "http://grafana/d/re-agent?from=now-1h&to=now&var-panel=turn_latency"
+
+      - alert: RECircuitBreakerFlapping
+        expr: changes(re_circuit_breaker_state{service="backend_search"}[10m]) > 3
+        for: 5m
+        labels:
+          severity: warn
+          component: real_estate_agent
+          slo: stability
+        annotations:
+          summary: "Real Estate circuit breaker flapping (>3 transitions in 10 minutes)"
+          description: |
+            Circuit breaker has transitioned between OPEN and CLOSED more than 3 times in 10 minutes.
+            This indicates backend instability.
+
+            Impact: Intermittent search failures, inconsistent UX.
+
+            Action:
+            1. Check backend error rate:
+               `rate(re_error_total{type=~"search_.*"}[5m])`
+            2. Test backend stability:
+               ```bash
+               for i in {1..10}; do
+                 curl -o /dev/null -s -w "%{http_code}\n" \
+                   http://localhost:8000/api/v1/real_estate/search?city=Test
+                 sleep 1
+               done
+               ```
+            3. If unstable: Increase tolerance `RE_SEARCH_CIRCUIT_BREAKER_OPEN_AFTER=10`
+            4. If down: Let breaker stay open, fix backend first
+
+            Runbook: CANARY_ROLLOUT.md#symptom-circuit-breaker-flapping
+          dashboard: "http://grafana/d/re-agent?from=now-1h&to=now&var-panel=circuit_breaker"
+
+      # =====================================================================
+      # P2 ALERTS (Info, monitor trends)
+      # =====================================================================
+
+      - alert: REErrorRateElevated
+        expr: sum(rate(re_error_total[10m])) > 0.01
+        for: 15m
+        labels:
+          severity: info
+          component: real_estate_agent
+        annotations:
+          summary: "Real Estate agent error rate elevated (>1%)"
+          description: |
+            Aggregate error rate exceeds 1% for 15 minutes.
+            Current rate: {{ $value | humanizePercentage }}
+
+            Error breakdown:
+            - JSON contract: `rate(re_error_total{type="json_contract"}[10m])`
+            - Search timeout: `rate(re_error_total{type="search_timeout"}[10m])`
+            - Circuit open: `rate(re_error_total{type="circuit_open"}[10m])`
+            - Card emit: `rate(re_error_total{type="card_emit"}[10m])`
+
+            Action: Investigate top error types and address root causes.
+          dashboard: "http://grafana/d/re-agent?from=now-1h&to=now&var-panel=errors"
+
+      - alert: RECacheHitRateLow
+        expr: rate(re_search_cache_hits_total[10m]) / rate(re_backend_search_ms_count[10m]) < 0.20
+        for: 20m
+        labels:
+          severity: info
+          component: real_estate_agent
+        annotations:
+          summary: "Real Estate search cache hit rate < 20%"
+          description: |
+            Cache hit rate is below 20% for 20 minutes.
+            Current rate: {{ $value | humanizePercentage }}
+
+            Impact: Increased load on backend, higher latencies.
+
+            Action:
+            1. Check if traffic pattern changed (new filter combinations)
+            2. Consider increasing cache TTL: `SEARCH_CACHE_TTL=60` (from 30s)
+            3. Monitor cache size: `re_search_cache_size_bytes`
+
+            Note: Low hit rate is normal during initial canary phase.
+          dashboard: "http://grafana/d/re-agent?from=now-1h&to=now&var-panel=search_latency"
+
+      - alert: REConversionRateDropped
+        expr: |
+          (
+            sum(rate(re_agent_act_total{act="SEARCH_AND_RECOMMEND"}[30m]))
+            /
+            sum(rate(re_agent_act_total[30m]))
+          ) < 0.40
+        for: 30m
+        labels:
+          severity: info
+          component: real_estate_agent
+        annotations:
+          summary: "Real Estate conversion rate dropped below 40%"
+          description: |
+            Percentage of turns reaching SEARCH_AND_RECOMMEND dropped below 40%.
+            Current rate: {{ $value | humanizePercentage }}
+
+            Impact: Users may be stuck in slot-filling or abandoning search.
+
+            Action:
+            1. Check ASK_SLOT distribution:
+               `sum by (act)(rate(re_agent_act_total[30m]))`
+            2. Check if CLARIFY or ESCALATE spiked
+            3. Review recent slot-filling sessions for loops
+
+            Note: May be normal if traffic includes more general queries.
+          dashboard: "http://grafana/d/re-agent?from=now-1h&to=now&var-panel=actions"
+
+# =====================================================================
+# RECORDING RULES (pre-compute common queries)
+# =====================================================================
+
+  - name: real_estate_agent_recording
+    interval: 30s
+    rules:
+      - record: re:search_latency_p95:5m
+        expr: histogram_quantile(0.95, sum by (le)(rate(re_backend_search_ms_bucket[5m])))
+
+      - record: re:turn_latency_p95:5m
+        expr: histogram_quantile(0.95, sum by (le)(rate(re_turn_total_ms_bucket[5m])))
+
+      - record: re:json_parse_fail_rate:5m
+        expr: rate(re_json_parse_fail_total[5m])
+
+      - record: re:error_rate:5m
+        expr: sum(rate(re_error_total[5m]))
+
+      - record: re:cache_hit_rate:5m
+        expr: rate(re_search_cache_hits_total[5m]) / rate(re_backend_search_ms_count[5m])
+
+      - record: re:conversion_rate:30m
+        expr: |
+          (
+            sum(rate(re_agent_act_total{act="SEARCH_AND_RECOMMEND"}[30m]))
+            /
+            sum(rate(re_agent_act_total[30m]))
+          )

@@ -152,6 +152,52 @@
           }
         ]
       }
+      ,
+      {
+        "id": 21,
+        "title": "Prefs Extract Requests (rate)",
+        "type": "graph",
+        "targets": [
+          { "expr": "rate(prefs_extract_requests_total[5m])", "legendFormat": "{{result}}" }
+        ],
+        "yAxes": [ { "unit": "reqps", "min": 0 } ]
+      },
+      {
+        "id": 22,
+        "title": "Prefs Saved (5m)",
+        "type": "graph",
+        "targets": [
+          { "expr": "increase(prefs_saved_total[5m])", "legendFormat": "{{category}}/{{type}}/{{source}}" }
+        ],
+        "yAxes": [ { "unit": "short", "min": 0 } ]
+      },
+      {
+        "id": 23,
+        "title": "Prefs Applied (5m)",
+        "type": "graph",
+        "targets": [
+          { "expr": "increase(prefs_applied_total[5m])", "legendFormat": "{{agent}}" }
+        ],
+        "yAxes": [ { "unit": "short", "min": 0 } ]
+      },
+      {
+        "id": 24,
+        "title": "Prefs Contradictions (5m)",
+        "type": "graph",
+        "targets": [
+          { "expr": "increase(prefs_contradictions_total[5m])", "legendFormat": "{{type}}" }
+        ],
+        "yAxes": [ { "unit": "short", "min": 0 } ]
+      },
+      {
+        "id": 25,
+        "title": "Prefs Extraction Latency P95",
+        "type": "graph",
+        "targets": [
+          { "expr": "histogram_quantile(0.95, rate(prefs_latency_seconds_bucket[5m]))", "legendFormat": "p95" }
+        ],
+        "yAxes": [ { "unit": "seconds", "min": 0 } ]
+      }
     ],
     "time": {
       "from": "now-1h",

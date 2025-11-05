@@ -2,6 +2,51 @@ from typing import TypedDict, Optional, Dict, List, Literal, Any
 from pydantic import BaseModel, Field
 
 
+class RealEstateAgentContext(BaseModel):
+    """
+    Typed context for real_estate_agent slot-filling and search flow.
+
+    Used in SupervisorState.agent_contexts["real_estate_agent"] for tracking
+    slot collection progress and preventing re-ask loops.
+    """
+
+    # Slot tracking
+    needed_slots: List[str] = Field(
+        default_factory=lambda: ["rental_type", "location", "budget"],
+        description="Required slots for search (order matters)"
+    )
+    filled_slots: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Collected slot values: {location: 'Girne', budget: 500, ...}"
+    )
+    awaiting_slot: Optional[str] = Field(
+        default=None,
+        description="Slot currently being asked for (e.g., 'rental_type')"
+    )
+
+    # Conversation stage
+    stage: Literal["discovery", "slot_filling", "presenting", "transaction"] = Field(
+        default="discovery",
+        description="Current stage in RE conversation flow"
+    )
+
+    # Search state
+    last_search_filters: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Filters from last search for refinement"
+    )
+    result_count: int = Field(default=0, description="Number of results from last search")
+
+    # Timestamps
+    last_active: float = Field(
+        default=0.0,
+        description="Unix timestamp of last activity (for TTL)"
+    )
+
+    class Config:
+        extra = "allow"  # Allow additional fields for flexibility
+
+
 class SupervisorRoutingDecision(BaseModel):
     """Structured output for Central Supervisor Agent routing decisions"""
 
@@ -36,6 +81,7 @@ class SupervisorState(TypedDict):
     user_input: str
     thread_id: str
     messages: List[Dict]
+    history: List[Dict[str, str]]
     user_id: Optional[int]
     conversation_history: List[Dict]
 
@@ -61,6 +107,47 @@ class SupervisorState(TypedDict):
     # Agent response content
     final_response: Optional[str]
     recommendations: Optional[List[Dict]]
+    agent_name: Optional[str]
+    agent_traces: Optional[Dict[str, Any]]
+    conversation_ctx: Optional[Dict[str, Any]]
+    memory_trace: Optional[Dict[str, Any]]
+    memory_context_summary: Optional[str]
+    memory_context_facts: Optional[List[Dict[str, Any]]]
+    memory_context_recent: Optional[List[Dict[str, Any]]]
+    retrieved_context: Optional[str]
+
+    # STEP 3: Context Fusion + Intent Continuity
+    active_domain: Optional[str]  # Current active intent domain for continuity
+    fused_context: Optional[str]  # Combined short-term + long-term + domain context
+
+    # STEP 4: Agent Context Preservation & Multi-Agent Coherence
+    agent_contexts: Optional[Dict[str, Dict[str, Any]]]  # Agent-specific context buckets
+    shared_context: Optional[Dict[str, Any]]  # Cross-agent shared context
+    previous_agent: Optional[str]  # Previous agent before switch
+    agent_specific_context: Optional[str]  # Context tailored for current agent
+    agent_collected_info: Optional[Dict[str, Any]]  # Current agent's collected entities
+    agent_conversation_stage: Optional[str]  # Current agent's conversation stage
+
+    # STEP 5: Token Budget & Context Window Management
+    token_budget: Optional[int]  # Max tokens allowed per prompt (default: 6000)
+    current_token_estimate: Optional[int]  # Last computed prompt size in tokens
+
+    # STEP 6: Context Lifecycle & Summarization Layer
+    agent_context_summaries: Optional[Dict[str, str]]  # Per-agent summarized contexts
+    last_summary_timestamp: Optional[float]  # Last time contexts were summarized
+    summary_version: Optional[int]  # Version counter for summary updates
+    conversation_summary: Optional[str]  # Rolling conversation summary (≤500 chars)
+    turn_count: Optional[int]  # Total conversation turn count for summary cadence
+    last_summary_turn: Optional[int]  # Turn number when summary was last generated
+    context_snapshot_id: Optional[str]  # Zep session ID for persisted context snapshot
+
+    # STEP 7: Context-Primed Router & Sticky-Intent Orchestration
+    current_intent: Optional[str]  # Current classified intent (e.g., "property_search")
+    last_intent: Optional[str]  # Previous intent before current turn
+    router_confidence: Optional[float]  # Confidence score from router (0-1)
+    router_reason: Optional[str]  # Explanation for routing decision (stick/switch/clarify)
+    router_evidence: Optional[Dict[str, Any]]  # Evidence dict (logits, probs, tokens)
+    clarify: Optional[bool]  # Flag to request user clarification
 
 
 class MapMarker(BaseModel):
@@ -80,4 +167,3 @@ class MapMarker(BaseModel):
     
     class Config:
         extra = "forbid"
-

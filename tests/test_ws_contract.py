@@ -8,6 +8,15 @@ from channels.layers import get_channel_layer
 from channels.testing import WebsocketCommunicator
 from django.contrib.auth import get_user_model
 
+from django.conf import settings
+
+POSTGRES_ENABLED = "postgres" in settings.DATABASES["default"]["ENGINE"] or "postgresql" in settings.DATABASES["default"]["ENGINE"]
+
+pytestmark = pytest.mark.skipif(
+    not POSTGRES_ENABLED,
+    reason="requires PostgreSQL backend (ArrayField in real_estate app)",
+)
+
 from assistant.tasks import WsAssistantFrame, process_chat_message
 from assistant.models import ConversationThread, Message
 from assistant.consumers import ChatConsumer
@@ -50,7 +59,7 @@ def test_group_name_and_type_are_correct(monkeypatch):
 
     monkeypatch.setattr('assistant.tasks.get_channel_layer', lambda: DummyLayer())
     monkeypatch.setattr('assistant.tasks.async_to_sync', lambda func: func)
-    monkeypatch.setattr('assistant.tasks.run_supervisor_agent', lambda text, tid: {"message": "hi", "recommendations": []})
+    monkeypatch.setattr('assistant.tasks.run_supervisor_agent', lambda text, tid, **_: {"message": "hi", "recommendations": []})
 
     process_chat_message.run(message_id=str(msg.id), thread_id=str(thread.thread_id), client_msg_id=str(client_uuid))
 
@@ -64,6 +73,7 @@ def test_group_name_and_type_are_correct(monkeypatch):
     assert frame["type"] == "chat_message"
     assert frame["event"] == "assistant_message"
     assert frame["meta"]["in_reply_to"] == str(client_uuid)
+    assert frame["meta"]["traces"]["memory"] == {"used": False, "mode": "off", "source": "zep"}
 
 
 @pytest.fixture
@@ -106,7 +116,11 @@ def test_websocket_consumer_delivers_assistant_frame(websocket_user):
                     "event": "assistant_message",
                     "thread_id": thread_id,
                     "payload": {"text": "WS hi", "rich": {}},
-                    "meta": {"in_reply_to": client_msg_id, "queued_message_id": queued_id},
+                    "meta": {
+                        "in_reply_to": client_msg_id,
+                        "queued_message_id": queued_id,
+                        "traces": {"memory": {"used": False, "mode": "off", "source": "zep"}},
+                    },
                 },
             },
         )

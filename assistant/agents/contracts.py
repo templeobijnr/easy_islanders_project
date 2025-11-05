@@ -5,14 +5,16 @@ These types define the supervisor <-> agent interface.
 Changes require version bumps and migration plan.
 """
 
-from typing import TypedDict, Literal, Any, NotRequired
+from typing import TypedDict, Literal, Any, NotRequired, Required
 
 
-class AgentContext(TypedDict):
+class AgentContext(TypedDict, total=False):
     """Context passed to all agents."""
     user_id: str | None
-    locale: str  # 'en', 'tr', 'ru', 'de', 'pl'
-    time: str    # ISO8601 timestamp
+    locale: Required[str]  # 'en', 'tr', 'ru', 'de', 'pl'
+    time: Required[str]    # ISO8601 timestamp
+    conversation_capsule: NotRequired[dict[str, Any]]
+    memory: NotRequired[dict[str, Any]]
 
 
 class AgentRequest(TypedDict):

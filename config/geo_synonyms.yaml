@@ -1,0 +1,116 @@
+# Geographic Synonyms for North Cyprus
+#
+# Maps English/Turkish variants and common misspellings to canonical city names.
+# Used by real estate agent for location normalization.
+
+cities:
+  # Kyrenia / Girne
+  Girne:
+    canonical: "Girne"
+    synonyms:
+      - "Kyrenia"
+      - "kyrenia"
+      - "girne"
+      - "Keryneia"
+      - "Kerinia"
+
+  # Nicosia / Lefkoşa
+  Lefkoşa:
+    canonical: "Lefkoşa"
+    synonyms:
+      - "Nicosia"
+      - "nicosia"
+      - "lefkosa"
+      - "lefkoşa"
+      - "Lefkosa"
+      - "North Nicosia"
+
+  # Famagusta / Gazimağusa
+  Gazimağusa:
+    canonical: "Gazimağusa"
+    synonyms:
+      - "Famagusta"
+      - "famagusta"
+      - "gazimagusa"
+      - "gazimağusa"
+      - "Gazimagusa"
+      - "Mağusa"
+      - "magusa"
+
+  # Iskele
+  İskele:
+    canonical: "İskele"
+    synonyms:
+      - "Iskele"
+      - "iskele"
+      - "Trikomo"
+      - "trikomo"
+
+# Popular districts (for fuzzy matching)
+districts:
+  # Girne districts
+  - name: "Alsancak"
+    city: "Girne"
+    synonyms: ["alsancak", "Alsanjak"]
+
+  - name: "Lapta"
+    city: "Girne"
+    synonyms: ["lapta", "Lapithos", "lapithos"]
+
+  - name: "Çatalköy"
+    city: "Girne"
+    synonyms: ["Catalkoy", "catalkoy", "çatalköy", "Catalköy"]
+
+  - name: "Karakum"
+    city: "Girne"
+    synonyms: ["karakum", "Karakoumi"]
+
+  - name: "Esentepe"
+    city: "Girne"
+    synonyms: ["esentepe", "Agios Amvrosios"]
+
+  # Lefkoşa districts
+  - name: "Gönyeli"
+    city: "Lefkoşa"
+    synonyms: ["gonyeli", "gönyeli", "Geunyeli"]
+
+  - name: "Ortaköy"
+    city: "Lefkoşa"
+    synonyms: ["ortakoy", "ortaköy", "Ortakoy"]
+
+  # Gazimağusa districts
+  - name: "Salamis"
+    city: "Gazimağusa"
+    synonyms: ["salamis", "Salamina"]
+
+  # İskele districts
+  - name: "Long Beach"
+    city: "İskele"
+    synonyms: ["long beach", "longbeach", "Long-Beach"]
+
+  - name: "Bafra"
+    city: "İskele"
+    synonyms: ["bafra", "Bafra Region"]
+
+# Normalization rules
+normalization:
+  # Case handling
+  case_insensitive: true
+
+  # Character replacements
+  replacements:
+    "ş": "s"
+    "ğ": "g"
+    "ı": "i"
+    "ö": "o"
+    "ü": "u"
+    "ç": "c"
+
+  # Stop words to ignore
+  stop_words:
+    - "in"
+    - "near"
+    - "around"
+    - "close to"
+    - "area"
+    - "region"

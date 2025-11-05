@@ -413,15 +413,18 @@ def capture_lead_node(state: EnterpriseAgentState) -> EnterpriseAgentState:
     intent = state['intent_result']
     
     # Create Request payload with validated attributes
-    request_payload = RequestPayload(
+    attributes = intent.attributes or {}
+    request_payload = EnterpriseRequestPayload(
         category=intent.category,
         subcategory=intent.subcategory,
-        location=intent.attributes.get('location'),
-        budget_amount=intent.attributes.get('budget'),
-        currency=intent.attributes.get('currency', 'EUR'),
-        attributes=intent.attributes,
+        location=attributes.get('location'),
+        budget_amount=attributes.get('budget'),
+        budget_currency=attributes.get('currency', 'EUR'),
+        attributes=attributes,
         contact=state['user_input'],  # Simplified for now
-        conversation_id=state['conversation_id']
+        conversation_id=state['conversation_id'],
+        user_id=state.get('user_id'),
+        language=state.get('user_language', 'en'),
     )
     
     # Create Request record atomically
@@ -778,7 +781,7 @@ IMPORTANT:
         logger.error(f"Response generation failed: {e}")
         return "I'm sorry, I encountered an error generating a response."
 
-def create_request_record(payload: RequestPayload, conversation_id: str) -> str:
+def create_request_record(payload: EnterpriseRequestPayload, conversation_id: str) -> str:
     """Create Request record in database"""
     try:
         from ..models import Request
@@ -792,10 +795,10 @@ def create_request_record(payload: RequestPayload, conversation_id: str) -> str:
             category=payload.category,
             subcategory=payload.subcategory or '',
             location=payload.location or '',
-            budget=payload.budget,
-            currency=payload.currency or 'EUR',
+            budget=payload.budget_amount,
+            currency=payload.budget_currency or 'EUR',
             attributes=payload.attributes or {},
-            contact_info=payload.contact_info or '',
+            contact_info=payload.contact or '',
             user=agent_user,
             created_by=agent_user
         )
@@ -807,7 +810,7 @@ def create_request_record(payload: RequestPayload, conversation_id: str) -> str:
         logger.error(f"Failed to create Request record: {e}")
         return ""
 
-def should_require_hitl_approval(intent: IntentResult) -> bool:
+def should_require_hitl_approval(intent: EnterpriseIntentResult) -> bool:
     """Determine if HITL approval is required"""
     # Business logic for HITL requirements
     # Require approval for high-value or sensitive categories
@@ -820,7 +823,7 @@ def should_require_hitl_approval(intent: IntentResult) -> bool:
     
     return False
 
-def create_approval_gate(request_id: str, intent: IntentResult, conversation_id: str) -> str:
+def create_approval_gate(request_id: str, intent: EnterpriseIntentResult, conversation_id: str) -> str:
     """Create HITL approval gate"""
     try:
         from ..models import ApproveBroadcast, Request
@@ -842,7 +845,7 @@ def create_approval_gate(request_id: str, intent: IntentResult, conversation_id:
         logger.error(f"Failed to create approval gate: {e}")
         return ""
 
-def execute_broadcast(request_id: str, intent: IntentResult, language: str) -> Dict:
+def execute_broadcast(request_id: str, intent: EnterpriseIntentResult, language: str) -> Dict:
     """Execute broadcast via Celery"""
     try:
         from ..tasks import broadcast_request_for_request
@@ -941,7 +944,7 @@ def schedule_viewing(request_id: str, user_input: str, language: str) -> Dict:
 # LEGACY FEATURE PARITY FUNCTIONS
 # ============================================================================
 
-def _enhance_intent_with_legacy_features(intent_result: IntentResult, user_input: str, conversation_history: List[Dict]) -> IntentResult:
+def _enhance_intent_with_legacy_features(intent_result: EnterpriseIntentResult, user_input: str, conversation_history: List[Dict]) -> EnterpriseIntentResult:
     """Enhance intent classification with legacy feature parity"""
     try:
         # Legacy greeting detection
@@ -1014,7 +1017,7 @@ def _enhance_intent_with_legacy_features(intent_result: IntentResult, user_input
         logger.error(f"Legacy feature enhancement failed: {e}")
         return intent_result
 
-def _legacy_heuristic_intent_detection(user_input: str, language: str, conversation_history: List[Dict]) -> IntentResult:
+def _legacy_heuristic_intent_detection(user_input: str, language: str, conversation_history: List[Dict]) -> EnterpriseIntentResult:
     """Fallback to legacy heuristic intent detection"""
     try:
         # Apply legacy detection logic
@@ -1632,7 +1635,7 @@ def run_enterprise_agent(user_input: str, conversation_id: str) -> Dict[str, Any
 # SUPERVISOR AGENT ENTRY POINT
 # =============================================================================
 
-def run_supervisor_agent(user_input: str, thread_id: str) -> Dict[str, Any]:
+def run_supervisor_agent(user_input: str, thread_id: str, client_msg_id: str | None = None) -> Dict[str, Any]:
     """
     Central Supervisor entry point: route to specialized sub-agents.
     Returns a standardized response envelope used by views.
@@ -1643,10 +1646,38 @@ def run_supervisor_agent(user_input: str, thread_id: str) -> Dict[str, Any]:
         from .supervisor_graph import build_supervisor_graph
         from .supervisor_schemas import SupervisorState
 
+        logger.info(f"[{thread_id}] Supervisor agent: building graph...")
+        graph = build_supervisor_graph()
+        # Defensive guard: some environments may return None from compile due to version mismatches.
+        if graph is None or not hasattr(graph, "invoke"):
+            logger.error(f"[{thread_id}] Supervisor graph compile returned invalid object: {type(graph)}")
+            raise RuntimeError("Supervisor graph is not invokable (compile returned None)")
+
+        restored_history: List[Dict[str, str]] = []
+        if hasattr(graph, "get_state"):
+            try:
+                graph_state = graph.get_state(thread_id)
+                if isinstance(graph_state, dict):
+                    values = graph_state.get("values", graph_state)
+                elif hasattr(graph_state, "values"):
+                    values = graph_state.values
+                else:
+                    values = {}
+                history_val = values.get("history") if isinstance(values, dict) else None
+                if isinstance(history_val, list):
+                    restored_history = [
+                        {"role": str(item.get("role", "")), "content": str(item.get("content", ""))}
+                        for item in history_val
+                        if isinstance(item, dict)
+                    ]
+            except Exception:
+                restored_history = []
+
         state: SupervisorState = {
             'user_input': user_input,
             'thread_id': thread_id,
             'messages': [],
+            'history': restored_history or [],
             'user_id': None,
             'conversation_history': [],
             'routing_decision': None,
@@ -1658,10 +1689,8 @@ def run_supervisor_agent(user_input: str, thread_id: str) -> Dict[str, Any]:
             'error_message': None,
             'is_complete': False,
             'agent_response': None,
+            'client_msg_id': client_msg_id,
         }
-
-        logger.info(f"[{thread_id}] Supervisor agent: building graph...")
-        graph = build_supervisor_graph()
         
         logger.info(f"[{thread_id}] Supervisor agent: invoking with user_input={user_input[:50]}...")
         # Save lightweight checkpoint
@@ -1700,6 +1729,8 @@ def run_supervisor_agent(user_input: str, thread_id: str) -> Dict[str, Any]:
             'conversation_id': thread_id,
             'routed_to': routed_to,
         }
+        if isinstance(result.get('memory_trace'), dict):
+            resp['memory_trace'] = result['memory_trace']
         if result.get('mode') == 'degraded':
             inc_agent_degraded("supervisor", result.get('reason') or 'unknown')
         return resp

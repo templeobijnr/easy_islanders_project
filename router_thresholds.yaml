@@ -82,7 +82,7 @@ features:
         - "lefkoşa"
         - "gazimağusa"
         - "güzelyurt"
-      weight: 0.06
+      weight: 0.08  # STEP 7.1: Increased from 0.06 to prevent borderline flips
 
     vehicle_search:
       compatible_tokens:

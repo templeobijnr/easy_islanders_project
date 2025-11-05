@@ -87,11 +87,45 @@ def _extract_assistant_text(content: Any) -> str:
     return str(content)
 
 
+# STEP 7.1: Global state for deduplication
+_last_mem_key = None
+
+
 def _zep_store_memory(thread_id: str | None, role: str, content: str) -> None:
+    """
+    STEP 7.1: Safe Zep memory write with deduplication.
+
+    Prevents:
+    - Empty/whitespace-only content (causes "no messages" embedder errors)
+    - Duplicate writes (same thread + role + content hash)
+
+    Args:
+        thread_id: Conversation thread ID
+        role: Message role (user, assistant)
+        content: Message content
+    """
+    global _last_mem_key
+
     if not thread_id or not content or _ZEP_CLIENT is None:
         return
+
+    # STEP 7.1: Prevent empty content writes
+    if not str(content).strip():
+        logger.debug(f"[ZEP] Skipping empty content write for {thread_id}:{role}")
+        return
+
+    # STEP 7.1: Prevent duplicate writes (debounce)
+    content_clean = str(content).strip()
+    key = f"{thread_id}:{role}:{hash(content_clean)}"
+    if key == _last_mem_key:
+        logger.debug(f"[ZEP] Skipping duplicate write for {thread_id}:{role}")
+        return
+
+    _last_mem_key = key
+
     try:
-        _ZEP_CLIENT.add_memory(thread_id, role, content)
+        _ZEP_CLIENT.add_memory(thread_id, role, content_clean)
+        logger.debug(f"[ZEP] Memory written: {thread_id}:{role} ({len(content_clean)} chars)")
     except Exception as exc:  # noqa: BLE001
         logger.debug("[ZEP] add_memory raised: %s", exc)
 
@@ -1615,11 +1649,16 @@ def build_supervisor_graph():
             """
             Real Estate Agent: Delegates to production RE agent with frozen contracts.
 
+            STEP 7.1: Added coherent slot-filling + acknowledgement before production call.
+
             Integration Pattern (Contract-First):
-            1. Map SupervisorState → AgentRequest (frozen schema)
-            2. Call handle_real_estate_request() from production agent
-            3. Map AgentResponse → SupervisorState
-            4. Extract show_listings actions → recommendations format
+            1. Extract slots from user input (location, budget, bedrooms, etc.)
+            2. Merge with existing agent context
+            3. Build coherent acknowledgement if slots extracted
+            4. Map SupervisorState → AgentRequest (frozen schema)
+            5. Call handle_real_estate_request() from production agent
+            6. Map AgentResponse → SupervisorState
+            7. Extract show_listings actions → recommendations format
 
             Observability: Full trace data preserved in state.agent_traces
             """
@@ -1627,12 +1666,71 @@ def build_supervisor_graph():
             from assistant.agents.contracts import AgentRequest, AgentContext
             from datetime import datetime
             import uuid
+            from assistant.brain.nlp.extractors import extract_all
 
             thread_id = state.get('thread_id', 'unknown')
+            user_msg = state.get("user_input", "")
+
+            # STEP 7.1: Extract and merge slots
+            agent_contexts = state.get("agent_contexts") or {}
+            re_ctx = agent_contexts.get("real_estate_agent", {}) or {}
+            existing_slots = re_ctx.get("collected_info", {}) or {}
+
+            # Extract new slots from user input
+            new_slots = extract_all(user_msg)
+
+            # Merge slots (new values override existing)
+            merged_slots = dict(existing_slots)
+            for k, v in new_slots.items():
+                if v is None:
+                    continue
+                if k not in merged_slots or (isinstance(v, (int, str, bool)) and v != ""):
+                    merged_slots[k] = v
+
+            logger.info(f"[{thread_id}] RE Agent: slots merged - {merged_slots}")
+
+            # STEP 7.1: Build coherent acknowledgement if slots were extracted
+            early_ack = None
+            if new_slots:  # If we extracted anything new
+                # If rental_type unknown, ask it once
+                ask = None
+                if "rental_type" not in merged_slots:
+                    ask = "Is this for short-term (nightly/weekly) or long-term (monthly/yearly) rent?"
+
+                # Build acknowledgement text from slots
+                bits = []
+                if "location" in merged_slots:
+                    bits.append(merged_slots["location"])
+                elif merged_slots.get("anywhere"):
+                    bits.append("anywhere")
+                if "budget" in merged_slots:
+                    cur = merged_slots.get("budget_currency", "").strip()
+                    bits.append(f"~{merged_slots['budget']}{(' ' + cur) if cur else ''}")
+                if "bedrooms" in merged_slots:
+                    bits.append(f"{merged_slots['bedrooms']} BR")
+
+                ack = ", ".join(bits) or "your request"
+
+                reply = f"Got it — {ack}."
+                if ask:
+                    reply += f" {ask}"
+                else:
+                    reply += " Let me search for options."
+
+                early_ack = reply
+                logger.info(f"[{thread_id}] RE Agent: early acknowledgement generated - {reply[:100]}")
+
+            # Update agent context with merged slots
+            re_ctx.update({
+                "collected_info": merged_slots,
+                "conversation_stage": "refinement" if new_slots else re_ctx.get("conversation_stage", "discovery")
+            })
+            agent_contexts["real_estate_agent"] = re_ctx
+            state["agent_contexts"] = agent_contexts
 
             # STEP 4: Get agent-specific context
             agent_context_str = state.get("agent_specific_context", "")
-            collected_info = state.get("agent_collected_info", {})
+            collected_info = merged_slots  # Use merged slots instead of old collected_info
 
             if agent_context_str:
                 logger.info(
@@ -1801,8 +1899,16 @@ def build_supervisor_graph():
 
                 logger.info(f"[{thread_id}] RE Agent: completed, {len(recommendations)} cards, reply_len={len(reply)}")
 
+                # STEP 7.1: Use early acknowledgement if generated, otherwise use agent reply
+                if early_ack and not recommendations:
+                    # If we generated an early ack and no recommendations yet, use the ack
+                    final_reply = early_ack
+                else:
+                    # Otherwise use the production agent's reply
+                    final_reply = reply
+
                 # STEP 4: Extract entities and update agent context
-                updated_info = _extract_entities(state['user_input'], collected_info)
+                updated_info = merged_slots  # Use merged slots from STEP 7.1
 
                 # Determine conversation stage based on response
                 if recommendations:
@@ -1834,7 +1940,7 @@ def build_supervisor_graph():
                 return _with_history(
                     state,
                     {
-                        'final_response': reply,
+                        'final_response': final_reply,  # STEP 7.1: Use final_reply (early_ack or agent reply)
                         'recommendations': recommendations,
                         'current_node': 'real_estate_agent',
                         'is_complete': True,
@@ -1847,7 +1953,7 @@ def build_supervisor_graph():
                         'agent_collected_info': updated_info,  # STEP 4: Persist collected info
                         'agent_conversation_stage': stage,  # STEP 4: Persist conversation stage
                     },
-                    reply,
+                    final_reply,  # STEP 7.1: Use final_reply for history
                 )
 
             except Exception as e:

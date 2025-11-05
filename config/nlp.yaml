@@ -1,0 +1,26 @@
+version: 1
+
+# Locale synonyms (canonical: [variants])
+locales:
+  Kyrenia: ["kyrenia", "girne", "gırne", "kyrenya"]
+  Nicosia: ["nicosia", "lefkoşa", "lefkosha", "lefkosa"]
+  Famagusta: ["famagusta", "gazimağusa", "gazimagusa", "magusa", "mağusa"]
+
+# Currency synonyms (code: [symbols, names])
+currencies:
+  GBP: ["gbp", "£", "pound", "pounds", "sterling"]
+  EUR: ["eur", "€", "euro", "euros"]
+  USD: ["usd", "$", "dollar", "dollars"]
+  TRY: ["try", "₺", "tl", "lira", "liras", "turkish lira"]
+
+# Regex patterns for extraction
+regex:
+  bedrooms: ["(\\d+)[-\\s]*(?:bed|bedroom|br)s?"]   # Handles "2 bed", "2-bedroom", "2BR"
+  budget_under: ["under\\s*(\\d+)\\s*([\\w£€$₺]+)?"]   # "under 600 pounds" or "under 600 £"
+  budget_inline: ["(\\d+)\\s*([\\w£€$₺]+)?"]           # "600 pounds" or "600 £"
+
+# Business rules
+rules:
+  anywhere_tokens: ["anywhere", "any where", "no preference", "open to any"]
+  long_term_tokens: ["long-term", "long term", "monthly", "yearly", "12-month", "1 year"]
+  short_term_tokens: ["short-term", "short term", "nightly", "daily", "weekly", "airbnb"]

@@ -1689,6 +1689,46 @@ def build_supervisor_graph():
 
             logger.info(f"[{thread_id}] RE Agent: slots merged - {merged_slots}")
 
+            # STEP 7.2: Check for OFFER_SUMMARY act
+            from assistant.brain.nlp.acts import classify_act
+            from assistant.brain.policy.offer_surface import real_estate_offer_surface
+
+            act = classify_act(user_msg, has_any_slot=bool(merged_slots))
+            logger.info(f"[{thread_id}] RE Agent: classified act={act}")
+
+            # STEP 7.2: If OFFER_SUMMARY, use offer surface instead of production agent
+            if act == "OFFER_SUMMARY":
+                logger.info(f"[{thread_id}] RE Agent: using offer surface (OFFER_SUMMARY act)")
+
+                try:
+                    offer_reply = real_estate_offer_surface(state, merged_slots)
+
+                    # Update agent context
+                    re_ctx.update({
+                        "collected_info": merged_slots,
+                        "conversation_stage": "offer_summary",
+                        "last_active": time.time(),
+                    })
+                    agent_contexts["real_estate_agent"] = re_ctx
+                    state["agent_contexts"] = agent_contexts
+
+                    return _with_history(
+                        state,
+                        {
+                            "final_response": offer_reply,
+                            "current_node": "real_estate_agent",
+                            "is_complete": True,
+                            "agent_name": "real_estate",
+                            "agent_contexts": agent_contexts,
+                            "agent_collected_info": merged_slots,
+                            "agent_conversation_stage": "offer_summary",
+                        },
+                        offer_reply,
+                    )
+                except Exception as e:
+                    logger.error(f"[{thread_id}] RE Offer Surface failed: {e}", exc_info=True)
+                    # Fall through to normal slot-filling path on error
+
             # STEP 7.1: Build coherent acknowledgement if slots were extracted
             early_ack = None
             if new_slots:  # If we extracted anything new

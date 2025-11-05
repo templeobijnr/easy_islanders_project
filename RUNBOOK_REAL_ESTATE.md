@@ -345,6 +345,342 @@ Expected:
 
 ---
 
+## STEP 6 Validation Gate
+
+### Overview
+
+STEP 6 adds Context Lifecycle management with rolling summarization, Zep retrieval, context fusion, persistence, and state rehydration. This validation gate ensures all components work correctly under load before enabling in production.
+
+**Gate Duration**: ~75 minutes
+**Required Pass Rate**: 100% (hard gate)
+
+---
+
+### Pre-Flight Checklist
+
+Before running the gate, verify configuration:
+
+```bash
+# 1. Check STEP 6 config
+cat config/step6_context_lifecycle.yaml | grep -A3 "enabled:\|cadence:\|max_chars:\|history_tail_turns:"
+
+# Expected:
+#   enabled: true
+#   cadence: 10
+#   max_chars: 500
+#   history_tail_turns: 5
+
+# 2. Check domain feature flags
+grep ENABLE_INTENT_PARSER .env
+
+# Expected:
+#   ENABLE_INTENT_PARSER=true
+
+# 3. Verify health endpoint
+curl http://localhost:8000/healthz | jq '.domain_import_ok, .re_agent_enabled'
+
+# Expected:
+#   true
+#   true
+```
+
+---
+
+### Step 1: Run Validation Script (5 min)
+
+```bash
+python3 scripts/validate_step6_context_lifecycle.py
+```
+
+**Required PASS checks** (9/9):
+- ✅ Config loading (step6_context_lifecycle.yaml)
+- ✅ PII stripping (email, phone, URL)
+- ✅ Summary length ≤ 500 chars
+- ✅ Zep context injection present
+- ✅ Rolling summary fires at cadence (turn 10, 20, ...)
+- ✅ Fused context contains: [summary] + [retrieved] + [last 5 turns]
+- ✅ Snapshot persisted after each turn
+- ✅ Rehydration restores active_domain, current_intent, summary
+- ✅ E2E integration scenario
+
+**If any fail**: Stop gate, investigate, fix, re-run from step 1.
+
+---
+
+### Step 2: Manual Smoke Test (10 min)
+
+**Purpose**: Reproduce original failure case (Kyrenia apartment + reconnect)
+
+Open browser console and execute this exact sequence in one thread:
+
+```javascript
+// Turn 1
+ws.send(JSON.stringify({message: "need an apartment"}))
+// ✅ Expect: Asks for missing slot (location/budget/rental_type)
+// 📋 Log: [RE Agent] slots merged - {}
+
+// Turn 2
+ws.send(JSON.stringify({message: "kyrenia 600 pounds"}))
+// ✅ Expect: "Got it — Kyrenia, ~600 GBP. Is this for short-term or long-term?"
+// 📋 Log: [RE Agent] slots merged - {location:'Kyrenia', budget:600, currency:'GBP'}
+
+// Turn 3
+ws.send(JSON.stringify({message: "long term"}))
+// ✅ Expect: Offer summary (count, min→max price) + narrowing question
+// 📋 Log: [RE Agent] classified act=OFFER_SUMMARY
+// 📋 Log: [RE Offer] filters={rental_type:'long', location:'Kyrenia'} items=N
+
+// Reconnect WebSocket
+ws.close()
+// Wait 3 seconds
+ws = new WebSocket(...)
+ws.onopen = () => {
+  // ✅ Log: ws_connect_ok
+  // ✅ Log: ws_connect_rehydrated domain=real_estate_agent turns=6
+}
+
+// Turn 4 (after reconnect)
+ws.send(JSON.stringify({message: "cheaper"}))
+// ✅ Expect: Still in real_estate_agent (no drift)
+// ✅ Expect: Uses prior slots, returns cheaper options
+// 📋 Log: [Router] sticky=real_estate_agent (no flap)
+// 📋 Log: [RE Agent] refined budget -20%
+```
+
+**Success Criteria**:
+- All 4 turns return coherent responses
+- No router drift after reconnect (stays in `real_estate_agent`)
+- Logs show `ws_connect_rehydrated` with correct domain/turns
+- No `local_info_agent` misroute on "cheaper"
+
+**If fails**: Check logs for:
+- `rehydration.fail` warnings
+- Router confidence scores < 0.55 (sticky threshold)
+- Missing context snapshot in Zep
+
+---
+
+### Step 3: Load & Latency Probe (10 min)
+
+**Purpose**: Measure STEP 6 overhead under concurrent load
+
+```bash
+# Generate 50 concurrent sessions with staggered starts
+python3 scripts/load_test_step6.py --sessions=50 --duration=600
+
+# Monitor metrics
+curl http://localhost:8000/metrics | grep -E "context\.(retrieval|summary|snapshots)|rehydration"
+```
+
+**Performance Thresholds**:
+| Metric | Target (P95) | Alert If |
+|--------|-------------|----------|
+| `context.retrieval_ms` | ≤ 70 ms | > 100 ms for 10m |
+| `context.summary_ms` | ≤ 40 ms | > 60 ms for 10m |
+| `turn_total_ms` | ≤ 900 ms | > 1200 ms for 10m |
+| `rehydration.fail_rate` | ≤ 1% | > 1% for 10m |
+
+**If thresholds exceeded**:
+- Check Zep latency: `curl http://zep:8000/healthz`
+- Check Redis cache hit rate: `redis-cli info stats | grep keyspace_hits`
+- Review slow query logs: `docker compose logs web | grep "slow_query"`
+
+---
+
+### Step 4: Monitoring Checks (5 min)
+
+**Verify Dashboards**:
+
+```bash
+# Check that metrics exist and increment
+curl -s http://localhost:9090/api/v1/query?query=context_retrieval_ms | jq '.data.result'
+curl -s http://localhost:9090/api/v1/query?query=context_snapshots_total | jq '.data.result'
+curl -s http://localhost:9090/api/v1/query?query=rehydration_success_total | jq '.data.result'
+```
+
+**Required Metrics** (must exist in Prometheus):
+- `context_retrieval_ms_bucket` (histogram, p50/p95/p99)
+- `context_summary_ms_bucket` (histogram, p50/p95/p99)
+- `context_snapshots_total` (counter, increments with turns)
+- `rehydration_success_total` (counter, increments on WS connect)
+- `rehydration_fail_total` (counter, should stay near 0)
+
+**Expected Behavior**:
+- `context_snapshots_total` rises by ~1 per turn
+- `rehydration_success_total` rises by 1 per WS reconnect
+- Zep write logs are `DEBUG`, not `WARNING` (hardened client)
+
+---
+
+### Step 5: GO/NO-GO Decision
+
+**Wait 60 minutes after restart**, then check:
+
+**✅ GO Criteria** (all must be true):
+- [x] Validation script: 9/9 PASS
+- [x] Manual smoke: 4 turns coherent, no drift on reconnect
+- [x] Performance: P95 retrieval ≤ 70ms, summary ≤ 40ms, turn ≤ 900ms
+- [x] Rehydration: fail rate ≤ 1%
+- [x] Health: `/healthz` shows `{"ok": true, "re_agent_enabled": true}`
+- [x] No SyntaxErrors or import failures in logs
+
+**❌ NO-GO Actions** (if any fail):
+1. **Immediate**: Set `step6.enabled: false` in config
+2. **Restart**: `docker compose restart web celery`
+3. **Investigate**: Check logs for errors
+4. **Fix**: Address root cause
+5. **Re-run**: Repeat gate from Step 1
+
+**Rollback Command**:
+```yaml
+# config/step6_context_lifecycle.yaml
+step6:
+  enabled: false  # Disable injection/fusion, keep writes on
+```
+
+---
+
+### Post-Gate: Dashboards & Alerts
+
+#### Grafana Panel Group: "Context Lifecycle"
+
+**Panel 1: Retrieval Latency**
+```promql
+# P50
+histogram_quantile(0.50, sum(rate(context_retrieval_ms_bucket[5m])) by (le))
+
+# P95
+histogram_quantile(0.95, sum(rate(context_retrieval_ms_bucket[5m])) by (le))
+
+# Alert threshold line: 100ms
+```
+
+**Panel 2: Summary Latency**
+```promql
+# P50
+histogram_quantile(0.50, sum(rate(context_summary_ms_bucket[5m])) by (le))
+
+# P95
+histogram_quantile(0.95, sum(rate(context_summary_ms_bucket[5m])) by (le))
+
+# Alert threshold line: 60ms
+```
+
+**Panel 3: Snapshot Volume**
+```promql
+# Total snapshots over time
+sum(increase(context_snapshots_total[5m]))
+
+# Should rise linearly with turn count
+```
+
+**Panel 4: Rehydration Health**
+```promql
+# Success rate
+sum(rate(rehydration_success_total[5m])) /
+  (sum(rate(rehydration_success_total[5m])) + sum(rate(rehydration_fail_total[5m])))
+
+# Should stay at ~1.0 (100%)
+```
+
+#### Alert Rules (Staging)
+
+**Alert 1: High Rehydration Failure Rate**
+```yaml
+- alert: Step6RehydrationFailureRateHigh
+  expr: |
+    sum(rate(rehydration_fail_total[10m])) /
+    (sum(rate(rehydration_success_total[10m])) + sum(rate(rehydration_fail_total[10m]))) > 0.01
+  for: 10m
+  labels:
+    severity: warning
+    component: step6
+  annotations:
+    summary: "STEP 6 rehydration failure rate > 1%"
+    description: "{{ $value | humanizePercentage }} of reconnects failing to restore state"
+```
+
+**Alert 2: High Retrieval Latency**
+```yaml
+- alert: Step6RetrievalLatencyHigh
+  expr: |
+    histogram_quantile(0.95, sum(rate(context_retrieval_ms_bucket[10m])) by (le)) > 100
+  for: 10m
+  labels:
+    severity: warning
+    component: step6
+  annotations:
+    summary: "STEP 6 Zep retrieval P95 > 100ms"
+    description: "P95 latency: {{ $value }}ms (threshold: 100ms)"
+```
+
+**Alert 3: High Summary Latency**
+```yaml
+- alert: Step6SummaryLatencyHigh
+  expr: |
+    histogram_quantile(0.95, sum(rate(context_summary_ms_bucket[10m])) by (le)) > 60
+  for: 10m
+  labels:
+    severity: warning
+    component: step6
+  annotations:
+    summary: "STEP 6 summary generation P95 > 60ms"
+    description: "P95 latency: {{ $value }}ms (threshold: 60ms)"
+```
+
+---
+
+### Troubleshooting
+
+**Symptom**: Rehydration always returns `{"rehydrated": false}`
+
+**Diagnosis**:
+```bash
+# Check if snapshots are being written
+docker compose logs web | grep "Context snapshot persisted"
+
+# Check Zep session exists
+curl http://localhost:8000/api/v1/sessions/<thread_id>/memory
+```
+
+**Fix**: Ensure `_persist_context_snapshot()` is called in `_with_history()` after turn completion.
+
+---
+
+**Symptom**: Summary length exceeds 500 chars
+
+**Diagnosis**:
+```bash
+# Check logs for summary generation
+docker compose logs web | grep "Rolling summary generated"
+
+# Check config
+cat config/step6_context_lifecycle.yaml | grep max_chars
+```
+
+**Fix**: Verify `summarize_context()` enforces truncation at line 118.
+
+---
+
+**Symptom**: Context retrieval times out
+
+**Diagnosis**:
+```bash
+# Check Zep health
+curl http://localhost:8000/healthz
+
+# Check Zep response time
+time curl -X POST http://localhost:8000/api/v1/sessions/<thread>/search \
+  -d '{"text": "test", "limit": 5}'
+```
+
+**Fix**:
+- Increase `retrieval.timeout_seconds` in config
+- Check Zep database index health
+- Reduce `retrieval.max_snippets` to 3
+
+---
+
 ## Support Contacts
 
 - **Logs**: `docker compose logs web celery`

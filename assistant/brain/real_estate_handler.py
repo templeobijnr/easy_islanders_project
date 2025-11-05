@@ -3,11 +3,15 @@ Real Estate Agent Handler (Prompt-Driven v1.0)
 
 Canonical implementation using Jinja2 system prompt for deterministic slot-filling.
 Replaces legacy slot extraction with prompt-driven flow.
+
+STEP 7.3: Hardened with canary routing, structured logging, metrics, circuit breaker.
 """
 
 from typing import Dict, Any, Optional, Tuple
 import logging
 import time
+import os
+import random
 from assistant.brain.prompts.renderer import render_real_estate_prompt, parse_real_estate_response
 from assistant.domain.real_estate_service import (
     extract_slots,
@@ -18,8 +22,24 @@ from assistant.domain.real_estate_service import (
 from assistant.domain.real_estate_search import search_listings, format_listing_for_card
 from assistant.brain.tools import RecommendationCardPayload, CardItem
 from assistant.brain.supervisor_schemas import SupervisorState
+from assistant.brain.circuit_breaker import CircuitBreakerOpen
+from assistant.brain.metrics import (
+    record_agent_act,
+    record_json_parse_fail,
+    record_card_emitted,
+    record_handoff,
+    record_error,
+    record_prompt_duration,
+    record_turn_duration
+)
 
 logger = logging.getLogger(__name__)
+
+# Canary routing percentage (0-100)
+CANARY_PERCENT = int(os.getenv("RE_PROMPT_CANARY_PERCENT", "100"))
+
+# Enable recommendation cards
+ENABLE_RECOMMEND_CARD = os.getenv("ENABLE_RE_RECOMMEND_CARD", "true").lower() in ("true", "1", "yes")
 
 
 def handle_real_estate_prompt_driven(state: SupervisorState) -> SupervisorState:
@@ -41,6 +61,7 @@ def handle_real_estate_prompt_driven(state: SupervisorState) -> SupervisorState:
     Returns:
         Updated SupervisorState with response and metadata
     """
+    turn_start_time = time.time()
     thread_id = state.get("thread_id", "unknown")
     user_input = state.get("user_input", "")
 
@@ -87,6 +108,7 @@ def handle_real_estate_prompt_driven(state: SupervisorState) -> SupervisorState:
     )
 
     # Step 3: Call LLM
+    prompt_start_time = time.time()
     try:
         from assistant.llm import generate_chat_completion
 
@@ -99,8 +121,11 @@ def handle_real_estate_prompt_driven(state: SupervisorState) -> SupervisorState:
             max_tokens=500
         )
 
+        prompt_duration_ms = (time.time() - prompt_start_time) * 1000
+        record_prompt_duration(prompt_duration_ms)
+
         logger.debug(
-            f"[{thread_id}] RE Agent: LLM response - {llm_response_text[:100]}..."
+            f"[{thread_id}] RE Agent: LLM response in {prompt_duration_ms:.1f}ms - {llm_response_text[:100]}..."
         )
 
     except Exception as e:
@@ -108,6 +133,7 @@ def handle_real_estate_prompt_driven(state: SupervisorState) -> SupervisorState:
             f"[{thread_id}] RE Agent: LLM call failed: {e}",
             exc_info=True
         )
+        record_error("llm_call_failed")
         # Fallback response
         return _build_error_response(state, "I'm having trouble processing your request. Please try again.")
 
@@ -118,6 +144,8 @@ def handle_real_estate_prompt_driven(state: SupervisorState) -> SupervisorState:
         logger.error(
             f"[{thread_id}] RE Agent: JSON parsing failed, raw response: {llm_response_text[:200]}"
         )
+        record_json_parse_fail()
+        record_error("json_contract")
         return _build_error_response(state, "I apologize, I need to reformulate my response. Could you repeat that?")
 
     act = parsed.get("act")
@@ -126,9 +154,20 @@ def handle_real_estate_prompt_driven(state: SupervisorState) -> SupervisorState:
     next_needed = parsed.get("next_needed", [])
     notes = parsed.get("notes", {})
 
-    logger.info(
-        f"[{thread_id}] RE Agent: parsed - act={act}, slots_delta={slots_delta}, next_needed={next_needed}"
-    )
+    # STEP 7.3: Structured logging (JSON format for parsing)
+    logger.info("re.agent_act", extra={
+        "thread_id": thread_id,
+        "act": act,
+        "next_needed": next_needed,
+        "slots_delta_keys": list(slots_delta.keys()),
+        "awaiting_slot": re_ctx.get("awaiting_slot"),
+        "stage": re_ctx.get("stage"),
+        "canary": CANARY_PERCENT,
+        "continuity_reason": notes.get("continuity_reason") if notes else None
+    })
+
+    # Record metrics
+    record_agent_act(act)
 
     # Step 5: Update merged slots with slots_delta from LLM
     if slots_delta:
@@ -146,26 +185,31 @@ def handle_real_estate_prompt_driven(state: SupervisorState) -> SupervisorState:
 
     # Step 6: Execute action based on act
     if act == "ASK_SLOT":
-        return _handle_ask_slot(state, speak, merged_slots, next_needed, notes)
-
+        result = _handle_ask_slot(state, speak, merged_slots, next_needed, notes)
     elif act == "SEARCH_AND_RECOMMEND":
-        return _handle_search_and_recommend(state, speak, merged_slots, notes)
-
+        result = _handle_search_and_recommend(state, speak, merged_slots, notes)
     elif act == "ACK_AND_SEARCH":
         # Similar to SEARCH_AND_RECOMMEND but may have partial slots
-        return _handle_search_and_recommend(state, speak, merged_slots, notes)
-
+        result = _handle_search_and_recommend(state, speak, merged_slots, notes)
     elif act == "ESCALATE":
-        return _handle_escalate(state, speak, notes)
-
+        result = _handle_escalate(state, speak, notes)
     elif act == "CLARIFY":
-        return _handle_clarify(state, speak, merged_slots, notes)
-
+        result = _handle_clarify(state, speak, merged_slots, notes)
     else:
         logger.warning(
             f"[{thread_id}] RE Agent: unknown act '{act}', defaulting to ASK_SLOT"
         )
-        return _handle_ask_slot(state, speak, merged_slots, next_needed, notes)
+        result = _handle_ask_slot(state, speak, merged_slots, next_needed, notes)
+
+    # Record total turn duration
+    turn_duration_ms = (time.time() - turn_start_time) * 1000
+    record_turn_duration(turn_duration_ms)
+
+    logger.info(
+        f"[{thread_id}] RE Agent: turn completed in {turn_duration_ms:.1f}ms (act={act})"
+    )
+
+    return result
 
 
 def _determine_stage(act: str, filled_slots: Dict[str, Any]) -> str:
@@ -228,6 +272,42 @@ def _handle_search_and_recommend(
     try:
         search_results = search_listings(filled_slots=merged_slots, max_results=20)
 
+        # Check for error in response
+        if "error" in search_results:
+            error_msg = search_results["error"]
+
+            # Handle timeout gracefully
+            if "timeout" in error_msg:
+                logger.warning(f"[{thread_id}] RE Agent: search timeout, using fallback")
+                record_error("card_emit_timeout")
+                fallback_text = (
+                    "I'm having trouble fetching listings right now. "
+                    "Want me to notify you when results are ready, or try a broader budget?"
+                )
+                return _with_history(
+                    state,
+                    {
+                        "final_response": fallback_text,
+                        "current_node": "real_estate_agent",
+                        "is_complete": True,
+                        "agent_name": "real_estate",
+                        "agent_collected_info": merged_slots,
+                        "agent_conversation_stage": "slot_filling",
+                        "re_agent_act": "SEARCH_AND_RECOMMEND",
+                        "re_agent_error": error_msg,
+                        "re_agent_notes": notes
+                    },
+                    fallback_text
+                )
+
+            # Handle other errors
+            logger.error(f"[{thread_id}] RE Agent: search error: {error_msg}")
+            record_error("card_emit")
+            return _build_error_response(
+                state,
+                "I encountered an issue searching for properties. Could you try rephrasing your request?"
+            )
+
         result_count = search_results.get("count", 0)
         listings = search_results.get("results", [])
         filters_used = search_results.get("filters_used", {})
@@ -236,39 +316,85 @@ def _handle_search_and_recommend(
             f"[{thread_id}] RE Agent: search returned {result_count} results"
         )
 
-        # Format listings as cards
-        card_items = [format_listing_for_card(listing) for listing in listings]
+        # Format listings as cards (only if recommendation cards enabled)
+        if ENABLE_RECOMMEND_CARD and result_count > 0:
+            card_items = [format_listing_for_card(listing) for listing in listings]
 
-        # Build recommendation card payload
-        card_payload = RecommendationCardPayload(
-            items=card_items,
-            count=result_count,
-            filters_used=filters_used,
-            summary=speak
+            # Build recommendation card payload
+            card_payload = RecommendationCardPayload(
+                items=card_items,
+                count=result_count,
+                filters_used=filters_used,
+                summary=speak
+            )
+
+            # Convert to dict for JSON serialization
+            recommendations = [item.dict() for item in card_items]
+
+            # Record card emission metrics
+            rental_type = merged_slots.get("rental_type", "unknown")
+            record_card_emitted(rental_type)
+
+            logger.info(
+                f"[{thread_id}] RE Agent: emitting {len(recommendations)} recommendation cards (variant={rental_type})"
+            )
+
+            return _with_history(
+                state,
+                {
+                    "final_response": speak,
+                    "current_node": "real_estate_agent",
+                    "is_complete": True,
+                    "agent_name": "real_estate",
+                    "agent_collected_info": merged_slots,
+                    "agent_conversation_stage": "presenting",
+                    "recommendations": recommendations,
+                    "re_agent_act": "SEARCH_AND_RECOMMEND",
+                    "re_agent_card_payload": card_payload.dict(),
+                    "re_agent_notes": notes
+                },
+                speak
+            )
+        else:
+            # Textual fallback (cards disabled or no results)
+            logger.info(f"[{thread_id}] RE Agent: returning textual response (cards_enabled={ENABLE_RECOMMEND_CARD}, count={result_count})")
+            return _with_history(
+                state,
+                {
+                    "final_response": speak,
+                    "current_node": "real_estate_agent",
+                    "is_complete": True,
+                    "agent_name": "real_estate",
+                    "agent_collected_info": merged_slots,
+                    "agent_conversation_stage": "presenting",
+                    "re_agent_act": "SEARCH_AND_RECOMMEND",
+                    "re_agent_notes": notes
+                },
+                speak
+            )
+
+    except CircuitBreakerOpen as e:
+        # Circuit breaker is open - fail fast with graceful fallback
+        logger.warning(f"[{thread_id}] RE Agent: circuit breaker open: {e}")
+        record_error("circuit_open")
+        fallback_text = (
+            "I'm having trouble fetching listings right now. "
+            "Want me to notify you when results are ready, or try a broader budget?"
         )
-
-        # Convert to dict for JSON serialization
-        recommendations = [item.dict() for item in card_items]
-
-        logger.info(
-            f"[{thread_id}] RE Agent: emitting {len(recommendations)} recommendation cards"
-        )
-
         return _with_history(
             state,
             {
-                "final_response": speak,
+                "final_response": fallback_text,
                 "current_node": "real_estate_agent",
                 "is_complete": True,
                 "agent_name": "real_estate",
                 "agent_collected_info": merged_slots,
-                "agent_conversation_stage": "presenting",
-                "recommendations": recommendations,
+                "agent_conversation_stage": "slot_filling",
                 "re_agent_act": "SEARCH_AND_RECOMMEND",
-                "re_agent_card_payload": card_payload.dict(),
+                "re_agent_error": "circuit_open",
                 "re_agent_notes": notes
             },
-            speak
+            fallback_text
         )
 
     except Exception as e:
@@ -276,6 +402,7 @@ def _handle_search_and_recommend(
             f"[{thread_id}] RE Agent: search failed: {e}",
             exc_info=True
         )
+        record_error("card_emit")
         # Fallback to error response
         return _build_error_response(
             state,
@@ -291,9 +418,16 @@ def _handle_escalate(
     """Handle ESCALATE action - switch domain."""
     thread_id = state.get("thread_id", "unknown")
 
+    # Extract target domain from notes if available
+    continuity_reason = notes.get("continuity_reason") if notes else None
+    to_domain = "general"  # Default
+
     logger.info(
-        f"[{thread_id}] RE Agent: ESCALATE - switching domain, reason={notes.get('continuity_reason')}"
+        f"[{thread_id}] RE Agent: ESCALATE - switching domain (reason={continuity_reason})"
     )
+
+    # Record handoff metric
+    record_handoff(to_domain)
 
     # Signal supervisor to re-route
     return {

@@ -1912,16 +1912,29 @@ def build_supervisor_graph():
             Observability: Full trace data preserved in state.agent_traces
             """
             import os
+            import random
 
             # Feature flag: use prompt-driven handler (default: enabled)
             use_prompt_driven = os.getenv("USE_RE_PROMPT_DRIVEN", "true").lower() in ("true", "1", "yes")
 
+            # Canary routing: if set, route X% of traffic to prompt-driven handler
+            canary_percent = int(os.getenv("RE_PROMPT_CANARY_PERCENT", "100"))
+
+            # Determine routing based on canary percentage
             if use_prompt_driven:
-                # Route to canonical prompt-driven handler
-                from assistant.brain.real_estate_handler import handle_real_estate_prompt_driven
-                thread_id = state.get('thread_id', 'unknown')
-                logger.info(f"[{thread_id}] RE Agent: using prompt-driven handler (v1.0)")
-                return handle_real_estate_prompt_driven(state)
+                # Random sampling for canary
+                route_to_new = random.random() * 100 < canary_percent
+
+                if route_to_new:
+                    # Route to canonical prompt-driven handler
+                    from assistant.brain.real_estate_handler import handle_real_estate_prompt_driven
+                    thread_id = state.get('thread_id', 'unknown')
+                    logger.info(f"[{thread_id}] RE Agent: using prompt-driven handler (v1.0, canary={canary_percent}%)")
+                    return handle_real_estate_prompt_driven(state)
+                else:
+                    # Canary miss - route to legacy
+                    thread_id = state.get('thread_id', 'unknown')
+                    logger.info(f"[{thread_id}] RE Agent: canary miss, using legacy handler (canary={canary_percent}%)")
 
             # Legacy handler path (preserved for rollback)
             from assistant.agents.real_estate import handle_real_estate_request

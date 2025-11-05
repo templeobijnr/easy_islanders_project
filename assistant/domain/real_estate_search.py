@@ -3,17 +3,46 @@ Real Estate Search Adapter
 
 Provides typed interface to the /api/v1/real_estate/search backend.
 Maps slot values to API query parameters and returns normalized results.
+
+STEP 7.3: Hardened with timeout, circuit breaker, and caching.
 """
 
 from typing import Dict, Any, List, Optional
 import requests
 import logging
+import os
+import time
+import hashlib
+import json
 from django.conf import settings
+from django.core.cache import cache
+from assistant.brain.circuit_breaker import get_backend_search_breaker, CircuitBreakerOpen, CircuitBreakerConfig
+from assistant.brain.metrics import record_search_duration, record_error, set_circuit_breaker_state
 
 logger = logging.getLogger(__name__)
 
 # Default to localhost for development
 DEFAULT_API_BASE = "http://127.0.0.1:8000"
+
+# Timeout from env (default 800ms)
+SEARCH_TIMEOUT_MS = int(os.getenv("RE_SEARCH_TIMEOUT_MS", "800"))
+SEARCH_TIMEOUT_SECONDS = SEARCH_TIMEOUT_MS / 1000.0
+
+# Circuit breaker config from env
+CIRCUIT_BREAKER_THRESHOLD = int(os.getenv("RE_SEARCH_CIRCUIT_BREAKER_OPEN_AFTER", "5"))
+CIRCUIT_BREAKER_COOLDOWN = 60.0  # seconds
+
+# Cache TTL (30 seconds for identical filter tuples)
+SEARCH_CACHE_TTL = 30
+
+
+def _build_cache_key(params: Dict[str, Any]) -> str:
+    """Build deterministic cache key from filter tuple."""
+    # Sort keys for deterministic hash
+    sorted_params = sorted(params.items())
+    key_string = json.dumps(sorted_params, sort_keys=True)
+    key_hash = hashlib.md5(key_string.encode()).hexdigest()
+    return f"re:search:{key_hash}"
 
 
 def search_listings(
@@ -23,6 +52,8 @@ def search_listings(
 ) -> Dict[str, Any]:
     """
     Search real estate listings using filled slots.
+
+    STEP 7.3: Hardened with timeout, circuit breaker, and 30s caching.
 
     Args:
         filled_slots: Dict with keys: rental_type, location, budget, bedrooms, check_in, check_out
@@ -34,23 +65,14 @@ def search_listings(
             - count: int (number of results)
             - results: List[Dict] (listing objects)
             - filters_used: Dict (query params sent to API)
+            - cached: bool (whether result was from cache)
+            - error: Optional[str] (error message if failed)
 
-    Example:
-        >>> search_listings({"location": "Girne", "budget": 500, "rental_type": "long_term"})
-        {
-            "count": 12,
-            "results": [
-                {
-                    "id": "uuid...",
-                    "title": "2BR Apartment in Girne",
-                    "city": "Girne",
-                    "monthly_price": 450,
-                    ...
-                }
-            ],
-            "filters_used": {"city": "Girne", "price_max": 500, "rent_type": "long_term"}
-        }
+    Raises:
+        CircuitBreakerOpen: If circuit breaker is open
     """
+    start_time = time.time()
+
     if api_base is None:
         api_base = getattr(settings, "INTERNAL_API_BASE", DEFAULT_API_BASE)
 
@@ -82,58 +104,142 @@ def search_listings(
     # Add max results
     params["limit"] = max_results
 
-    url = f"{api_base}/api/v1/real_estate/search"
+    # Check cache first (30s TTL)
+    cache_key = _build_cache_key(params)
+    cached_result = cache.get(cache_key)
+
+    if cached_result:
+        logger.info(
+            "[RE Search] Cache HIT: key=%s, params=%s",
+            cache_key,
+            params
+        )
+        cached_result["cached"] = True
+        return cached_result
 
     logger.info(
-        "[RE Search] Querying API: url=%s, params=%s",
-        url,
+        "[RE Search] Cache MISS: key=%s, params=%s",
+        cache_key,
         params
     )
 
-    try:
-        response = requests.get(url, params=params, timeout=5.0)
+    url = f"{api_base}/api/v1/real_estate/search"
+
+    # Get circuit breaker
+    breaker_config = CircuitBreakerConfig(
+        failure_threshold=CIRCUIT_BREAKER_THRESHOLD,
+        cooldown_seconds=CIRCUIT_BREAKER_COOLDOWN,
+        timeout_ms=SEARCH_TIMEOUT_MS
+    )
+    breaker = get_backend_search_breaker(breaker_config)
+
+    # Update circuit breaker state metric
+    set_circuit_breaker_state("backend_search", breaker.is_open())
+
+    # Check if circuit is open
+    if breaker.is_open():
+        record_error("circuit_open")
+        raise CircuitBreakerOpen(
+            f"Backend search circuit breaker is OPEN (cooldown: {CIRCUIT_BREAKER_COOLDOWN}s)"
+        )
+
+    # Execute search with circuit breaker protection
+    def _do_search():
+        response = requests.get(url, params=params, timeout=SEARCH_TIMEOUT_SECONDS)
         response.raise_for_status()
-        data = response.json()
+        return response.json()
+
+    try:
+        data = breaker.call(_do_search)
 
         result_count = data.get("count", 0)
         results = data.get("results", [])
 
+        # Record success metrics
+        duration_ms = (time.time() - start_time) * 1000
+        record_search_duration(duration_ms)
+
         logger.info(
-            "[RE Search] API returned %d results (params=%s)",
+            "[RE Search] API returned %d results in %.1fms (params=%s)",
             result_count,
+            duration_ms,
+            params
+        )
+
+        result = {
+            "count": result_count,
+            "results": results,
+            "filters_used": params,
+            "cached": False
+        }
+
+        # Cache result for 30s
+        cache.set(cache_key, result, timeout=SEARCH_CACHE_TTL)
+
+        return result
+
+    except requests.exceptions.Timeout as e:
+        duration_ms = (time.time() - start_time) * 1000
+        record_search_duration(duration_ms)
+        record_error("search_timeout")
+
+        logger.error(
+            "[RE Search] Timeout after %.1fms (limit=%dms, url=%s, params=%s)",
+            duration_ms,
+            SEARCH_TIMEOUT_MS,
+            url,
             params
         )
 
         return {
-            "count": result_count,
-            "results": results,
-            "filters_used": params
+            "count": 0,
+            "results": [],
+            "filters_used": params,
+            "cached": False,
+            "error": f"search_timeout_{SEARCH_TIMEOUT_MS}ms"
         }
 
+    except CircuitBreakerOpen as e:
+        # Already logged by breaker, just re-raise
+        raise
+
     except requests.exceptions.RequestException as e:
+        duration_ms = (time.time() - start_time) * 1000
+        record_search_duration(duration_ms)
+        record_error("search_http_error")
+
         logger.error(
-            "[RE Search] API request failed: %s (url=%s, params=%s)",
+            "[RE Search] HTTP error: %s (url=%s, params=%s)",
             e,
             url,
             params,
             exc_info=True
         )
+
         return {
             "count": 0,
             "results": [],
             "filters_used": params,
+            "cached": False,
             "error": str(e)
         }
+
     except Exception as e:
+        duration_ms = (time.time() - start_time) * 1000
+        record_search_duration(duration_ms)
+        record_error("search_unexpected")
+
         logger.error(
             "[RE Search] Unexpected error: %s",
             e,
             exc_info=True
         )
+
         return {
             "count": 0,
             "results": [],
             "filters_used": params,
+            "cached": False,
             "error": str(e)
         }
 

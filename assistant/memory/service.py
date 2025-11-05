@@ -361,3 +361,79 @@ def invalidate_context(thread_id: str) -> None:
     except Exception:
         # Best-effort only; avoid impacting the main flow
         pass
+
+
+def rehydrate_state(thread_id: str) -> Optional[Dict[str, Any]]:
+    """
+    STEP 6: Rehydrate conversation state from Zep.
+
+    When a user reconnects or resumes a conversation, this function
+    retrieves the last context snapshot and conversation summary from Zep
+    to restore the conversation state.
+
+    Args:
+        thread_id: Conversation thread ID
+
+    Returns:
+        Dictionary with rehydrated state fields:
+        - active_domain: Last active agent domain
+        - current_intent: Last detected intent
+        - conversation_summary: Summary of conversation so far
+        - turns_count: Number of turns in history
+        Returns None if rehydration fails or no snapshot found.
+
+    Example:
+        state = rehydrate_state("thread_123")
+        if state:
+            supervisor_state.update({
+                "active_domain": state["active_domain"],
+                "conversation_summary": state["conversation_summary"],
+            })
+    """
+    import json
+
+    client = get_client(require_read=True)
+    if not client:
+        logger.debug("[REHYDRATE] Zep client not available for thread %s", thread_id)
+        return None
+
+    try:
+        # Query Zep for context snapshots (system messages with type=context_snapshot)
+        memories = client.query_memory(thread_id, query="context_snapshot", limit=1)
+
+        if not memories or len(memories) == 0:
+            logger.debug("[REHYDRATE] No context snapshot found for thread %s", thread_id)
+            return None
+
+        # Parse the most recent snapshot
+        snapshot_content = memories[0]
+
+        # Try to parse as JSON
+        try:
+            snapshot = json.loads(snapshot_content)
+        except json.JSONDecodeError:
+            logger.warning("[REHYDRATE] Failed to parse snapshot JSON for thread %s", thread_id)
+            return None
+
+        # Extract state fields
+        rehydrated_state = {
+            "active_domain": snapshot.get("active_domain"),
+            "current_intent": snapshot.get("current_intent"),
+            "conversation_summary": snapshot.get("conversation_summary"),
+            "turns_count": snapshot.get("turns_count", 0),
+            "rehydrated_at": time.time(),
+        }
+
+        logger.info(
+            "[REHYDRATE] Restored state for thread %s: domain=%s, intent=%s, turns=%d",
+            thread_id,
+            rehydrated_state["active_domain"],
+            rehydrated_state["current_intent"],
+            rehydrated_state["turns_count"]
+        )
+
+        return rehydrated_state
+
+    except Exception as e:
+        logger.error("[REHYDRATE] Failed to rehydrate state for thread %s: %s", thread_id, e)
+        return None

@@ -97,25 +97,57 @@ def _zep_store_memory(thread_id: str | None, role: str, content: str) -> None:
 
 
 def _inject_zep_context(state: SupervisorState) -> SupervisorState:
+    """
+    STEP 6: Zep Retrieval Layer - Semantic memory retrieval.
+
+    Retrieve semantically similar memories from Zep for the current query.
+    This provides long-term context that goes beyond the short-term history.
+    """
     if _ZEP_CLIENT is None:
-        return state
+        logger.debug("[ZEP] Client not available, skipping retrieval")
+        return {**state, "retrieved_context": ""}
+
     thread_id = state.get("thread_id")
     user_text = state.get("user_input")
+
     if not thread_id or not user_text:
-        return state
-    try:
-        snippets = _ZEP_CLIENT.query_memory(thread_id, user_text)
-    except Exception as exc:  # noqa: BLE001
-        logger.debug("[ZEP] query_memory raised: %s", exc)
-        return state
-    if not snippets:
+        logger.debug("[ZEP] Missing thread_id or user_input, skipping retrieval")
         return {**state, "retrieved_context": ""}
-    joined = "\n".join(snippets)
-    logger.info("[ZEP] Retrieved %d memories for %s", len(snippets), thread_id)
-    return {**state, "retrieved_context": joined}
+
+    try:
+        # Semantic retrieval with limit=5 for relevant memories
+        snippets = _ZEP_CLIENT.query_memory(thread_id, user_text, limit=5)
+
+        if not snippets:
+            logger.debug("[ZEP] No memories retrieved for %s", thread_id)
+            return {**state, "retrieved_context": ""}
+
+        # Join snippets into single context block
+        retrieved = "\n".join(snippets)
+
+        logger.info(
+            "[ZEP] Retrieved %d memories for %s (%d chars)",
+            len(snippets),
+            thread_id,
+            len(retrieved)
+        )
+
+        return {**state, "retrieved_context": retrieved}
+
+    except Exception as exc:  # noqa: BLE001
+        logger.error("[ZEP] Query memory failed: %s", exc)
+        return {**state, "retrieved_context": ""}
 
 
 def _append_turn_history(state: SupervisorState, assistant_output: Any) -> SupervisorState:
+    """
+    STEP 6: Append turn to history and trigger rolling summarization.
+
+    Every 10 turns, creates a running summary and archives it to Zep
+    for long-term memory management.
+    """
+    from assistant.memory.summarizer import summarize_context
+
     history: List[Dict[str, str]] = list(state.get("history") or [])
     user_text = state.get("user_input")
     appended_user = False
@@ -136,6 +168,8 @@ def _append_turn_history(state: SupervisorState, assistant_output: Any) -> Super
 
     updated_state = {**state, "history": history}
     thread = state.get("thread_id")
+
+    # Store individual turns to Zep
     if thread:
         try:
             logger.info("[%s] Stored turn: user='%s' | assistant='%s'", thread, (user_text or "")[:40], assistant_text[:40])
@@ -145,6 +179,41 @@ def _append_turn_history(state: SupervisorState, assistant_output: Any) -> Super
             _zep_store_memory(thread, "user", str(user_text))
         if appended_assistant and assistant_text:
             _zep_store_memory(thread, "assistant", assistant_text)
+
+    # STEP 6: Rolling Summarization - Every 10 turns
+    if len(history) > 0 and len(history) % 10 == 0:
+        try:
+            # Create summary of conversation so far
+            summary = summarize_context(history, max_sentences=4)
+            updated_state["conversation_summary"] = summary
+
+            # Archive summary to Zep for retrieval
+            if thread and _ZEP_CLIENT:
+                try:
+                    _ZEP_CLIENT.add_memory(
+                        session_id=thread,
+                        messages=[{
+                            "role": "system",
+                            "content": f"[CONVERSATION SUMMARY] {summary}",
+                            "metadata": {
+                                "type": "rolling_summary",
+                                "turns": len(history),
+                                "timestamp": time.time(),
+                            }
+                        }]
+                    )
+                    logger.info(
+                        "[%s] Rolling summarization: archived summary at %d turns (%d chars)",
+                        thread,
+                        len(history),
+                        len(summary)
+                    )
+                except Exception as e:
+                    logger.warning("[%s] Failed to archive rolling summary: %s", thread, e)
+
+        except Exception as e:
+            logger.warning("[%s] Rolling summarization failed: %s", thread, e)
+
     return updated_state
 
 
@@ -695,15 +764,75 @@ def rotate_inactive_contexts(state: SupervisorState, ttl: int = 1800) -> Supervi
     return state
 
 
+def _persist_context_snapshot(state: SupervisorState) -> bool:
+    """
+    STEP 6: Persist context snapshot for state rehydration.
+
+    Saves current conversation metadata (active_domain, current_intent, summary)
+    to Zep as a system message. This enables state rehydration when reconnecting
+    or resuming conversations.
+
+    Args:
+        state: Current supervisor state
+
+    Returns:
+        True if successful, False otherwise
+    """
+    import json
+
+    thread_id = state.get("thread_id")
+    if not thread_id or not _ZEP_CLIENT:
+        return False
+
+    try:
+        # Build snapshot payload with critical state
+        snapshot = {
+            "active_domain": state.get("active_domain"),
+            "current_intent": state.get("current_intent"),
+            "conversation_summary": state.get("conversation_summary"),
+            "turns_count": len(state.get("history") or []),
+            "timestamp": time.time(),
+        }
+
+        # Archive snapshot to Zep
+        _ZEP_CLIENT.add_memory(
+            session_id=thread_id,
+            messages=[{
+                "role": "system",
+                "content": json.dumps(snapshot),
+                "metadata": {
+                    "type": "context_snapshot",
+                    "timestamp": snapshot["timestamp"],
+                    "turns": snapshot["turns_count"],
+                }
+            }]
+        )
+
+        logger.info(
+            "[%s] Context snapshot persisted: domain=%s, intent=%s, turns=%d",
+            thread_id,
+            snapshot["active_domain"],
+            snapshot["current_intent"],
+            snapshot["turns_count"]
+        )
+
+        return True
+
+    except Exception as e:
+        logger.error("[%s] Failed to persist context snapshot: %s", thread_id, e)
+        return False
+
+
 def _fuse_context(state: SupervisorState) -> SupervisorState:
     """
-    STEP 3: Context Fusion
+    STEP 6: Enhanced Context Fusion
 
     Merge multiple context sources into a unified reasoning context:
-    1. Short-term history (last N turns)
+    1. Conversation summary (from rolling summarization)
     2. Long-term semantic recall (Zep retrieved_context)
-    3. Active domain state (for continuity tracking)
-    4. Current user input
+    3. Short-term history (last N turns)
+    4. Active domain state (for continuity tracking)
+    5. Memory facts (structured knowledge)
 
     Returns state with populated fused_context field.
     """
@@ -714,12 +843,17 @@ def _fuse_context(state: SupervisorState) -> SupervisorState:
     if active_domain:
         context_parts.append(f"[Active Domain: {active_domain}]")
 
-    # 2. Long-term memory (Zep semantic recall)
+    # 2. STEP 6: Rolling conversation summary (high-level overview)
+    conversation_summary = state.get("conversation_summary")
+    if conversation_summary and conversation_summary.strip():
+        context_parts.append(f"[Conversation Summary]:\n{conversation_summary.strip()}")
+
+    # 3. Long-term memory (Zep semantic recall - specific relevant memories)
     retrieved_context = state.get("retrieved_context")
     if retrieved_context and retrieved_context.strip():
-        context_parts.append(f"[Relevant Past Context from Memory]:\n{retrieved_context.strip()}")
+        context_parts.append(f"[Relevant Past Context]:\n{retrieved_context.strip()}")
 
-    # 3. Short-term history (last N turns, default: 5)
+    # 4. Short-term history (last N turns, default: 5)
     history = state.get("history") or []
     recent_limit = 5
     if len(history) > 0:
@@ -734,12 +868,14 @@ def _fuse_context(state: SupervisorState) -> SupervisorState:
         if history_lines:
             context_parts.append(f"[Recent Conversation]:\n" + "\n".join(history_lines))
 
-    # 4. Memory context summary (if available from Zep service)
+    # 5. Memory context summary from Zep service (if available)
     memory_summary = state.get("memory_context_summary")
     if memory_summary and memory_summary.strip():
-        context_parts.append(f"[Conversation Summary]:\n{memory_summary.strip()}")
+        # Only include if different from rolling summary
+        if memory_summary != conversation_summary:
+            context_parts.append(f"[Long-term Summary]:\n{memory_summary.strip()}")
 
-    # 5. Memory facts (structured knowledge)
+    # 6. Memory facts (structured knowledge)
     memory_facts = state.get("memory_context_facts") or []
     if memory_facts:
         facts_lines = []
@@ -755,10 +891,13 @@ def _fuse_context(state: SupervisorState) -> SupervisorState:
     if context_parts:
         fused = "\n\n".join(context_parts)
         logger.info(
-            "[%s] Context fusion: %d parts, %d chars",
+            "[%s] Context fusion: %d parts, %d chars (summary=%s, retrieved=%s, recent=%d turns)",
             state.get("thread_id"),
             len(context_parts),
-            len(fused)
+            len(fused),
+            "yes" if conversation_summary else "no",
+            "yes" if retrieved_context else "no",
+            min(len(history), recent_limit)
         )
     else:
         fused = ""

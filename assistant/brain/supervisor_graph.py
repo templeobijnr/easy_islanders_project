@@ -43,8 +43,16 @@ _SUPERVISOR_MEMORY = MemorySaver()
 _COMPILED_SUPERVISOR_GRAPH = None
 
 try:
-    _ZEP_CLIENT = ZepClient(base_url=os.getenv("ZEP_URL"), api_key=os.getenv("ZEP_API_KEY"))
-    logger.info("[ZEP] Client initialized (base=%s)", _ZEP_CLIENT.base_url)
+    # Use v1 API (hardcoded in brain/zep_client.py)
+    # timeout=2.0s for fast failure detection + circuit breaker for graceful degradation
+    _ZEP_CLIENT = ZepClient(
+        base_url=os.getenv("ZEP_URL"),
+        api_key=os.getenv("ZEP_API_KEY"),
+        timeout=2.0,  # 2s timeout (down from 5s default) for faster failure detection
+        failure_threshold=5,  # Open circuit after 5 consecutive failures
+        cooldown_seconds=30.0,  # 30s cooldown before retry (down from 60s for faster recovery)
+    )
+    logger.info("[ZEP] Client initialized (base=%s, timeout=2s, circuit_breaker=enabled)", _ZEP_CLIENT.base_url)
 except Exception as _zep_init_error:  # noqa: BLE001
     logger.warning("[ZEP] Client initialization failed: %s", _zep_init_error)
     _ZEP_CLIENT = None

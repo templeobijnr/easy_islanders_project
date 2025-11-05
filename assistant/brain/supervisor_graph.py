@@ -173,6 +173,99 @@ def _inject_zep_context(state: SupervisorState) -> SupervisorState:
         return {**state, "retrieved_context": ""}
 
 
+def _maybe_roll_summary(state: SupervisorState) -> SupervisorState:
+    """
+    STEP 6: Rolling Summarization - Generate summary every 10 turns.
+
+    Checks turn count and generates a new conversation summary if needed.
+    The summary is persisted to Zep and stored in state.
+
+    Flow:
+        1. Get current turn count
+        2. Check if we're at a 10-turn boundary
+        3. Generate summary using summarizer.summarize_context()
+        4. Persist summary to Zep as system message
+        5. Update state with new summary
+
+    Args:
+        state: Current supervisor state
+
+    Returns:
+        Updated state with conversation_summary field (if generated)
+    """
+    from assistant.memory.summarizer import summarize_context
+    from assistant.brain.config import load_step6_config
+
+    # Load config (with fallback defaults)
+    try:
+        cfg = load_step6_config()
+        cadence = cfg.get("summary", {}).get("cadence", 10)
+        max_chars = cfg.get("summary", {}).get("max_chars", 500)
+        max_sentences = cfg.get("summary", {}).get("max_sentences", 3)
+    except Exception:
+        cadence = 10
+        max_chars = 500
+        max_sentences = 3
+
+    history = state.get("history") or []
+    thread_id = state.get("thread_id")
+
+    # Check if we need to generate a summary
+    turn_count = len(history)
+
+    if turn_count == 0 or turn_count % cadence != 0:
+        # Not at summary boundary
+        return state
+
+    # Generate summary
+    try:
+        summary = summarize_context(history, max_sentences=max_sentences, max_chars=max_chars)
+
+        if not summary:
+            logger.debug("[%s] No summary generated at turn %d", thread_id, turn_count)
+            return state
+
+        # Archive summary to Zep
+        if thread_id and _ZEP_CLIENT:
+            try:
+                _ZEP_CLIENT.add_memory(
+                    session_id=thread_id,
+                    messages=[{
+                        "role": "system",
+                        "content": f"[CONVERSATION SUMMARY] {summary}",
+                        "metadata": {
+                            "type": "rolling_summary",
+                            "turns": turn_count,
+                            "timestamp": time.time(),
+                        }
+                    }]
+                )
+                logger.info(
+                    "[%s] Rolling summary generated at turn %d (%d chars)",
+                    thread_id,
+                    turn_count,
+                    len(summary)
+                )
+            except Exception as e:
+                logger.warning("[%s] Failed to archive rolling summary: %s", thread_id, e)
+
+        return {
+            **state,
+            "conversation_summary": summary,
+            "turn_count": turn_count,
+            "last_summary_turn": turn_count,
+        }
+
+    except Exception as e:
+        logger.error(
+            "[%s] Rolling summarization failed: %s",
+            thread_id,
+            e,
+            exc_info=True
+        )
+        return state
+
+
 def _append_turn_history(state: SupervisorState, assistant_output: Any) -> SupervisorState:
     """
     STEP 6: Append turn to history and trigger rolling summarization.
@@ -253,7 +346,12 @@ def _append_turn_history(state: SupervisorState, assistant_output: Any) -> Super
 
 def _with_history(state: SupervisorState, updates: Dict[str, Any], assistant_output: Any) -> SupervisorState:
     merged = {**state, **updates}
-    return _append_turn_history(merged, assistant_output)
+    updated_state = _append_turn_history(merged, assistant_output)
+
+    # STEP 6: Persist context snapshot after turn completion
+    _persist_context_snapshot(updated_state)
+
+    return updated_state
 
 
 def _maybe_route_sticky(state: SupervisorState) -> tuple[str | None, Dict[str, Any] | None]:
@@ -855,6 +953,146 @@ def _persist_context_snapshot(state: SupervisorState) -> bool:
     except Exception as e:
         logger.error("[%s] Failed to persist context snapshot: %s", thread_id, e)
         return False
+
+
+def rehydrate_state(thread_id: str) -> Dict[str, Any]:
+    """
+    STEP 6: Rehydrate conversation state on reconnect/resume.
+
+    Fetches the latest context snapshot and conversation summary from Zep
+    to restore conversation continuity when a user reconnects.
+
+    Flow:
+        1. Query Zep for latest context_snapshot (system message with type=context_snapshot)
+        2. Query Zep for latest rolling_summary (system message with type=rolling_summary)
+        3. Parse and return state dict with restored fields
+
+    Args:
+        thread_id: Conversation thread ID
+
+    Returns:
+        Dict with rehydrated state fields:
+            - active_domain: str | None
+            - current_intent: str | None
+            - conversation_summary: str | None
+            - turn_count: int
+            - rehydrated: bool (True if successful)
+
+    Example:
+        state_dict = rehydrate_state("thread-123")
+        if state_dict.get("rehydrated"):
+            print(f"Restored {state_dict['turn_count']} turns")
+    """
+    import json
+    from assistant.brain.config import load_step6_config
+
+    # Load config
+    try:
+        cfg = load_step6_config()
+        rehydration_enabled = cfg.get("rehydration", {}).get("enabled", True)
+        max_age = cfg.get("rehydration", {}).get("max_snapshot_age", 3600)
+    except Exception:
+        rehydration_enabled = True
+        max_age = 3600
+
+    if not rehydration_enabled:
+        logger.info("[%s] Rehydration disabled by config", thread_id)
+        return {"rehydrated": False}
+
+    if not thread_id or not _ZEP_CLIENT:
+        logger.debug("[%s] Cannot rehydrate: no thread_id or Zep client", thread_id)
+        return {"rehydrated": False}
+
+    try:
+        # Query Zep for latest context snapshot
+        # Use search/filter to find system messages with type=context_snapshot
+        snapshots = _ZEP_CLIENT.query_memory(
+            thread_id,
+            query="context_snapshot",
+            limit=1,
+        )
+
+        snapshot_data = None
+        summary_data = None
+
+        if snapshots:
+            # Try to parse the snapshot content (should be JSON)
+            try:
+                snapshot_data = json.loads(snapshots[0])
+            except (json.JSONDecodeError, IndexError):
+                logger.warning("[%s] Failed to parse context snapshot", thread_id)
+
+        # Query for latest rolling summary
+        summaries = _ZEP_CLIENT.query_memory(
+            thread_id,
+            query="CONVERSATION SUMMARY",
+            limit=1,
+        )
+
+        if summaries:
+            try:
+                # Extract summary text from system message
+                summary_text = summaries[0]
+                if summary_text.startswith("[CONVERSATION SUMMARY]"):
+                    summary_data = summary_text.replace("[CONVERSATION SUMMARY]", "").strip()
+                else:
+                    summary_data = summary_text
+            except IndexError:
+                logger.warning("[%s] Failed to extract rolling summary", thread_id)
+
+        # Build rehydrated state
+        rehydrated_state = {
+            "rehydrated": False,
+            "active_domain": None,
+            "current_intent": None,
+            "conversation_summary": None,
+            "turn_count": 0,
+        }
+
+        if snapshot_data:
+            # Check snapshot age
+            snapshot_ts = snapshot_data.get("timestamp", 0)
+            age = time.time() - snapshot_ts
+
+            if age <= max_age:
+                rehydrated_state.update({
+                    "rehydrated": True,
+                    "active_domain": snapshot_data.get("active_domain"),
+                    "current_intent": snapshot_data.get("current_intent"),
+                    "conversation_summary": snapshot_data.get("conversation_summary"),
+                    "turn_count": snapshot_data.get("turns_count", 0),
+                })
+
+                logger.info(
+                    "[%s] State rehydrated: domain=%s, intent=%s, turns=%d, age=%ds",
+                    thread_id,
+                    rehydrated_state["active_domain"],
+                    rehydrated_state["current_intent"],
+                    rehydrated_state["turn_count"],
+                    int(age)
+                )
+            else:
+                logger.info(
+                    "[%s] Context snapshot too old: %ds (max: %ds)",
+                    thread_id,
+                    int(age),
+                    max_age
+                )
+
+        # Override with latest summary if available
+        if summary_data:
+            rehydrated_state["conversation_summary"] = summary_data
+
+        return rehydrated_state
+
+    except Exception as e:
+        logger.error(
+            "[%s] Rehydration failed: %s",
+            thread_id,
+            e,
+            exc_info=True
+        )
+        return {"rehydrated": False}
 
 
 def _fuse_context(state: SupervisorState) -> SupervisorState:
@@ -1492,8 +1730,9 @@ def build_supervisor_graph():
         @traced_supervisor_node
         def supervisor_node(state: SupervisorState) -> SupervisorState:
             state = _apply_memory_context(state)
-            state = _inject_zep_context(state)
-            state = _fuse_context(state)  # STEP 3: Merge all context sources
+            state = _inject_zep_context(state)  # STEP 6: Retrieve long-term memories from Zep
+            state = _maybe_roll_summary(state)  # STEP 6: Generate summary every 10 turns
+            state = _fuse_context(state)  # STEP 3/6: Merge all context sources (summary + retrieved + recent)
             state = _enforce_token_budget(state, max_tokens=6000)  # STEP 5: Enforce token budget
             state = rotate_inactive_contexts(state, ttl=1800)  # STEP 6: Lifecycle management
 

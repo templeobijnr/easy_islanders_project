@@ -60,6 +60,61 @@ def get_domain_threshold(domain: str, default_tau: float = 0.72) -> float:
     return domain_config.get('tau', default_tau)
 
 
+def load_step6_config(yaml_path: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Load STEP 6 context lifecycle configuration from YAML.
+
+    Args:
+        yaml_path: Optional path to config file (defaults to config/step6_context_lifecycle.yaml)
+
+    Returns:
+        Dict with step6 config, or defaults if file not found
+
+    Example:
+        cfg = load_step6_config()
+        cadence = cfg.get("summary", {}).get("cadence", 10)
+    """
+    if not yaml_path:
+        yaml_path = Path(__file__).parent.parent.parent / "config" / "step6_context_lifecycle.yaml"
+
+    try:
+        with open(yaml_path, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+            return data.get("step6", {}) if data else _get_step6_defaults()
+    except (FileNotFoundError, yaml.YAMLError) as e:
+        print(f"Warning: Could not load STEP6 config from {yaml_path}: {e}")
+        return _get_step6_defaults()
+
+
+def _get_step6_defaults() -> Dict[str, Any]:
+    """Get default STEP 6 config values."""
+    return {
+        "enabled": True,
+        "summary": {
+            "cadence": 10,
+            "max_chars": 500,
+            "max_sentences": 3,
+            "strip_pii": True,
+        },
+        "fusion": {
+            "history_tail_turns": 5,
+            "max_fused_chars": 2000,
+        },
+        "retrieval": {
+            "max_snippets": 5,
+            "min_score": 0.5,
+            "timeout_seconds": 2.0,
+        },
+        "persistence": {
+            "enabled": True,
+        },
+        "rehydration": {
+            "enabled": True,
+            "max_snapshot_age": 3600,
+        },
+    }
+
+
 def validate_env() -> None:
     """Best-effort validation of required environment variables.
 

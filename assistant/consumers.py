@@ -85,6 +85,29 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             if _PROMETHEUS_AVAILABLE and WEBSOCKET_CONNECTIONS:
                 WEBSOCKET_CONNECTIONS.labels(thread_id=str(self.thread_id)).inc()
 
+            # STEP 6: Rehydrate conversation state on reconnect
+            try:
+                from assistant.brain.supervisor_graph import rehydrate_state
+                rehydrated = rehydrate_state(self.thread_id)
+                if rehydrated.get("rehydrated"):
+                    logger.info(
+                        "ws_connect_rehydrated",
+                        extra={
+                            "thread_id": self.thread_id,
+                            "domain": rehydrated.get("active_domain"),
+                            "intent": rehydrated.get("current_intent"),
+                            "turns": rehydrated.get("turn_count"),
+                        }
+                    )
+            except Exception as rehydrate_error:
+                logger.warning(
+                    "ws_connect_rehydrate_failed",
+                    extra={
+                        "thread_id": self.thread_id,
+                        "error": str(rehydrate_error),
+                    }
+                )
+
             logger.info(
                 "ws_connect_ok",
                 extra={

@@ -1,0 +1,120 @@
+# STEP 6: Context Lifecycle Configuration
+#
+# Controls long-term memory integration, conversation summarization,
+# context fusion, and state rehydration.
+#
+# Usage:
+#   from assistant.brain.config import load_step6_config
+#   cfg = load_step6_config()
+#   if cfg["enabled"]: ...
+
+step6:
+  # Master switch - set to false to disable all STEP 6 features
+  enabled: true
+
+  # Conversation summarization settings
+  summary:
+    # How many conversation turns before generating a new summary
+    cadence: 10
+
+    # Maximum characters for conversation_summary field
+    max_chars: 500
+
+    # Number of sentences to target in summary (soft limit)
+    max_sentences: 3
+
+    # Whether to strip PII from summaries (recommended: true)
+    strip_pii: true
+
+  # Context fusion settings
+  fusion:
+    # Number of recent turns to include in fused_context
+    history_tail_turns: 5
+
+    # Maximum total characters for fused_context (prevents context overflow)
+    max_fused_chars: 2000
+
+  # Zep retrieval settings
+  retrieval:
+    # Maximum number of memory snippets to retrieve from Zep
+    max_snippets: 5
+
+    # Minimum relevance score for retrieved snippets (0.0-1.0)
+    min_score: 0.5
+
+    # Search timeout in seconds
+    timeout_seconds: 2.0
+
+  # State persistence settings
+  persistence:
+    # Whether to persist context snapshots to Zep after each turn
+    enabled: true
+
+    # Fields to include in context_snapshot metadata
+    snapshot_fields:
+      - active_domain
+      - current_intent
+      - conversation_summary
+      - slot_state
+      - timestamp
+
+  # Rehydration settings
+  rehydration:
+    # Whether to automatically rehydrate state on WebSocket connect
+    enabled: true
+
+    # Maximum age of context snapshot to use (in seconds, 0 = no limit)
+    max_snapshot_age: 3600  # 1 hour
+
+    # Fallback behavior if rehydration fails
+    fallback: "continue"  # Options: "continue" | "error"
+
+  # Feature flags for gradual rollout
+  feature_flags:
+    # Enable Zep context injection
+    inject_zep_context: true
+
+    # Enable rolling summarization
+    rolling_summary: true
+
+    # Enable context fusion
+    context_fusion: true
+
+    # Enable context persistence
+    persist_snapshot: true
+
+    # Enable state rehydration
+    rehydrate_state: true
+
+  # Logging and observability
+  logging:
+    # Log level for STEP 6 operations
+    level: "info"  # Options: "debug" | "info" | "warning" | "error"
+
+    # Whether to log context snippets (may contain PII - use caution)
+    log_context_snippets: false
+
+    # Whether to log performance metrics
+    log_performance: true
+
+# Performance thresholds for monitoring
+performance:
+  # Maximum acceptable latency for context injection (ms)
+  max_inject_latency_ms: 200
+
+  # Maximum acceptable latency for summarization (ms)
+  max_summary_latency_ms: 500
+
+  # Maximum acceptable latency for persistence (ms)
+  max_persist_latency_ms: 150
+
+# Alerting thresholds
+alerts:
+  # Alert if context injection fails more than N times in 5 minutes
+  inject_failure_threshold: 10
+
+  # Alert if summarization fails more than N times in 5 minutes
+  summary_failure_threshold: 5
+
+  # Alert if persistence fails more than N times in 5 minutes
+  persist_failure_threshold: 10

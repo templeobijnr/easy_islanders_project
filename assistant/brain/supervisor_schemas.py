@@ -91,7 +91,10 @@ class SupervisorState(TypedDict):
     agent_context_summaries: Optional[Dict[str, str]]  # Per-agent summarized contexts
     last_summary_timestamp: Optional[float]  # Last time contexts were summarized
     summary_version: Optional[int]  # Version counter for summary updates
-    conversation_summary: Optional[str]  # Rolling conversation summary
+    conversation_summary: Optional[str]  # Rolling conversation summary (≤500 chars)
+    turn_count: Optional[int]  # Total conversation turn count for summary cadence
+    last_summary_turn: Optional[int]  # Turn number when summary was last generated
+    context_snapshot_id: Optional[str]  # Zep session ID for persisted context snapshot
 
     # STEP 7: Context-Primed Router & Sticky-Intent Orchestration
     current_intent: Optional[str]  # Current classified intent (e.g., "property_search")

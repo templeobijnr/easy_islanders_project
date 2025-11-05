@@ -5,14 +5,60 @@ STEP 6: Context Lifecycle & Summarization Layer
 
 Provides lightweight summarization functions for creating rolling summaries
 of conversation history without requiring external LLM calls.
+
+Features:
+- PII stripping (email, phone, URLs)
+- 500-char max constraint
+- Key fact extraction
 """
 import re
+import logging
 from typing import List, Dict, Any
 
+logger = logging.getLogger(__name__)
 
-def summarize_context(history: List[Dict[str, Any]], max_sentences: int = 3) -> str:
+
+# PII patterns for redaction
+PII_PATTERNS = {
+    "email": re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"),
+    "phone": re.compile(r"\b(?:\+?(\d{1,3}))?[-.\s]?(\(?\d{3}\)?)?[-.\s]?\d{3}[-.\s]?\d{4}\b"),
+    "url": re.compile(r"https?://[^\s]+"),
+}
+
+
+def strip_pii(text: str) -> str:
+    """
+    Strip PII from text using regex patterns.
+
+    Args:
+        text: Raw text potentially containing PII
+
+    Returns:
+        Text with PII redacted using [REDACTED] placeholders
+
+    Example:
+        >>> strip_pii("Contact me at john@example.com")
+        "Contact me at [REDACTED]"
+    """
+    result = text
+
+    # Redact email addresses
+    result = PII_PATTERNS["email"].sub("[REDACTED]", result)
+
+    # Redact phone numbers
+    result = PII_PATTERNS["phone"].sub("[REDACTED]", result)
+
+    # Redact URLs
+    result = PII_PATTERNS["url"].sub("[REDACTED]", result)
+
+    return result
+
+
+def summarize_context(history: List[Dict[str, Any]], max_sentences: int = 3, max_chars: int = 500) -> str:
     """
     Create a lightweight running summary of conversation history.
+
+    STEP 6: Main summarization function with PII stripping and char limit.
 
     This is a simple extractive summarization that takes the first N sentences
     from the conversation. Can later be upgraded to use BART/T5 or LLM-based
@@ -20,10 +66,11 @@ def summarize_context(history: List[Dict[str, Any]], max_sentences: int = 3) -> 
 
     Args:
         history: List of conversation turns with 'role' and 'content' keys
-        max_sentences: Maximum number of sentences to include in summary
+        max_sentences: Maximum number of sentences to include in summary (default: 3)
+        max_chars: Maximum character limit (default: 500)
 
     Returns:
-        Summary string (max_sentences sentences + "..." if truncated)
+        Summary string (≤max_chars, PII-stripped, max_sentences sentences)
 
     Example:
         history = [
@@ -34,30 +81,62 @@ def summarize_context(history: List[Dict[str, Any]], max_sentences: int = 3) -> 
         summary = summarize_context(history, max_sentences=2)
         # Returns: "I need an apartment in Girne. I can help you find apartments in Girne."
     """
-    # Extract text from user and assistant turns only (skip system messages)
-    text_parts = []
-    for turn in history:
-        if isinstance(turn, dict):
-            role = turn.get("role", "")
-            content = turn.get("content", "")
-            if role in ("user", "assistant") and isinstance(content, str):
-                text_parts.append(content)
+    if not history:
+        return ""
 
-    # Join all content
-    text = " ".join(text_parts)
+    try:
+        # Extract text from user and assistant turns only (skip system messages)
+        text_parts = []
+        for turn in history:
+            if isinstance(turn, dict):
+                role = turn.get("role", "")
+                content = turn.get("content", "")
+                if role in ("user", "assistant") and isinstance(content, str):
+                    text_parts.append(content)
 
-    # Split into sentences (basic regex-based splitting)
-    sentences = re.split(r'(?<=[.!?])\s+', text)
+        if not text_parts:
+            return ""
 
-    # Take first max_sentences
-    summary_sentences = sentences[:max_sentences]
-    summary = " ".join(summary_sentences)
+        # Join all content
+        text = " ".join(text_parts)
 
-    # Add ellipsis if truncated
-    if len(sentences) > max_sentences:
-        summary += " ..."
+        # Strip PII before processing
+        text = strip_pii(text)
 
-    return summary.strip()
+        # Split into sentences (basic regex-based splitting)
+        sentences = re.split(r'(?<=[.!?])\s+', text)
+
+        # Take first max_sentences
+        summary_sentences = sentences[:max_sentences]
+        summary = " ".join(summary_sentences)
+
+        # Add ellipsis if truncated by sentence count
+        if len(sentences) > max_sentences:
+            summary += " ..."
+
+        # Enforce character limit
+        if len(summary) > max_chars:
+            summary = summary[:max_chars - 3] + "..."
+
+        logger.debug(
+            "[STEP6] summarize_context",
+            extra={
+                "input_messages": len(history),
+                "summary_length": len(summary),
+                "sentence_count": len(summary_sentences),
+            }
+        )
+
+        return summary.strip()
+
+    except Exception as e:
+        logger.error(
+            "[STEP6] summarize_context failed",
+            extra={"error": str(e)},
+            exc_info=True
+        )
+        # Return safe fallback
+        return "Conversation in progress."
 
 
 def summarize_agent_interactions(history: List[Dict[str, Any]], agent_name: str) -> str:

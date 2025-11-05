@@ -1890,21 +1890,40 @@ def build_supervisor_graph():
         @traced_worker_agent("real_estate")
         def real_estate_handler(state: SupervisorState) -> SupervisorState:
             """
-            Real Estate Agent: Delegates to production RE agent with frozen contracts.
+            Real Estate Agent: Routes to prompt-driven or legacy handler based on feature flag.
 
-            STEP 7.1: Added coherent slot-filling + acknowledgement before production call.
+            STEP 7.3: Added canonical prompt-driven handler with Jinja2 template.
+            Feature flag: USE_RE_PROMPT_DRIVEN (default: true)
 
-            Integration Pattern (Contract-First):
-            1. Extract slots from user input (location, budget, bedrooms, etc.)
-            2. Merge with existing agent context
-            3. Build coherent acknowledgement if slots extracted
-            4. Map SupervisorState → AgentRequest (frozen schema)
-            5. Call handle_real_estate_request() from production agent
-            6. Map AgentResponse → SupervisorState
-            7. Extract show_listings actions → recommendations format
+            Prompt-Driven Handler (v1.0):
+            1. Extract and merge slots
+            2. Render Jinja2 system prompt with full context
+            3. Call LLM with prompt
+            4. Parse and validate JSON response (act, speak, slots_delta)
+            5. Execute action: ASK_SLOT | SEARCH_AND_RECOMMEND | ESCALATE | CLARIFY
+            6. Call backend search API and emit recommendation cards
+
+            Legacy Handler (Contract-First):
+            1. Extract slots from user input
+            2. Map SupervisorState → AgentRequest
+            3. Call handle_real_estate_request() from production agent
+            4. Map AgentResponse → SupervisorState
 
             Observability: Full trace data preserved in state.agent_traces
             """
+            import os
+
+            # Feature flag: use prompt-driven handler (default: enabled)
+            use_prompt_driven = os.getenv("USE_RE_PROMPT_DRIVEN", "true").lower() in ("true", "1", "yes")
+
+            if use_prompt_driven:
+                # Route to canonical prompt-driven handler
+                from assistant.brain.real_estate_handler import handle_real_estate_prompt_driven
+                thread_id = state.get('thread_id', 'unknown')
+                logger.info(f"[{thread_id}] RE Agent: using prompt-driven handler (v1.0)")
+                return handle_real_estate_prompt_driven(state)
+
+            # Legacy handler path (preserved for rollback)
             from assistant.agents.real_estate import handle_real_estate_request
             from assistant.agents.contracts import AgentRequest, AgentContext
             from datetime import datetime
@@ -1913,6 +1932,7 @@ def build_supervisor_graph():
 
             thread_id = state.get('thread_id', 'unknown')
             user_msg = state.get("user_input", "")
+            logger.info(f"[{thread_id}] RE Agent: using legacy handler")
 
             # STEP 7.1: Extract and merge slots
             agent_contexts = state.get("agent_contexts") or {}

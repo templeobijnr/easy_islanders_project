@@ -126,7 +126,3 @@ def availability_summary(filters: Dict[str, Any]) -> Dict[str, Any]:
             "items": [],
             "scope": {"filters": filters, "error": str(e)}
         }
-
-
-def __init__.py content for assistant/domain/:
-"""Domain services for business logic."""

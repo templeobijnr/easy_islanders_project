@@ -160,6 +160,125 @@ def _get_re_slots_defaults() -> Dict[str, Any]:
     }
 
 
+def load_geo_synonyms(yaml_path: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Load geographic synonyms configuration from YAML.
+
+    Args:
+        yaml_path: Optional path to config file (defaults to config/geo_synonyms.yaml)
+
+    Returns:
+        Dict with cities, districts, and normalization rules
+
+    Example:
+        cfg = load_geo_synonyms()
+        kyrenia_canonical = cfg["cities"]["Girne"]["canonical"]
+    """
+    if not yaml_path:
+        yaml_path = Path(__file__).parent.parent.parent / "config" / "geo_synonyms.yaml"
+
+    try:
+        with open(yaml_path, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+            return data if data else _get_geo_synonyms_defaults()
+    except (FileNotFoundError, yaml.YAMLError) as e:
+        print(f"Warning: Could not load geo synonyms from {yaml_path}: {e}")
+        return _get_geo_synonyms_defaults()
+
+
+def _get_geo_synonyms_defaults() -> Dict[str, Any]:
+    """Get default geographic synonyms."""
+    return {
+        "cities": {
+            "Girne": {
+                "canonical": "Girne",
+                "synonyms": ["Kyrenia", "kyrenia", "girne"]
+            },
+            "Lefkoşa": {
+                "canonical": "Lefkoşa",
+                "synonyms": ["Nicosia", "nicosia", "lefkosa"]
+            },
+            "Gazimağusa": {
+                "canonical": "Gazimağusa",
+                "synonyms": ["Famagusta", "famagusta", "gazimagusa"]
+            },
+            "İskele": {
+                "canonical": "İskele",
+                "synonyms": ["Iskele", "iskele"]
+            }
+        },
+        "districts": [],
+        "normalization": {
+            "case_insensitive": True,
+            "replacements": {},
+            "stop_words": []
+        }
+    }
+
+
+def load_currency_synonyms(yaml_path: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Load currency synonyms configuration from YAML.
+
+    Args:
+        yaml_path: Optional path to config file (defaults to config/currency_synonyms.yaml)
+
+    Returns:
+        Dict with currencies, default currency, and normalization rules
+
+    Example:
+        cfg = load_currency_synonyms()
+        default_currency = cfg["default_currency"]
+    """
+    if not yaml_path:
+        yaml_path = Path(__file__).parent.parent.parent / "config" / "currency_synonyms.yaml"
+
+    try:
+        with open(yaml_path, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+            return data if data else _get_currency_synonyms_defaults()
+    except (FileNotFoundError, yaml.YAMLError) as e:
+        print(f"Warning: Could not load currency synonyms from {yaml_path}: {e}")
+        return _get_currency_synonyms_defaults()
+
+
+def _get_currency_synonyms_defaults() -> Dict[str, Any]:
+    """Get default currency synonyms."""
+    return {
+        "currencies": {
+            "GBP": {
+                "canonical": "GBP",
+                "symbol": "£",
+                "name": "British Pound",
+                "synonyms": ["pound", "pounds", "gbp", "£"]
+            },
+            "EUR": {
+                "canonical": "EUR",
+                "symbol": "€",
+                "name": "Euro",
+                "synonyms": ["euro", "euros", "eur", "€"]
+            },
+            "USD": {
+                "canonical": "USD",
+                "symbol": "$",
+                "name": "US Dollar",
+                "synonyms": ["dollar", "dollars", "usd", "$"]
+            },
+            "TRY": {
+                "canonical": "TRY",
+                "symbol": "₺",
+                "name": "Turkish Lira",
+                "synonyms": ["lira", "liras", "try", "₺", "tl"]
+            }
+        },
+        "default_currency": "GBP",
+        "normalization": {
+            "case_insensitive": True
+        },
+        "priority": ["GBP", "EUR", "USD", "TRY"]
+    }
+
+
 def validate_env() -> None:
     """Best-effort validation of required environment variables.
 

@@ -1,4 +1,4 @@
-"""
+# DEBUG: stray docstring marker removed
 B.1: STRUCTURED INTENT CLASSIFICATION WITH LLM VALIDATION
 
 Production-grade intent classification using LangChain's structured output feature.
@@ -9,8 +9,7 @@ Architecture:
 - Pydantic validation on LLM response
 - Graceful fallback with reasoning (not silent)
 - Audit trail for debugging
-"""
-
+# DEBUG: stray docstring marker removed
 import json
 import logging
 from typing import Dict, Any, Optional
@@ -25,13 +24,13 @@ logger = logging.getLogger(__name__)
 
 
 def create_structured_intent_parser():
-    """
+# DEBUG: stray docstring marker removed
     Create a parser that forces LLM output to match IntentResult schema.
     
     Uses LangChain's structured output feature:
     - OpenAI 4-turbo: JSON schema enforcement
     - Claude 3+: Tool use enforcement
-    """
+# DEBUG: stray docstring marker removed
     return PydanticOutputParser(pydantic_object=IntentResult)
 
 
@@ -42,7 +41,7 @@ def parse_intent_structured(
     pending_actions_json: str,
     context: Optional[Dict[str, Any]] = None
 ) -> IntentResult:
-    """
+# DEBUG: stray docstring marker removed
     LLM-powered intent classification with GUARANTEED schema compliance.
     
     This is the PRIMARY entry point for B.1 structured output.
@@ -59,7 +58,7 @@ def parse_intent_structured(
     
     Raises:
         ValueError: Only on catastrophic LLM failures (after fallback)
-    """
+# DEBUG: stray docstring marker removed
     llm = ChatOpenAI(
         model="gpt-4-turbo-preview",
         temperature=0.1,  # Low temperature for deterministic intent
@@ -75,7 +74,7 @@ def parse_intent_structured(
     parser = create_structured_intent_parser()
     
     prompt_template = ChatPromptTemplate.from_template(
-        """
+# DEBUG: stray docstring marker removed
 You are an intent classification router for a multi-domain marketplace agent.
 Return a STRICT JSON object matching the provided schema.
 
@@ -91,10 +90,10 @@ Context:
 - pending_actions: {pending_actions_json}
 
 User message:
-"""
+# DEBUG: stray docstring marker removed
 {message}
-"""
-        """
+# DEBUG: stray docstring marker removed
+# DEBUG: stray docstring marker removed
         )
     
     chain = prompt_template | structured_llm
@@ -129,12 +128,12 @@ User message:
 
 
 def validate_intent(intent: IntentResult) -> tuple[bool, Optional[str]]:
-    """
+# DEBUG: stray docstring marker removed
     Validate intent object for routing safety.
     
     Returns:
         (is_valid: bool, error_message: str | None)
-    """
+# DEBUG: stray docstring marker removed
     # Already validated by Pydantic, but add business logic validation
     if intent.needs_tool and not intent.tool_name:
         return False, "tool_name is required when needs_tool=True"
@@ -156,11 +155,11 @@ def parse_intent(
     language: str,
     pending_actions_json: str
 ) -> IntentResult:
-    """
+# DEBUG: stray docstring marker removed
     Backwards-compatible wrapper for parse_intent_structured.
     
     Used in agent.py:342 as drop-in replacement.
-    """
+# DEBUG: stray docstring marker removed
     return parse_intent_structured(
         user_text=user_text,
         history_summary=history_summary,

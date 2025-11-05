@@ -494,13 +494,37 @@ class ZepClient:
         )
         if response.status_code == 204:
             return None
+
+        # HARDENING: Don't parse JSON for successful POST writes to /memory
+        # Zep often returns empty/2-byte body on writes (valid behavior)
+        is_write = method.upper() == "POST" and "/memory" in path.lower()
+
+        # Check if response has content before parsing
+        content_length = len(response.content)
+        if content_length <= 2 and is_write:
+            # Empty or minimal body on successful write - expected
+            logger.debug(
+                "zep_write_success_no_body",
+                extra={"status": response.status_code, "path": path, "bytes": content_length}
+            )
+            return {}
+
         try:
             return response.json()
         except (ValueError, json.JSONDecodeError) as exc:
-            logger.warning(
-                "zep_client_invalid_json",
-                extra={"status": response.status_code, "path": path, "error": str(exc)},
-            )
+            # Only warn for non-write requests or unexpected parse failures
+            if is_write:
+                # For writes, empty body is OK - log at debug level
+                logger.debug(
+                    "zep_write_empty_body",
+                    extra={"status": response.status_code, "path": path}
+                )
+            else:
+                # For reads, this is unexpected - log as warning
+                logger.warning(
+                    "zep_client_invalid_json",
+                    extra={"status": response.status_code, "path": path, "error": str(exc)},
+                )
             return None
 
     def _request(

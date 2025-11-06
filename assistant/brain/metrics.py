@@ -80,6 +80,42 @@ re_active_slots_gauge = Gauge(
     'Number of active slot-filling sessions'
 )
 
+# v2.0: Adaptive Slot-Filling Metrics
+re_slots_prompted_total = Counter(
+    're_slots_prompted_total',
+    'Total times each slot was explicitly asked',
+    ['slot']  # location, budget, bedrooms, etc.
+)
+
+re_slots_skipped_total = Counter(
+    're_slots_skipped_total',
+    'Total times each slot was skipped after max attempts',
+    ['slot']
+)
+
+re_inference_success_total = Counter(
+    're_inference_success_total',
+    'Total successful slot inferences',
+    ['slot', 'source']  # source: llm, heuristic
+)
+
+re_inference_fail_total = Counter(
+    're_inference_fail_total',
+    'Total failed slot inference attempts',
+    ['slot']
+)
+
+re_user_abandon_rate = Counter(
+    're_user_abandon_rate',
+    'Sessions abandoned during slot-filling stage'
+)
+
+re_slot_confidence_gauge = Gauge(
+    're_slot_confidence_gauge',
+    'Current confidence score for inferred slots',
+    ['slot']
+)
+
 
 # ============================================================================
 # HELPER FUNCTIONS
@@ -133,6 +169,43 @@ def record_turn_duration(duration_ms: float):
 def set_circuit_breaker_state(service: str, is_open: bool):
     """Set circuit breaker state."""
     re_circuit_breaker_state.labels(service=service).set(1 if is_open else 0)
+
+
+# v2.0: Adaptive Slot-Filling Helper Functions
+def record_slot_prompted(slot: str):
+    """Record that a slot was explicitly asked."""
+    re_slots_prompted_total.labels(slot=slot).inc()
+
+
+def record_slot_skipped(slot: str):
+    """Record that a slot was skipped after max attempts."""
+    re_slots_skipped_total.labels(slot=slot).inc()
+
+
+def record_inference_success(slot: str, source: str):
+    """
+    Record successful slot inference.
+
+    Args:
+        slot: Slot name (e.g., "location", "budget")
+        source: Inference source ("llm" or "heuristic")
+    """
+    re_inference_success_total.labels(slot=slot, source=source).inc()
+
+
+def record_inference_fail(slot: str):
+    """Record failed slot inference attempt."""
+    re_inference_fail_total.labels(slot=slot).inc()
+
+
+def record_user_abandon():
+    """Record session abandonment during slot-filling."""
+    re_user_abandon_rate.inc()
+
+
+def set_slot_confidence(slot: str, confidence: float):
+    """Set current confidence score for inferred slot."""
+    re_slot_confidence_gauge.labels(slot=slot).set(confidence)
 
 
 logger.info("[Metrics] Real Estate Agent metrics registered")

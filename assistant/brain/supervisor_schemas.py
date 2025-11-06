@@ -8,6 +8,8 @@ class RealEstateAgentContext(BaseModel):
 
     Used in SupervisorState.agent_contexts["real_estate_agent"] for tracking
     slot collection progress and preventing re-ask loops.
+
+    v2.0: Extended with adaptive slot-filling tracking
     """
 
     # Slot tracking
@@ -41,6 +43,32 @@ class RealEstateAgentContext(BaseModel):
     last_active: float = Field(
         default=0.0,
         description="Unix timestamp of last activity (for TTL)"
+    )
+
+    # v2.0: Adaptive slot-filling enhancements
+    slot_prompt_attempts: Dict[str, int] = Field(
+        default_factory=dict,
+        description="Track how many times each slot was asked (prevents endless loops)"
+    )
+    skipped_slots: Dict[str, str] = Field(
+        default_factory=dict,
+        description="Slots user explicitly skipped/avoided: {bedrooms: 'user_unresponsive'}"
+    )
+    slot_confidence: Dict[str, float] = Field(
+        default_factory=dict,
+        description="Confidence scores for inferred slots: {budget: 0.85}"
+    )
+    last_intent: Optional[str] = Field(
+        default=None,
+        description="Previous intent before current turn (for intent switching)"
+    )
+    user_emotion: Optional[str] = Field(
+        default=None,
+        description="Detected user emotion (frustrated, happy, neutral, etc.)"
+    )
+    escalation_flag: bool = Field(
+        default=False,
+        description="Flag for recovery or handoff to human agent"
     )
 
     class Config:

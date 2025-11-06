@@ -30,8 +30,17 @@ from assistant.brain.metrics import (
     record_handoff,
     record_error,
     record_prompt_duration,
-    record_turn_duration
+    record_turn_duration,
+    # v2.0: Adaptive slot-filling metrics
+    record_slot_prompted,
+    record_slot_skipped,
+    record_inference_success,
+    record_inference_fail,
+    set_slot_confidence
 )
+# v2.0: Import adaptive slot-filling modules
+from assistant.brain.slot_policy import get_slot_policy
+from assistant.brain.inference_engine import infer_slots
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +90,56 @@ def handle_real_estate_prompt_driven(state: SupervisorState) -> SupervisorState:
     logger.info(
         f"[{thread_id}] RE Agent: slots - existing={existing_slots}, new={new_slots}, merged={merged_slots}"
     )
+
+    # v2.0: Adaptive Slot-Filling Logic
+    # Get or initialize adaptive tracking fields
+    slot_prompt_attempts = re_ctx.get("slot_prompt_attempts", {})
+    skipped_slots = re_ctx.get("skipped_slots", {})
+    slot_confidence = re_ctx.get("slot_confidence", {})
+    current_intent = state.get("current_intent", "short_term_rent")
+
+    # Initialize slot policy
+    policy = get_slot_policy(domain="real_estate")
+
+    # Analyze slot completeness
+    analysis = policy.analyze_slots(merged_slots, current_intent)
+    missing_critical = analysis["missing"]["critical"]
+    missing_contextual = analysis["missing"]["contextual"]
+
+    # Try to infer missing slots before asking
+    if missing_critical or missing_contextual:
+        all_missing = missing_critical + missing_contextual
+        context = {
+            "filled_slots": merged_slots,
+            "conversation_summary": state.get("memory_context_summary", ""),
+            "thread_id": thread_id
+        }
+
+        inferred = infer_slots(user_input, all_missing, context, use_llm=True)
+
+        # Apply inferred values if confidence is high enough
+        threshold = 0.7  # From config
+        for slot_name, inferred_data in inferred.items():
+            confidence_score = inferred_data.get("confidence", 0)
+            value = inferred_data.get("value")
+            source = inferred_data.get("source", "unknown")
+
+            if confidence_score >= threshold and value:
+                merged_slots[slot_name] = value
+                slot_confidence[slot_name] = confidence_score
+                record_inference_success(slot_name, source)
+                set_slot_confidence(slot_name, confidence_score)
+
+                logger.info(
+                    f"[{thread_id}] RE Agent: Inferred {slot_name}={value} "
+                    f"(confidence={confidence_score:.2f}, source={source})"
+                )
+            else:
+                record_inference_fail(slot_name)
+                logger.debug(
+                    f"[{thread_id}] RE Agent: Inference for {slot_name} below threshold "
+                    f"(confidence={confidence_score:.2f} < {threshold})"
+                )
 
     # Step 2: Render prompt with full context
     conversation_summary = state.get("memory_context_summary", "")
@@ -173,12 +232,40 @@ def handle_real_estate_prompt_driven(state: SupervisorState) -> SupervisorState:
     if slots_delta:
         merged_slots = merge_and_commit_slots(merged_slots, slots_delta)
 
+    # v2.0: Track prompt attempts for ASK_SLOT
+    if act == "ASK_SLOT" and next_needed:
+        asking_slot = next_needed[0]
+        slot_prompt_attempts[asking_slot] = slot_prompt_attempts.get(asking_slot, 0) + 1
+        record_slot_prompted(asking_slot)
+
+        # Check if we've asked too many times
+        max_attempts = 3  # From config
+        if slot_prompt_attempts[asking_slot] >= max_attempts:
+            # Mark slot as skipped and get empathetic response
+            skipped_slots[asking_slot] = "user_unresponsive"
+            record_slot_skipped(asking_slot)
+
+            empathy_response = policy.get_empathy_response("skip_slot_graceful")
+            logger.info(
+                f"[{thread_id}] RE Agent: Slot '{asking_slot}' asked {slot_prompt_attempts[asking_slot]} times, "
+                f"skipping with empathy response"
+            )
+
+            # Override speak with empathetic message and proceed to search
+            act = "SEARCH_AND_RECOMMEND"  # Change action to search
+            speak = empathy_response
+
     # Update agent context
     re_ctx.update({
         "filled_slots": merged_slots,
         "awaiting_slot": next_needed[0] if next_needed else None,
         "stage": _determine_stage(act, merged_slots),
-        "last_active": time.time()
+        "last_active": time.time(),
+        # v2.0: Save adaptive tracking fields
+        "slot_prompt_attempts": slot_prompt_attempts,
+        "skipped_slots": skipped_slots,
+        "slot_confidence": slot_confidence,
+        "last_intent": current_intent
     })
     agent_contexts["real_estate_agent"] = re_ctx
     state["agent_contexts"] = agent_contexts

@@ -1,0 +1,159 @@
+# Adaptive Slot-Filling Policy Configuration
+# v2.0 - Contextual Inference System
+#
+# Defines slot priority tiers per intent for the Real Estate Agent
+# Hot-reloadable at runtime
+
+real_estate:
+  # Short-term rentals (vacation, temporary accommodation)
+  short_term_rent:
+    critical:
+      - rental_type  # Must know it's short-term
+      - location     # Essential for search
+    contextual:
+      - budget       # Important but can be inferred or set to default
+      - bedrooms     # Useful for filtering
+    optional:
+      - furnishing   # Nice-to-have
+      - amenities    # Can enhance results
+      - view         # User preference
+      - availability # Specific dates
+
+  # Long-term rentals (monthly/annual leases)
+  long_term_rent:
+    critical:
+      - rental_type  # Must know it's long-term
+      - location     # Essential for search
+      - budget       # More critical for long-term commitment
+    contextual:
+      - bedrooms     # Important for filtering
+      - furnishing   # Matters for move-in
+      - availability # Lease start date
+    optional:
+      - amenities    # Nice-to-have
+      - area         # Square meters/footage
+      - parking      # Convenience feature
+
+  # Property purchase
+  buy_property:
+    critical:
+      - location     # Essential for search
+      - budget       # Critical for affordability
+    contextual:
+      - property_type # House, apartment, villa, land
+      - bedrooms     # Family size consideration
+      - area         # Square meters/footage
+    optional:
+      - amenities    # Nice-to-have features
+      - furnishing   # Less relevant for purchase
+      - view         # User preference
+      - parking      # Convenience feature
+
+  # Property sale (user wants to sell)
+  sell_property:
+    critical:
+      - property_type # What they're selling
+      - location     # Where it is
+    contextual:
+      - area         # Size matters for valuation
+      - bedrooms     # Affects pricing
+      - asking_price # Their expected price
+    optional:
+      - amenities    # Features to highlight
+      - view         # Selling point
+      - recent_renovations # Value-add
+
+# Slot-filling behavior configuration
+slot_filling_guard:
+  enabled: true
+  max_input_words: 7  # Consider short inputs as refinements
+  max_prompt_attempts: 3  # Ask for same slot max 3 times before skipping
+
+  # Keywords that indicate user is refining/continuing
+  refinement_keywords:
+    - "yes"
+    - "yeah"
+    - "sure"
+    - "okay"
+    - "make it"
+    - "change to"
+    - "instead"
+    - "actually"
+    - "prefer"
+    - "better"
+    - "cheaper"
+    - "expensive"
+
+  # Keywords that indicate explicit domain switch
+  explicit_switch_keywords:
+    - "show me cars"
+    - "find a pharmacy"
+    - "where can i buy"
+    - "i need to book"
+    - "forget about"
+    - "never mind"
+
+# Inference engine configuration
+inference:
+  enabled: true
+  confidence_threshold: 0.7  # Only apply inferred values with confidence >= 0.7
+  fallback_to_heuristics: true  # Use rule-based inference if LLM unavailable
+
+  # Known patterns for heuristic inference
+  patterns:
+    budget:
+      low: ["cheap", "budget", "affordable", "economical"]
+      medium: ["moderate", "reasonable", "mid-range"]
+      high: ["luxury", "premium", "upscale", "high-end"]
+
+    bedrooms:
+      studio: ["studio", "efficiency", "bedsit"]
+      one_br: ["1 bed", "one bedroom", "1br", "single"]
+      two_br: ["2 bed", "two bedroom", "2br"]
+      three_br: ["3 bed", "three bedroom", "3br"]
+      four_plus: ["4 bed", "four bedroom", "4br", "large family"]
+
+    furnishing:
+      furnished: ["furnished", "fully furnished", "equipped"]
+      unfurnished: ["unfurnished", "empty", "bare"]
+      semi_furnished: ["semi-furnished", "partially furnished"]
+
+    location:
+      known_cities:
+        - Kyrenia
+        - Girne
+        - Nicosia
+        - Lefkoşa
+        - Famagusta
+        - Gazimağusa
+        - Morphou
+        - Güzelyurt
+        - Lapithos
+        - Lapta
+
+# Empathetic response templates
+empathy:
+  # When user dodges a slot multiple times
+  skip_slot_graceful:
+    - "No worries if you're unsure — I'll search broadly for now."
+    - "That's okay! I can still find options without that detail."
+    - "Understood — let me work with what you've shared so far."
+
+  # When user seems frustrated
+  frustrated:
+    - "I know it can be a lot of questions — I'm just trying to find the best match!"
+    - "Bear with me, I'm almost there!"
+    - "Thanks for your patience — just a couple more details."
+
+  # When search returns no results
+  zero_results:
+    - "Hmm, no exact matches yet. Should I widen the search?"
+    - "I couldn't find anything matching exactly, but I can adjust the criteria. Which filter should I relax?"
+    - "No results with those exact specs. Want me to try a nearby location or different budget?"
+
+# Metrics configuration
+metrics:
+  track_slot_attempts: true
+  track_inference_accuracy: true
+  track_user_abandon_rate: true
+  log_slot_skips: true

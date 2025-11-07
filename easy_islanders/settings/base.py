@@ -343,8 +343,9 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TIMEZONE = TIME_ZONE
-CELERY_TASK_TIME_LIMIT = 60  # Hard limit: kill task after 60s
-CELERY_TASK_SOFT_TIME_LIMIT = 45  # Soft limit: SoftTimeLimitExceeded after 45s
+# Allow long-running chat tasks (LLM calls can take 30-120s legitimately)
+CELERY_TASK_TIME_LIMIT = 180  # Hard limit: kill task after 180s
+CELERY_TASK_SOFT_TIME_LIMIT = 150  # Soft limit: warn after 150s
 CELERY_TASK_ACKS_LATE = True
 CELERY_TASK_REJECT_ON_WORKER_LOST = True
 
@@ -365,6 +366,15 @@ CELERY_TASK_ROUTES = {
 CELERYD_PREFETCH_MULTIPLIER = 1
 CELERY_WORKER_ENABLE_REMOTE_CONTROL = True
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+
+# Observability: Enable task event tracking for monitoring
+CELERY_TASK_TRACK_STARTED = True  # Emit task-started event (not just queued)
+CELERY_TASK_SEND_SENT_EVENT = True  # Emit task-sent event
+CELERY_WORKER_SEND_TASK_EVENTS = True  # Worker lifecycle events
+CELERY_SEND_EVENTS = True  # Enable event dispatcher
+
+# Structured logging for task states
+CELERY_REDIRECT_STDOUTS_LEVEL = "INFO"  # Capture task stdout/stderr
 OPENAI_MODEL = config('OPENAI_MODEL', default='gpt-4-turbo-preview')
 
 # Proactive Agent Configuration

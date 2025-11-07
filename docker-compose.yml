@@ -34,21 +34,18 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
-      zep:
-        condition: service_started
     networks:
       - easy_islanders_network
     env_file:
       - ${ENV_FILE:-.env.docker}
 
-  celery:
+  # Split Celery workers by queue for better isolation and resource management
+  celery_chat:
     build: .
-    container_name: easy_islanders_celery
-    # Subscribe worker to all queues we publish to (chat + others)
-    command: celery -A easy_islanders worker -Q chat,default,background,notifications,dlq -l info --concurrency=8
+    container_name: easy_islanders_celery_chat
+    command: celery -A easy_islanders worker -Q chat -l info --concurrency=4 --pool=threads
     volumes:
       - .:/code
-    # Use the same env file as web to ensure alignment
     env_file:
       - ${ENV_FILE:-.env.docker}
     depends_on:
@@ -56,10 +53,43 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
-      zep:
+    networks:
+      - easy_islanders_network
+    restart: unless-stopped
+
+  celery_default:
+    build: .
+    container_name: easy_islanders_celery_default
+    command: celery -A easy_islanders worker -Q default -l info --concurrency=4 --pool=threads
+    volumes:
+      - .:/code
+    env_file:
+      - ${ENV_FILE:-.env.docker}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
         condition: service_started
     networks:
       - easy_islanders_network
+    restart: unless-stopped
+
+  celery_background:
+    build: .
+    container_name: easy_islanders_celery_background
+    command: celery -A easy_islanders worker -Q background,notifications,dlq -l info --concurrency=4
+    volumes:
+      - .:/code
+    env_file:
+      - ${ENV_FILE:-.env.docker}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - easy_islanders_network
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine

@@ -31,7 +31,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
 from assistant.monitoring.metrics import increment_ws_invalid_envelope
 from assistant.memory import current_mode, read_enabled, write_enabled
 from assistant.memory.zep_client import ZepClient
-from assistant.memory.flags import MemoryMode
+from assistant.memory.flags import MemoryMode, get_forced_mode
 from assistant.memory.service import get_client, call_zep, invalidate_context
 from assistant.memory.pii import redact_pii
 from assistant.brain.config import PREFS_EXTRACT_ENABLED
@@ -1493,7 +1493,22 @@ def process_chat_message(self, message_id: str, thread_id: str, client_msg_id: O
     try:
         msg = Message.objects.get(id=message_id)
         thread = ConversationThread.objects.get(thread_id=thread_id)
-        zep_context = _prepare_zep_write_context(thread)
+
+        # Check if Zep is in degraded state (auto-downgrade from repeated failures)
+        forced_mode = get_forced_mode()
+        if forced_mode:
+            logger.warning(
+                "zep_degraded_skipping_writes",
+                extra={
+                    "thread_id": thread_id,
+                    "reason": forced_mode.get("reason"),
+                    "until": forced_mode.get("until"),
+                    "correlation_id": correlation_id,
+                }
+            )
+            zep_context = None  # Skip Zep writes, continue without memory
+        else:
+            zep_context = _prepare_zep_write_context(thread)
 
         # Step 1: notify typing/on-progress
         async_to_sync(channel_layer.group_send)(
@@ -1517,16 +1532,40 @@ def process_chat_message(self, message_id: str, thread_id: str, client_msg_id: O
         # Fire-and-forget preference extraction (non-blocking)
         try:
             if PREFS_EXTRACT_ENABLED and msg.sender_id:
-                extract_preferences_async.apply_async(
-                    kwargs={
-                        "user_id": msg.sender_id,
-                        "thread_id": thread.thread_id,
-                        "message_id": str(msg.id),
-                        "utterance": user_text,
-                    }
-                )
-        except Exception:
-            pass
+                # Preflight check: verify OpenAI key configured
+                if not getattr(settings, 'OPENAI_API_KEY', None):
+                    logger.warning(
+                        "preferences_extract_skipped_no_openai_key",
+                        extra={"thread_id": thread.thread_id}
+                    )
+                else:
+                    result = extract_preferences_async.apply_async(
+                        kwargs={
+                            "user_id": msg.sender_id,
+                            "thread_id": thread.thread_id,
+                            "message_id": str(msg.id),
+                            "utterance": user_text,
+                        },
+                        link_error=log_preference_extraction_failure.s(thread.thread_id)
+                    )
+                    logger.debug(
+                        "preferences_extract_queued",
+                        extra={
+                            "thread_id": thread.thread_id,
+                            "task_id": result.id,
+                            "correlation_id": correlation_id,
+                        }
+                    )
+        except Exception as e:
+            logger.error(
+                "preferences_extract_queue_failed",
+                extra={
+                    "thread_id": thread.thread_id,
+                    "error": str(e),
+                    "correlation_id": correlation_id,
+                },
+                exc_info=True
+            )
 
         result = run_supervisor_agent(
             user_text,
@@ -1911,3 +1950,32 @@ def extract_preferences_async(self, user_id: int, thread_id: str, message_id: st
         observe_prefs_latency("error", _time.perf_counter() - start)
         logger.error(f"extract_preferences_async failed: {e}")
         raise
+
+
+@shared_task
+def log_preference_extraction_failure(task_id, exc, traceback, thread_id):
+    """
+    Error callback for extract_preferences_async failures.
+    Logs detailed error information for debugging.
+    """
+    logger.error(
+        "preferences_extract_failed",
+        extra={
+            "thread_id": thread_id,
+            "task_id": task_id,
+            "error": str(exc),
+            "traceback": traceback,
+        }
+    )
+
+    # Optionally: increment metric
+    try:
+        inc_prefs_extract_request("error")
+    except Exception:
+        pass
+
+    return {
+        "success": False,
+        "thread_id": thread_id,
+        "error": str(exc),
+    }

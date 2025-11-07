@@ -203,10 +203,23 @@ class ZepClient:
         payload = {"text": query, "limit": limit}
         try:
             resp = requests.post(url, json=payload, headers=self.headers, timeout=self.timeout)
+
+            # Handle 404: session doesn't exist yet (expected for new threads)
+            if resp.status_code == 404:
+                logger.debug(
+                    "[ZEP] query_memory: session %s not found (expected for new threads)",
+                    thread_id
+                )
+                # Don't record as failure - this is expected behavior
+                return []
+
+            # Handle other errors
             if not resp.ok:
                 logger.warning("[ZEP] query_memory failed %s: %s", resp.status_code, resp.text)
                 self._record_failure()
                 return []
+
+            # Parse successful response
             data = resp.json()
             results = data.get("results", []) if isinstance(data, dict) else []
             contents: List[str] = []

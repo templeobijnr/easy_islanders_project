@@ -444,6 +444,38 @@ class ZepClient:
                 self._mark_version_success(version)
                 return resp or {}
 
+        if isinstance(last_exc, ZepRequestError) and last_exc.status_code == 404:
+            # Session doesn't exist - try to create it and retry
+            logger.info(
+                "zep_session_not_found_creating",
+                extra={"thread_id": thread_id, "attempted": [p for _, p in paths]},
+            )
+            try:
+                # Try to create session (user_id may not be available, use thread_id)
+                self.ensure_thread(thread_id, user_id=thread_id)
+
+                # Retry the first path after creating session
+                if paths:
+                    version, path = paths[0]
+                    resp = self._request_json(
+                        "POST",
+                        path,
+                        json_payload=payload,
+                        expected_status=(200, 201, 202),
+                    )
+                    logger.info(
+                        "zep_memory_added_after_session_creation",
+                        extra={"thread_id": thread_id, "path": path}
+                    )
+                    self._mark_version_success(version)
+                    return resp or {}
+            except Exception as e:
+                logger.warning(
+                    "zep_session_creation_failed",
+                    extra={"thread_id": thread_id, "error": str(e)}
+                )
+                # Fall through to return empty dict
+
         if isinstance(last_exc, ZepRequestError) and last_exc.status_code in (404, 405):
             logger.debug(
                 "zep_memory_endpoint_unavailable",
@@ -632,8 +664,15 @@ class ZepClient:
                     return response
 
                 error_payload = _extract_error_body(response)
-                logger.warning(
-                    "zep_http_status_unexpected",
+
+                # 404 on GET is expected for new sessions - log at debug level
+                is_expected_404 = (response.status_code == 404 and method.upper() == "GET")
+                log_level = logging.DEBUG if is_expected_404 else logging.WARNING
+                log_msg = "zep_session_not_found" if is_expected_404 else "zep_http_status_unexpected"
+
+                logger.log(
+                    log_level,
+                    log_msg,
                     extra={
                         "method": method,
                         "path": path,

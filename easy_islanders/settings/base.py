@@ -279,7 +279,8 @@ from urllib.parse import urlparse
 
 if DEBUG:
     # Development: allow all for convenience
-    ALLOWED_HOSTS = ['*']
+    # Include 'web' explicitly for Docker Compose internal calls
+    ALLOWED_HOSTS = ['*', 'web', 'localhost', '127.0.0.1']
 else:
     # Production: only explicit hosts derived from CORS origins + health check hosts
     _cors_hosts = [urlparse(origin).netloc for origin in CORS_ALLOWED_ORIGINS if origin]
@@ -287,6 +288,7 @@ else:
         'host.docker.internal',  # Docker/K8s health checks
         '127.0.0.1',
         'localhost',
+        'web',  # Docker Compose service name
         '172.19.0.0/16',  # Fly.io internal network
     ]
 

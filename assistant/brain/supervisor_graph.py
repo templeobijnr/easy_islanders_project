@@ -804,14 +804,12 @@ def archive_to_zep(
         if metadata:
             archive_metadata.update(metadata)
 
-        # Add memory to Zep
+        # Add memory to Zep (simple client API: thread_id, role, content)
+        summary_content = f"[ARCHIVED SUMMARY {agent_name}] {summary}"
         _ZEP_CLIENT.add_memory(
-            session_id=thread_id,
-            messages=[{
-                "role": "system",
-                "content": f"[ARCHIVED SUMMARY {agent_name}] {summary}",
-                "metadata": archive_metadata,
-            }]
+            thread_id=thread_id,
+            role="system",
+            content=summary_content
         )
 
         logger.info(
@@ -935,18 +933,12 @@ def _persist_context_snapshot(state: SupervisorState) -> bool:
             "timestamp": time.time(),
         }
 
-        # Archive snapshot to Zep
+        # Archive snapshot to Zep (simple client API: thread_id, role, content)
+        snapshot_content = json.dumps(snapshot)
         _ZEP_CLIENT.add_memory(
-            session_id=thread_id,
-            messages=[{
-                "role": "system",
-                "content": json.dumps(snapshot),
-                "metadata": {
-                    "type": "context_snapshot",
-                    "timestamp": snapshot["timestamp"],
-                    "turns": snapshot["turns_count"],
-                }
-            }]
+            thread_id=thread_id,
+            role="system",
+            content=snapshot_content
         )
 
         logger.info(

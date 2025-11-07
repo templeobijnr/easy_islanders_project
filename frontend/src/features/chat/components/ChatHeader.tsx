@@ -12,7 +12,7 @@ export const ChatHeader: React.FC = () => {
   const [prefs, setPrefs] = useState<PrefItem[]>([]);
   const [paused, setPaused] = useState<boolean>(false);
   const [editOpen, setEditOpen] = useState<boolean>(false);
-  const prefsUiEnabled = config?.FEATURES?.PREFS_UI_ENABLED ?? (process.env.REACT_APP_PREFS_UI_ENABLED !== 'false');
+  const prefsUiEnabled = config?.FEATURES?.PREFS_UI ?? (process.env.REACT_APP_PREFS_UI_ENABLED !== 'false');
 
   // Extract preferences from rehydration data (server-side push)
   // No more REST calls - eliminates 403 errors on reconnect

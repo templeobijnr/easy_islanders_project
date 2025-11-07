@@ -263,7 +263,7 @@ class ZepClient:
         first_name: Optional[str] = None,
         last_name: Optional[str] = None,
     ) -> Dict[str, Any]:
-        payload: Dict[str, Any] = {"userId": str(user_id)}
+        payload: Dict[str, Any] = {"user_uuid": str(user_id)}
         if email:
             payload["email"] = email
         if first_name:
@@ -317,7 +317,7 @@ class ZepClient:
         - On 404/405, fall back to alternates.
         - Accept 409 as "already exists".
         """
-        payload = {"sessionId": str(thread_id), "userId": str(user_id)}
+        payload = {"session_uuid": str(thread_id), "user_uuid": str(user_id)}
         for version in self._preferred_versions():
             if version == "v1":
                 # v1 sessions are implicitly created when writing to /memory.

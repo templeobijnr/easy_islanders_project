@@ -95,9 +95,9 @@ class ZepClient:
             return True
 
         url = f"{self.base_url}{self.api_prefix}/sessions/{session_id}"
-        payload = {"session_id": session_id}
+        payload = {"session_uuid": session_id}
         if user_id:
-            payload["user_id"] = user_id
+            payload["user_uuid"] = user_id
 
         try:
             # First check if session exists

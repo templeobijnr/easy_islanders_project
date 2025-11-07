@@ -203,6 +203,12 @@ class ZepClient:
             self._session.proxies.update(proxies)
         # Pass base_url to headers function for Origin/Referer headers
         self._headers = _default_headers(api_key, base_url=base_url)
+
+        # Detect if using Zep Cloud vs local Zep
+        # Zep Cloud uses /v1 or /v2 paths, local Zep uses /api/v1 or /api/v2
+        self.is_cloud = "getzep.com" in base_url.lower()
+        self._api_prefix = "" if self.is_cloud else "/api"
+
         version_pref = api_version if api_version in ("v1", "v2") else "auto"
         self._version_pref: Literal["v1", "v2", "auto"] = version_pref
         self._negotiated_version: Optional[Literal["v1", "v2"]] = (
@@ -274,7 +280,7 @@ class ZepClient:
                     extra={"user_id": user_id},
                 )
                 return {}
-            path = f"/api/{version}/users"
+            path = f"{self._api_prefix}/{version}/users"
             try:
                 resp = self._request_json(
                     "POST",
@@ -325,8 +331,8 @@ class ZepClient:
             # version == "v2"
             last_exc: Optional[Exception] = None
             for path in (
-                f"/api/v2/users/{user_id}/sessions",
-                "/api/v2/sessions",
+                f"{self._api_prefix}/v2/users/{user_id}/sessions",
+                f"{self._api_prefix}/v2/sessions",
             ):
                 try:
                     resp = self._request_json(
@@ -410,12 +416,12 @@ class ZepClient:
         paths: List[tuple[str, str]] = []
         seen: set[str] = set()
         for version in self._preferred_versions():
-            memory_path = f"/api/{version}/sessions/{thread_id}/memory"
+            memory_path = f"{self._api_prefix}/{version}/sessions/{thread_id}/memory"
             if memory_path not in seen:
                 paths.append((version, memory_path))
                 seen.add(memory_path)
             if version == "v2":
-                legacy_messages = f"/api/v2/sessions/{thread_id}/messages"
+                legacy_messages = f"{self._api_prefix}/v2/sessions/{thread_id}/messages"
                 if legacy_messages not in seen:
                     paths.append(("v2", legacy_messages))
                     seen.add(legacy_messages)
@@ -458,7 +464,7 @@ class ZepClient:
         candidates: List[tuple[str, str]] = []
         seen: set[str] = set()
         for version in self._preferred_versions():
-            path = f"/api/{version}/sessions/{thread_id}/memory"
+            path = f"{self._api_prefix}/{version}/sessions/{thread_id}/memory"
             if path not in seen:
                 candidates.append((version, path))
                 seen.add(path)
@@ -508,7 +514,7 @@ class ZepClient:
         try:
             resp = self._request_json(
                 "POST",
-                f"/api/v2/users/{user_id}/graph",
+                f"{self._api_prefix}/v2/users/{user_id}/graph",
                 json_payload=payload,
                 expected_status=(200, 201, 202),
             )
@@ -516,7 +522,7 @@ class ZepClient:
             if exc.status_code in (404, 405):
                 resp = self._request_json(
                     "POST",
-                    f"/api/v1/users/{user_id}/graph",
+                    f"{self._api_prefix}/v1/users/{user_id}/graph",
                     json_payload=payload,
                     expected_status=(200, 201, 202),
                 )

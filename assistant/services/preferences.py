@@ -17,6 +17,15 @@ from assistant.memory.pii import redact_pii
 logger = logging.getLogger(__name__)
 
 
+def _sanitize_embedding(embedding: Optional[List[float]]) -> Optional[List[float]]:
+    """Return None instead of empty vectors (pgvector rejects [])."""
+    if not embedding:
+        return None
+    if isinstance(embedding, list) and len(embedding) == 0:
+        return None
+    return embedding
+
+
 class PreferenceService:
     @staticmethod
     def normalize(preference_type: str, value: Dict[str, Any]) -> Dict[str, Any]:
@@ -70,6 +79,8 @@ class PreferenceService:
             pass
 
         norm_value = PreferenceService.normalize(preference_type, value)
+        normalized_embedding = _sanitize_embedding(embedding)
+
         obj, created = UserPreference.objects.select_for_update().get_or_create(
             user_id=user_id,
             category=category,
@@ -78,7 +89,7 @@ class PreferenceService:
                 "value": norm_value,
                 "confidence": confidence,
                 "source": source,
-                "embedding": embedding or [],
+                "embedding": normalized_embedding,
                 "metadata": metadata or {},
             },
         )
@@ -87,8 +98,8 @@ class PreferenceService:
             obj.value = norm_value
             obj.confidence = max(obj.confidence or 0.0, confidence or 0.0)
             obj.source = source or obj.source
-            if embedding:
-                obj.embedding = embedding
+            if normalized_embedding is not None:
+                obj.embedding = normalized_embedding
             if metadata:
                 md = dict(obj.metadata or {})
                 md.update(metadata)
@@ -118,4 +129,3 @@ class PreferenceService:
                 }
             )
         return grouped
-

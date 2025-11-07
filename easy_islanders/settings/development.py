@@ -3,7 +3,8 @@ from .base import *
 # Local development should always run in debug
 DEBUG = True
 
-ALLOWED_HOSTS = ["127.0.0.1", "localhost", "[::1]"]
+# Use ALLOWED_HOSTS from base.py which includes 'web' for Docker Compose
+# ALLOWED_HOSTS is already set in base.py with ['*', 'web', 'localhost', '127.0.0.1']
 
 CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:8000",

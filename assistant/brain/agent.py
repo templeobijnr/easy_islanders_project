@@ -1525,8 +1525,11 @@ def build_enterprise_graph():
     graph.add_edge("broadcast", "booking")
     graph.add_edge("booking", "long_term")
     graph.add_edge("long_term", END)
-    
-    return graph.compile()
+
+    # Compile and cache the graph
+    compiled = graph.compile()
+    _ENTERPRISE_GRAPH_CACHE = compiled
+    return compiled
 
 # ============================================================================
 # ENTERPRISE AGENT ENTRY POINT

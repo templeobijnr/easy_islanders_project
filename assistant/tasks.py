@@ -30,7 +30,6 @@ from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
 
 from assistant.monitoring.metrics import increment_ws_invalid_envelope
 from assistant.memory import current_mode, read_enabled, write_enabled
-from assistant.memory.zep_client import ZepClient
 from assistant.memory.flags import MemoryMode, get_forced_mode
 from assistant.memory.service import get_client, call_zep, invalidate_context
 from assistant.memory.pii import redact_pii
@@ -105,36 +104,35 @@ def _default_memory_trace() -> Dict[str, Any]:
 class _ZepWriteContext:
     __slots__ = ("client", "thread_id", "used")
 
-    def __init__(self, client: ZepClient, thread_id: str) -> None:
+    def __init__(self, client, thread_id: str) -> None:
         self.client = client
         self.thread_id = thread_id
         self.used = False
 
     def add_message(self, op: str, payload: Dict[str, Any]) -> bool:
-        success, _ = call_zep(op, lambda: self.client.add_messages(self.thread_id, [payload]), observe_retry=True)
+        def _send():
+            # Preferred path: legacy client with add_messages
+            if hasattr(self.client, "add_messages"):
+                return self.client.add_messages(self.thread_id, [payload])
+
+            # New lightweight client exposes add_memory(thread_id, role, content)
+            if hasattr(self.client, "add_memory"):
+                role = payload.get("role", "user")
+                content = payload.get("content", "")
+                return self.client.add_memory(self.thread_id, role, content)
+
+            raise AttributeError("Zep client does not support known write interfaces")
+
+        success, _ = call_zep(op, _send, observe_retry=True)
         if success:
             self.used = True
         return success
 
 
 def _prepare_zep_write_context(thread: ConversationThread) -> Optional[_ZepWriteContext]:
-    """Ensure the Zep user/thread exist and return a write context."""
+    """Return a write context for Zep Cloud (no explicit ensure calls required)."""
     client = get_client(require_write=True)
     if not client:
-        return None
-
-    user = getattr(thread, "user", None)
-    user_identifier = str(getattr(user, "id", thread.thread_id))
-
-    success, _ = call_zep("ensure_user", lambda: client.ensure_user(user_id=user_identifier))
-    if not success:
-        return None
-
-    success, _ = call_zep(
-        "ensure_thread",
-        lambda: client.ensure_thread(thread_id=thread.thread_id, user_id=user_identifier),
-    )
-    if not success:
         return None
 
     return _ZepWriteContext(client, thread.thread_id)

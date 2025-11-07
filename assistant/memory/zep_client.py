@@ -263,13 +263,13 @@ class ZepClient:
         first_name: Optional[str] = None,
         last_name: Optional[str] = None,
     ) -> Dict[str, Any]:
-        payload: Dict[str, Any] = {"user_uuid": str(user_id)}
+        payload: Dict[str, Any] = {"user_id": str(user_id)}
         if email:
             payload["email"] = email
         if first_name:
-            payload["firstName"] = first_name
+            payload["first_name"] = first_name
         if last_name:
-            payload["lastName"] = last_name
+            payload["last_name"] = last_name
         # Some Zep deployments return 409 (conflict) when the user already exists.
         # Treat that as a successful ensure. v1 deployments typically skip explicit users.
         for version in self._preferred_versions():
@@ -280,21 +280,38 @@ class ZepClient:
                     extra={"user_id": user_id},
                 )
                 return {}
-            path = f"{self._api_prefix}/{version}/users"
-            try:
-                resp = self._request_json(
-                    "POST",
-                    path,
-                    json_payload=payload,
-                    expected_status=(200, 201, 409),
-                )
-            except ZepRequestError as exc:
-                if exc.status_code in (404, 405):
-                    continue
-                raise
+            # For Zep Cloud, use users.add_user method
+            if self.is_cloud:
+                try:
+                    resp = self._request_json(
+                        "POST",
+                        f"{self._api_prefix}/{version}/users",
+                        json_payload=payload,
+                        expected_status=(200, 201, 409),
+                    )
+                    self._mark_version_success(version)
+                    return resp or {}
+                except ZepRequestError as exc:
+                    if exc.status_code in (404, 405):
+                        continue
+                    raise
             else:
-                self._mark_version_success(version)
-                return resp or {}
+                # For local Zep, use the users endpoint
+                path = f"{self._api_prefix}/{version}/users"
+                try:
+                    resp = self._request_json(
+                        "POST",
+                        path,
+                        json_payload=payload,
+                        expected_status=(200, 201, 409),
+                    )
+                except ZepRequestError as exc:
+                    if exc.status_code in (404, 405):
+                        continue
+                    raise
+                else:
+                    self._mark_version_success(version)
+                    return resp or {}
 
         logger.debug(
             "zep_user_endpoint_unavailable",
@@ -317,7 +334,7 @@ class ZepClient:
         - On 404/405, fall back to alternates.
         - Accept 409 as "already exists".
         """
-        payload = {"session_uuid": str(thread_id), "user_uuid": str(user_id)}
+        payload = {"session_id": str(thread_id), "user_id": str(user_id)}
         for version in self._preferred_versions():
             if version == "v1":
                 # v1 sessions are implicitly created when writing to /memory.

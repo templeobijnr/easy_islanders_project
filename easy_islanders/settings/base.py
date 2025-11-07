@@ -300,6 +300,9 @@ else:
 # ISSUE-005 FIX: Validate critical env vars in production
 OPENAI_API_KEY = config('OPENAI_API_KEY', default='')
 
+# Internal API base so Celery/agents call Django via service DNS inside Docker
+INTERNAL_API_BASE = config('INTERNAL_API_BASE', default='http://web:8000')
+
 # Validate required env vars for production (not in DEBUG mode)
 if not DEBUG and not OPENAI_API_KEY:
     from django.core.exceptions import ImproperlyConfigured

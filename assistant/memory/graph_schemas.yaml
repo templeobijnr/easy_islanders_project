@@ -1,0 +1,327 @@
+# Zep Graph Schemas for Easy Islanders Real Estate Agent
+# Defines ontology for user graphs (personalized) and system graph (domain knowledge)
+
+version: "1.0"
+created: "2025-11-08"
+description: |
+  Graph schema definitions for dual-layer memory architecture:
+  - User Graphs: Personalized knowledge per user (preferences, search history, interactions)
+  - System Graph: Shared domain knowledge (listings, locations, amenities, market data)
+
+# ============================================================================
+# USER GRAPH SCHEMA
+# ============================================================================
+# Each user gets their own graph: user_graph_{user_id}
+# Stores personalized preferences, search history, and interaction patterns
+
+user_graph:
+  name: "User Graph"
+  description: "Per-user personalized knowledge and preferences"
+
+  # Node Types
+  nodes:
+    User:
+      description: "The user entity (central node)"
+      properties:
+        - user_id: "string (unique identifier)"
+        - first_seen: "ISO timestamp"
+        - last_active: "ISO timestamp"
+        - language: "string (en|tr|ru|pl|de)"
+
+    Location:
+      description: "Preferred or searched locations"
+      properties:
+        - name: "string (Girne, Lefkoşa, etc.)"
+        - normalized_name: "string (canonical form)"
+        - search_count: "integer (how often searched)"
+
+    Budget:
+      description: "Budget preferences and constraints"
+      properties:
+        - amount: "float"
+        - currency: "string (GBP|EUR|USD|TRY)"
+        - rental_type: "string (short_term|long_term)"
+        - is_max: "boolean (true if hard limit)"
+
+    PropertyType:
+      description: "Property type preferences"
+      properties:
+        - type: "string (apartment|villa|studio|penthouse)"
+        - preference_strength: "float (0.0-1.0)"
+
+    Amenity:
+      description: "Desired amenities (pool, parking, etc.)"
+      properties:
+        - name: "string"
+        - importance: "string (required|preferred|nice_to_have)"
+
+    SearchCriteria:
+      description: "Historical search patterns"
+      properties:
+        - created_at: "ISO timestamp"
+        - bedrooms: "integer"
+        - location: "string"
+        - budget: "float"
+        - rental_type: "string"
+
+  # Edge Types (Relationships)
+  edges:
+    prefers_location:
+      source: User
+      target: Location
+      description: "User prefers this location"
+      properties:
+        - confidence: "float (0.0-1.0)"
+        - valid_from: "ISO timestamp"
+        - last_mentioned: "ISO timestamp"
+
+    prefers_budget:
+      source: User
+      target: Budget
+      description: "User's budget preference"
+      properties:
+        - confidence: "float (0.0-1.0)"
+        - valid_from: "ISO timestamp"
+
+    prefers_property_type:
+      source: User
+      target: PropertyType
+      description: "User prefers this property type"
+      properties:
+        - confidence: "float (0.0-1.0)"
+
+    requires_amenity:
+      source: User
+      target: Amenity
+      description: "User requires/prefers this amenity"
+      properties:
+        - importance: "string (required|preferred|nice_to_have)"
+
+    searched_for:
+      source: User
+      target: SearchCriteria
+      description: "User performed this search"
+      properties:
+        - timestamp: "ISO timestamp"
+        - result_count: "integer"
+        - clicked_listing_ids: "array of integers"
+
+# ============================================================================
+# SYSTEM GRAPH SCHEMA
+# ============================================================================
+# Single shared graph: real_estate_system
+# Stores domain knowledge about listings, locations, market data
+
+system_graph:
+  name: "Real Estate System Graph"
+  graph_id: "real_estate_system"
+  description: "Shared domain knowledge for North Cyprus real estate"
+
+  # Node Types
+  nodes:
+    Listing:
+      description: "Property listing entity"
+      properties:
+        - listing_id: "integer (Django model ID)"
+        - title: "string"
+        - listing_type: "string (rental|sale)"
+        - rental_type: "string (short_term|long_term)"
+        - price: "float"
+        - currency: "string"
+        - bedrooms: "integer"
+        - bathrooms: "integer"
+        - property_type: "string"
+        - is_active: "boolean"
+        - created_at: "ISO timestamp"
+        - last_updated: "ISO timestamp"
+
+    Location:
+      description: "Geographic location (city, district, neighborhood)"
+      properties:
+        - name: "string"
+        - type: "string (city|district|neighborhood)"
+        - canonical_name: "string"
+        - latitude: "float"
+        - longitude: "float"
+        - parent_location: "string (for hierarchical locations)"
+
+    Amenity:
+      description: "Property amenity or feature"
+      properties:
+        - name: "string (pool, parking, sea_view, etc.)"
+        - category: "string (outdoor|indoor|building|location)"
+
+    PriceRange:
+      description: "Market price ranges by location/type"
+      properties:
+        - min_price: "float"
+        - max_price: "float"
+        - currency: "string"
+        - rental_type: "string"
+        - sample_size: "integer (number of listings)"
+        - last_updated: "ISO timestamp"
+
+    MarketTrend:
+      description: "Market trends and insights"
+      properties:
+        - trend_type: "string (price_increase|high_demand|seasonal)"
+        - description: "string"
+        - confidence: "float (0.0-1.0)"
+        - valid_from: "ISO timestamp"
+        - valid_until: "ISO timestamp"
+
+  # Edge Types (Relationships)
+  edges:
+    located_in:
+      source: Listing
+      target: Location
+      description: "Listing is in this location"
+      properties:
+        - distance_to_center: "float (km)"
+
+    has_amenity:
+      source: Listing
+      target: Amenity
+      description: "Listing has this amenity"
+      properties:
+        - verified: "boolean"
+
+    is_city_in:
+      source: Location
+      target: Location
+      description: "Hierarchical location relationship (Girne is_city_in North Cyprus)"
+      properties:
+        - hierarchy_level: "integer"
+
+    near_location:
+      source: Location
+      target: Location
+      description: "Locations are geographically close"
+      properties:
+        - distance_km: "float"
+
+    typical_price_for:
+      source: PriceRange
+      target: Location
+      description: "Typical price range for this location"
+      properties:
+        - property_type: "string"
+        - bedrooms: "integer"
+
+    has_trend:
+      source: Location
+      target: MarketTrend
+      description: "Location exhibits this market trend"
+      properties:
+        - start_date: "ISO timestamp"
+
+# ============================================================================
+# INITIALIZATION DATA
+# ============================================================================
+# Seed data for system graph bootstrap
+
+seed_data:
+  locations:
+    # Major cities (canonical names)
+    - name: "Girne"
+      type: "city"
+      synonyms: ["Kyrenia", "Keryneia"]
+      description: "Harbor city on north coast, popular tourist destination"
+
+    - name: "Lefkoşa"
+      type: "city"
+      synonyms: ["Nicosia", "Lefkosia"]
+      description: "Capital city, administrative center"
+
+    - name: "Gazimağusa"
+      type: "city"
+      synonyms: ["Famagusta"]
+      description: "Eastern coastal city with historic old town"
+
+    - name: "İskele"
+      type: "city"
+      synonyms: ["Trikomo"]
+      description: "Coastal area with quieter beaches"
+
+    - name: "Güzelyurt"
+      type: "city"
+      synonyms: ["Morphou"]
+      description: "Western agricultural region"
+
+  amenities:
+    outdoor:
+      - "swimming_pool"
+      - "garden"
+      - "terrace"
+      - "balcony"
+      - "sea_view"
+      - "mountain_view"
+
+    indoor:
+      - "air_conditioning"
+      - "heating"
+      - "furnished"
+      - "wifi"
+      - "dishwasher"
+      - "washing_machine"
+
+    building:
+      - "elevator"
+      - "parking"
+      - "concierge"
+      - "gym"
+      - "sauna"
+
+    location:
+      - "beach_access"
+      - "near_shops"
+      - "near_restaurants"
+      - "near_schools"
+      - "near_hospital"
+
+# ============================================================================
+# USAGE EXAMPLES
+# ============================================================================
+
+examples:
+  user_preference_storage:
+    description: "User mentions location preference during conversation"
+    code: |
+      # In real_estate_handler.py after extracting preference
+      graph_mgr.store_user_preference(
+          user_id="user_123",
+          preference_type="location",
+          value="Girne",
+          confidence=0.9
+      )
+      # Creates: user_123 —[prefers_location]→ Girne
+
+  system_listing_ingestion:
+    description: "Ingest new listing into system graph"
+    code: |
+      # In management command or post_save signal
+      graph_mgr.add_fact_triplet(
+          graph_id="real_estate_system",
+          source_node_name=f"Listing_{listing.id}",
+          target_node_name="Girne",
+          fact="located_in",
+          fact_name=f"Listing {listing.id} located in Girne"
+      )
+
+  context_retrieval:
+    description: "Retrieve user preferences before slot policy"
+    code: |
+      # In supervisor_graph.py context fusion
+      prefs = graph_mgr.get_user_preferences(user_id="user_123")
+      # Use prefs to pre-fill slots or adjust policy
+
+  market_knowledge:
+    description: "Answer 'What's the rental market like in Girne?'"
+    code: |
+      # In real_estate_handler ANSWER_QUESTION
+      results = graph_mgr.search_graph(
+          graph_id="real_estate_system",
+          query="rental market trends Girne",
+          scope="edges"
+      )
+      # Use results to enhance LLM response

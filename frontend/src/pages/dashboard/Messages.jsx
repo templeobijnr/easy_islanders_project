@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { MessageSquare, Search, Reply, Archive, Trash2 } from 'lucide-react';
-import DashboardHeader from '../../components/dashboard/DashboardHeader';
-// import { useAuth } from '../../contexts/AuthContext'; // Unused
 
 const Messages = () => {
   const [messages, setMessages] = useState([]);
@@ -54,19 +52,25 @@ const Messages = () => {
 
   if (loading) {
     return (
-      <div className="flex flex-col h-full">
-        <DashboardHeader title="Messages" subtitle="Manage customer conversations" />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-gray-500">Loading messages...</div>
+      <div className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 p-8">
+        <h1 className="text-2xl font-bold text-slate-900 mb-2">Messages</h1>
+        <p className="text-slate-600 mb-8">Manage customer conversations</p>
+        <div className="flex items-center justify-center py-12">
+          <div className="text-slate-600">Loading messages...</div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <DashboardHeader title="Messages" subtitle="Manage customer conversations" />
-      <div className="flex-1 overflow-y-auto p-6">
+    <div className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 p-8">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-slate-900 mb-2">Messages</h1>
+        <p className="text-slate-600">Manage customer conversations</p>
+      </div>
+
+      <div>
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-white p-6 rounded-lg border border-gray-200">
@@ -76,7 +80,7 @@ const Messages = () => {
 
           <div className="bg-white p-6 rounded-lg border border-gray-200">
             <p className="text-sm font-medium text-gray-600">Unread</p>
-            <p className="text-2xl font-bold text-brand">{unreadCount}</p>
+            <p className="text-2xl font-bold text-lime-600">{unreadCount}</p>
           </div>
 
           <div className="bg-white p-6 rounded-lg border border-gray-200">
@@ -94,7 +98,7 @@ const Messages = () => {
               placeholder="Search messages..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-lime-600"
             />
           </div>
         </div>
@@ -108,12 +112,12 @@ const Messages = () => {
                 onClick={() => setSelectedMessage(message)}
                 className={`p-4 rounded-lg border cursor-pointer transition-all ${
                   selectedMessage?.id === message.id
-                    ? 'border-brand bg-blue-50'
+                    ? 'border-lime-600 bg-blue-50'
                     : 'border-gray-200 bg-white hover:border-gray-300'
                 } ${message.unread ? 'border-l-4 border-l-brand' : ''}`}
               >
                 <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 bg-brand text-white rounded-full flex items-center justify-center font-bold flex-shrink-0">
+                  <div className="w-12 h-12 bg-lime-600 text-white rounded-full flex items-center justify-center font-bold flex-shrink-0">
                     {message.avatar}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -129,7 +133,7 @@ const Messages = () => {
                     <p className="text-sm text-gray-700 mt-2 truncate">{message.message}</p>
                   </div>
                   {message.unread && (
-                    <div className="w-3 h-3 bg-brand rounded-full flex-shrink-0 mt-1"></div>
+                    <div className="w-3 h-3 bg-lime-600 rounded-full flex-shrink-0 mt-1"></div>
                   )}
                 </div>
               </div>

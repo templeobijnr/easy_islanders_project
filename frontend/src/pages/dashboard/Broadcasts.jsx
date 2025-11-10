@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Plus, Send, Eye, MessageCircle, Calendar, Trash2 } from 'lucide-react';
-import DashboardHeader from '../../components/dashboard/DashboardHeader';
 import { useBroadcasts } from '../../hooks/useSellerDashboard';
 
 const Broadcasts = () => {
@@ -47,25 +46,24 @@ const Broadcasts = () => {
     }
   };
 
-  const createButton = (
-    <button
-      onClick={() => setShowCreateModal(true)}
-      className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-dark transition-all duration-200 font-semibold text-sm"
-    >
-      <Plus className="w-5 h-5" />
-      <span>Create Broadcast</span>
-    </button>
-  );
-
   return (
-    <div className="flex flex-col h-full">
-      <DashboardHeader
-        title="Broadcasts"
-        subtitle="Send promotional messages to potential customers"
-        action={createButton}
-      />
+    <div className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 p-8">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 mb-2">Broadcasts</h1>
+          <p className="text-slate-600">Send promotional messages to potential customers</p>
+        </div>
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-lime-600 text-white rounded-xl hover:bg-lime-700 transition-all duration-200 font-semibold text-sm"
+        >
+          <Plus className="w-5 h-5" />
+          <span>Create Broadcast</span>
+        </button>
+      </div>
 
-      <div className="flex-1 overflow-y-auto p-6">
+      <div>
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           <div className="bg-white border border-gray-200 rounded-lg p-6">
@@ -114,7 +112,7 @@ const Broadcasts = () => {
             <p className="text-gray-600 mb-6">Create your first broadcast to reach potential customers</p>
             <button
               onClick={() => setShowCreateModal(true)}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-brand text-white rounded-lg hover:bg-brand-dark transition-all duration-200 font-semibold"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-lime-600 text-white rounded-xl hover:bg-lime-700 transition-all duration-200 font-semibold"
             >
               <Plus className="w-5 h-5" />
               Create Broadcast
@@ -209,7 +207,7 @@ const Broadcasts = () => {
                   type="text"
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand"
+                  className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-lime-600"
                   placeholder="Enter broadcast title"
                   required
                 />
@@ -221,7 +219,7 @@ const Broadcasts = () => {
                 <textarea
                   value={formData.message}
                   onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand"
+                  className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-lime-600"
                   placeholder="Enter your broadcast message"
                   rows={6}
                   required
@@ -244,14 +242,14 @@ const Broadcasts = () => {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="flex-1 px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-dark transition-colors font-semibold disabled:opacity-50"
+                  className="flex-1 px-4 py-2 bg-lime-600 text-white rounded-xl hover:bg-lime-700 transition-colors font-semibold disabled:opacity-50"
                 >
                   {submitting ? 'Creating...' : 'Create Broadcast'}
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-semibold"
+                  className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors font-semibold"
                 >
                   Cancel
                 </button>

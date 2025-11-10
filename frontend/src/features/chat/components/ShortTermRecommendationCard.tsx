@@ -1,17 +1,18 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Calendar as CalendarIcon, ExternalLink, Phone, Mail, MapPin, Info, Image as ImageIcon } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '../../../components/ui/card';
+import { Button } from '../../../components/ui/button';
+import { Badge } from '../../../components/ui/badge';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Calendar } from '@/components/ui/calendar';
+} from '../../../components/ui/dialog';
+import { Calendar } from '../../../components/ui/calendar';
+import { DateRange } from 'react-day-picker';
 import axios from 'axios';
 import { format } from 'date-fns';
 
@@ -37,14 +38,14 @@ interface ShortTermRecommendationCardProps {
 export const ShortTermRecommendationCard: React.FC<ShortTermRecommendationCardProps> = ({ item }) => {
   const [isBooking, setIsBooking] = useState(false);
   const [openDates, setOpenDates] = useState(false);
-  const [dateRange, setDateRange] = useState<{ from?: Date; to?: Date }>({});
+  const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   const [availabilityChecked, setAvailabilityChecked] = useState(false);
   const [isAvailable, setIsAvailable] = useState(true);
 
   const handleCheckAvailability = async () => {
-    if (!dateRange.from || !dateRange.to) {
+    if (!dateRange || !dateRange.from || !dateRange.to) {
       alert('Please select check-in and check-out dates');
       return;
     }
@@ -69,7 +70,7 @@ export const ShortTermRecommendationCard: React.FC<ShortTermRecommendationCardPr
   };
 
   const handleBookNow = async () => {
-    if (!dateRange.from || !dateRange.to) {
+    if (!dateRange || !dateRange.from || !dateRange.to) {
       alert('Please select dates first');
       setOpenDates(true);
       return;
@@ -138,7 +139,7 @@ export const ShortTermRecommendationCard: React.FC<ShortTermRecommendationCardPr
               {item.area || item.location || 'North Cyprus'}
             </p>
 
-            {dateRange.from && dateRange.to && (
+            {dateRange?.from && dateRange?.to && (
               <div className="mt-2 text-xs text-brand-600 dark:text-brand-400 flex items-center gap-1">
                 <CalendarIcon className="w-3 h-3" />
                 {format(dateRange.from, 'MMM d')} - {format(dateRange.to, 'MMM d, yyyy')}
@@ -192,8 +193,8 @@ export const ShortTermRecommendationCard: React.FC<ShortTermRecommendationCardPr
           <Calendar
             mode="range"
             selected={dateRange}
-            onSelect={(range: any) => {
-              setDateRange(range || {});
+            onSelect={(range: DateRange | undefined) => {
+              setDateRange(range);
               setAvailabilityChecked(false);
             }}
             numberOfMonths={1}
@@ -215,7 +216,7 @@ export const ShortTermRecommendationCard: React.FC<ShortTermRecommendationCardPr
                   setOpenDates(false);
                 }
               }}
-              disabled={!dateRange.from || !dateRange.to}
+              disabled={!dateRange?.from || !dateRange?.to}
             >
               Check Availability
             </Button>

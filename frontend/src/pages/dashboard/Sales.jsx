@@ -1,8 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { DollarSign, ShoppingCart, Calendar } from 'lucide-react';
-import DashboardHeader from '../../components/dashboard/DashboardHeader';
-// import { useAuth } from '../../contexts/AuthContext'; // Unused
-// import axios from 'axios'; // Unused
 
 const Sales = () => {
   const [sales, setSales] = useState([]);
@@ -50,19 +47,25 @@ const Sales = () => {
 
   if (loading) {
     return (
-      <div className="flex flex-col h-full">
-        <DashboardHeader title="Sales" subtitle="Track your sales and revenue" />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-gray-500">Loading sales data...</div>
+      <div className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 p-8">
+        <h1 className="text-2xl font-bold text-slate-900 mb-2">Sales</h1>
+        <p className="text-slate-600 mb-8">Track your sales and revenue</p>
+        <div className="flex items-center justify-center py-12">
+          <div className="text-slate-600">Loading sales data...</div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <DashboardHeader title="Sales" subtitle="Track your sales and revenue" />
-      <div className="flex-1 overflow-y-auto p-6">
+    <div className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 p-8">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-slate-900 mb-2">Sales</h1>
+        <p className="text-slate-600">Track your sales and revenue</p>
+      </div>
+
+      <div>
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">

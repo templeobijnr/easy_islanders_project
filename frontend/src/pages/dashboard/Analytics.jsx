@@ -1,6 +1,5 @@
 import React from 'react';
 import { TrendingUp, Eye, ShoppingBag, MessageCircle, Star, Award, Calendar, Target } from 'lucide-react';
-import DashboardHeader from '../../components/dashboard/DashboardHeader';
 import { useSellerAnalytics } from '../../hooks/useSellerDashboard';
 
 const Analytics = () => {
@@ -8,10 +7,11 @@ const Analytics = () => {
 
   if (loading) {
     return (
-      <div className="flex flex-col h-full">
-        <DashboardHeader title="Analytics" subtitle="Track your business performance" />
-        <div className="flex-1 flex items-center justify-center">
-          <p className="text-gray-600">Loading analytics...</p>
+      <div className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 p-8">
+        <h1 className="text-2xl font-bold text-slate-900 mb-2">Analytics</h1>
+        <p className="text-slate-600 mb-8">Track your business performance</p>
+        <div className="flex items-center justify-center py-12">
+          <p className="text-slate-600">Loading analytics...</p>
         </div>
       </div>
     );
@@ -19,14 +19,15 @@ const Analytics = () => {
 
   if (error) {
     return (
-      <div className="flex flex-col h-full">
-        <DashboardHeader title="Analytics" subtitle="Track your business performance" />
-        <div className="flex-1 flex items-center justify-center">
+      <div className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 p-8">
+        <h1 className="text-2xl font-bold text-slate-900 mb-2">Analytics</h1>
+        <p className="text-slate-600 mb-8">Track your business performance</p>
+        <div className="flex items-center justify-center py-12">
           <div className="text-center">
             <p className="text-red-600 mb-4">{error}</p>
             <button
               onClick={refetch}
-              className="px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-dark"
+              className="px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 transition-colors"
             >
               Retry
             </button>
@@ -42,22 +43,23 @@ const Analytics = () => {
   const insights = analytics?.insights || [];
 
   return (
-    <div className="flex flex-col h-full">
-      <DashboardHeader
-        title="Analytics"
-        subtitle="Track your business performance"
-        action={
-          <button
-            onClick={refetch}
-            className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            <TrendingUp className="w-4 h-4" />
-            Refresh
-          </button>
-        }
-      />
+    <div className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 p-8">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 mb-2">Analytics</h1>
+          <p className="text-slate-600">Track your business performance</p>
+        </div>
+        <button
+          onClick={refetch}
+          className="flex items-center gap-2 px-4 py-2 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors"
+        >
+          <TrendingUp className="w-4 h-4" />
+          Refresh
+        </button>
+      </div>
 
-      <div className="flex-1 overflow-y-auto p-6">
+      <div>
         {/* AI Insights */}
         {insights.length > 0 && (
           <div className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6">
@@ -192,9 +194,9 @@ const Analytics = () => {
                           <span className="font-medium text-gray-800">{category}</span>
                           <span className="text-gray-600">{count} listings ({percentage.toFixed(0)}%)</span>
                         </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className="w-full bg-slate-200 rounded-full h-2">
                           <div
-                            className="bg-brand h-2 rounded-full transition-all duration-300"
+                            className="bg-lime-600 h-2 rounded-full transition-all duration-300"
                             style={{ width: `${percentage}%` }}
                           />
                         </div>

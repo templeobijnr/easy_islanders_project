@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, AlertCircle } from 'lucide-react';
-import DashboardHeader from '../../components/dashboard/DashboardHeader';
 import EditListingModal from '../../components/modals/EditListingModal';
 import DeleteConfirmModal from '../../components/modals/DeleteConfirmModal';
 import PublishActionModal from '../../components/modals/PublishActionModal';
@@ -117,37 +116,31 @@ const MyListings = () => {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const createListingButton = (
-    <Link
-      to="/create-listing"
-      className="
-        flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg
-        hover:bg-brand-dark transition-all duration-200 font-semibold text-sm
-      "
-    >
-      <Plus className="w-5 h-5" />
-      <span>Create New</span>
-    </Link>
-  );
-
   return (
-    <div className="flex flex-col h-full">
+    <div className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 p-8">
       {/* Header */}
-      <DashboardHeader
-        title="My Listings"
-        subtitle={`You have ${stats.total} listings`}
-        action={createListingButton}
-      />
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 mb-2">My Listings</h1>
+          <p className="text-slate-600">You have {stats.total} listings</p>
+        </div>
+        <Link
+          to="/create-listing"
+          className="flex items-center gap-2 px-4 py-2 bg-lime-600 text-white rounded-xl hover:bg-lime-700 transition-all duration-200 font-semibold text-sm"
+        >
+          <Plus className="w-5 h-5" />
+          <span>Create New</span>
+        </Link>
+      </div>
 
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="m-6 mb-0 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-3">
+        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-3">
           <p className="text-green-700 font-medium">{toastMessage}</p>
         </div>
       )}
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div>
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
           <div className="bg-white border border-gray-200 rounded-lg p-6">
@@ -176,9 +169,9 @@ const MyListings = () => {
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
                 className="
-                  px-3 py-2 border border-gray-300 rounded-lg
-                  text-gray-700 bg-white hover:border-gray-400
-                  focus:outline-none focus:ring-2 focus:ring-brand
+                  px-3 py-2 border border-slate-300 rounded-xl
+                  text-slate-700 bg-white hover:border-slate-400
+                  focus:outline-none focus:ring-2 focus:ring-lime-600
                 "
               >
                 <option value="all">All</option>
@@ -196,9 +189,9 @@ const MyListings = () => {
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
                 className="
-                  px-3 py-2 border border-gray-300 rounded-lg
-                  text-gray-700 bg-white hover:border-gray-400
-                  focus:outline-none focus:ring-2 focus:ring-brand
+                  px-3 py-2 border border-slate-300 rounded-xl
+                  text-slate-700 bg-white hover:border-slate-400
+                  focus:outline-none focus:ring-2 focus:ring-lime-600
                 "
               >
                 <option value="newest">Newest First</option>
@@ -238,10 +231,7 @@ const MyListings = () => {
             <p className="text-gray-500 mt-2">Create your first listing to get started</p>
             <Link
               to="/create-listing"
-              className="
-                inline-flex items-center gap-2 mt-6 px-6 py-3 bg-brand text-white
-                rounded-lg hover:bg-brand-dark transition-all duration-200 font-semibold
-              "
+              className="inline-flex items-center gap-2 mt-6 px-6 py-3 bg-lime-600 text-white rounded-xl hover:bg-lime-700 transition-all duration-200 font-semibold"
             >
               <Plus className="w-5 h-5" />
               Create Listing

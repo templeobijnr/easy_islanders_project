@@ -1,26 +1,19 @@
 import { useState } from "react";
-import { SidebarNav } from "./SidebarNav";
-import { TopBar } from "./TopBar";
+import { DashboardSidebar } from "./DashboardSidebar";
 import { Outlet } from "react-router-dom";
 
 export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      {/* Sidebar */}
-      <SidebarNav isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+    <div className="mx-auto max-w-7xl px-4 py-4 grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)] gap-4">
+      {/* Dashboard Sidebar - matches LeftRail styling */}
+      <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      {/* Main content area */}
-      <div className="flex-1 lg:ml-60">
-        {/* Top Bar */}
-        <TopBar onMenuClick={() => setSidebarOpen(true)} />
-
-        {/* Page Content */}
-        <main className="pt-20 px-6 pb-6 overflow-y-auto h-[calc(100vh-64px)] bg-gray-50">
-          <Outlet />
-        </main>
-      </div>
+      {/* Main Dashboard Content */}
+      <main>
+        <Outlet />
+      </main>
     </div>
   );
 }

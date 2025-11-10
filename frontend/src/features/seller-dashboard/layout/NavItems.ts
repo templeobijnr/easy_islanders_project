@@ -1,12 +1,12 @@
-import { List, Megaphone, BarChart3, Settings, Inbox, DollarSign, MessageSquare, HelpCircle } from "lucide-react";
+import { Package, Mail, Radio, ShoppingBag, MessageCircle, TrendingUp, Store, LifeBuoy } from "lucide-react";
 
 export const navItems = [
-  { name: "My Listings", path: "/dashboard/my-listings", icon: List },
-  { name: "Seller Inbox", path: "/dashboard/seller-inbox", icon: Inbox },
-  { name: "Broadcasts", path: "/dashboard/broadcasts", icon: Megaphone },
-  { name: "Sales", path: "/dashboard/sales", icon: DollarSign },
-  { name: "Messages", path: "/dashboard/messages", icon: MessageSquare },
-  { name: "Analytics", path: "/dashboard/analytics", icon: BarChart3 },
-  { name: "Business Profile", path: "/dashboard/profile", icon: Settings },
-  { name: "Help & Support", path: "/dashboard/help", icon: HelpCircle },
+  { name: "My Listings", path: "/dashboard/my-listings", icon: Package },
+  { name: "Seller Inbox", path: "/dashboard/seller-inbox", icon: Mail },
+  { name: "Broadcasts", path: "/dashboard/broadcasts", icon: Radio },
+  { name: "Sales", path: "/dashboard/sales", icon: ShoppingBag },
+  { name: "Messages", path: "/dashboard/messages", icon: MessageCircle },
+  { name: "Analytics", path: "/dashboard/analytics", icon: TrendingUp },
+  { name: "Business Profile", path: "/dashboard/profile", icon: Store },
+  { name: "Help & Support", path: "/dashboard/help", icon: LifeBuoy },
 ];

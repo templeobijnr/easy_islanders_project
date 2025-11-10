@@ -65,6 +65,7 @@ INSTALLED_APPS = [
     'assistant',
     'router_service',
     'real_estate',
+    'marketplace',  # Multi-domain marketplace
 ]
 
 MIDDLEWARE = [

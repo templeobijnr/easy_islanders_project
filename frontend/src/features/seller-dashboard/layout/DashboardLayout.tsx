@@ -1,8 +1,11 @@
-import { useState } from "react";
+import { useState, ReactNode } from "react";
 import { DashboardSidebar } from "./DashboardSidebar";
-import { Outlet } from "react-router-dom";
 
-export default function DashboardLayout() {
+interface DashboardLayoutProps {
+  children: ReactNode;
+}
+
+export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
@@ -12,7 +15,7 @@ export default function DashboardLayout() {
 
       {/* Main Dashboard Content */}
       <main>
-        <Outlet />
+        {children}
       </main>
     </div>
   );

@@ -35,27 +35,44 @@ from .tools_local import (
 )
 from .observability import traced_supervisor_node, traced_worker_agent
 from .registry import get_registry_client
-from .zep_client import ZepClient
+# Use consolidated Zep client (official /api/v2/threads/ endpoints)
+from assistant.memory.service import get_client as get_zep_client
 
 logger = logging.getLogger(__name__)
 
 _SUPERVISOR_MEMORY = MemorySaver()
 _COMPILED_SUPERVISOR_GRAPH = None
 
-try:
-    # Use v1 API (hardcoded in brain/zep_client.py)
-    # timeout=2.0s for fast failure detection + circuit breaker for graceful degradation
-    _ZEP_CLIENT = ZepClient(
-        base_url=os.getenv("ZEP_URL"),
-        api_key=os.getenv("ZEP_API_KEY"),
-        timeout=2.0,  # 2s timeout (down from 5s default) for faster failure detection
-        failure_threshold=5,  # Open circuit after 5 consecutive failures
-        cooldown_seconds=30.0,  # 30s cooldown before retry (down from 60s for faster recovery)
-    )
-    logger.info("[ZEP] Client initialized (base=%s, timeout=2s, circuit_breaker=enabled)", _ZEP_CLIENT.base_url)
-except Exception as _zep_init_error:  # noqa: BLE001
-    logger.warning("[ZEP] Client initialization failed: %s", _zep_init_error)
-    _ZEP_CLIENT = None
+# Lazy-initialize Zep client to use consolidated client from memory service
+_ZEP_CLIENT = None
+_ZEP_CLIENT_INITIALIZED = False
+
+def _get_zep_client():
+    """Get or initialize the consolidated Zep client."""
+    global _ZEP_CLIENT, _ZEP_CLIENT_INITIALIZED
+
+    if _ZEP_CLIENT_INITIALIZED:
+        return _ZEP_CLIENT
+
+    try:
+        _ZEP_CLIENT = get_zep_client()
+        _ZEP_CLIENT_INITIALIZED = True
+
+        if _ZEP_CLIENT:
+            logger.info(
+                "[ZEP] Consolidated client initialized (base=%s, api_version=%s)",
+                getattr(_ZEP_CLIENT, 'base_url', 'unknown'),
+                getattr(_ZEP_CLIENT, 'api_version', 'unknown')
+            )
+        else:
+            logger.warning("[ZEP] Client disabled (memory writes will be skipped)")
+
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[ZEP] Failed to initialize client: %s. Memory writes will be skipped.", exc)
+        _ZEP_CLIENT = None
+        _ZEP_CLIENT_INITIALIZED = True
+
+    return _ZEP_CLIENT
 
 STICKY_TTL_SECONDS = 180  # seconds
 FOLLOWUP_PREFIXES = ("show me", "show us", "show the", "details", "detail")
@@ -115,7 +132,8 @@ def _zep_store_memory(thread_id: str | None, role: str, content: str) -> None:
     """
     global _last_mem_key
 
-    if not thread_id or not content or _ZEP_CLIENT is None:
+    client = _get_zep_client()
+    if not thread_id or not content or client is None:
         return
 
     # STEP 7.1: Prevent empty content writes
@@ -133,7 +151,7 @@ def _zep_store_memory(thread_id: str | None, role: str, content: str) -> None:
     _last_mem_key = key
 
     try:
-        _ZEP_CLIENT.add_memory(thread_id, role, content_clean)
+        client.add_messages(thread_id, [{"role": role, "content": content_clean}])
         logger.debug(f"[ZEP] Memory written: {thread_id}:{role} ({len(content_clean)} chars)")
     except Exception as exc:  # noqa: BLE001
         logger.debug("[ZEP] add_memory raised: %s", exc)
@@ -146,7 +164,8 @@ def _inject_zep_context(state: SupervisorState) -> SupervisorState:
     Retrieve semantically similar memories from Zep for the current query.
     This provides long-term context that goes beyond the short-term history.
     """
-    if _ZEP_CLIENT is None:
+    client = _get_zep_client()
+    if client is None:
         logger.debug("[ZEP] Client not available, skipping retrieval")
         return {**state, "retrieved_context": ""}
 
@@ -159,7 +178,7 @@ def _inject_zep_context(state: SupervisorState) -> SupervisorState:
 
     try:
         # Semantic retrieval with limit=5 for relevant memories
-        snippets = _ZEP_CLIENT.query_memory(thread_id, user_text, limit=5)
+        snippets = client.query_memory(thread_id, user_text, limit=5)
 
         if not snippets:
             logger.debug("[ZEP] No memories retrieved for %s", thread_id)
@@ -235,11 +254,12 @@ def _maybe_roll_summary(state: SupervisorState) -> SupervisorState:
             return state
 
         # Archive summary to Zep
-        if thread_id and _ZEP_CLIENT:
+        client = _get_zep_client()
+        if thread_id and client:
             try:
-                _ZEP_CLIENT.add_memory(
-                    session_id=thread_id,
-                    messages=[{
+                client.add_messages(
+                    thread_id,
+                    [{
                         "role": "system",
                         "content": f"[CONVERSATION SUMMARY] {summary}",
                         "metadata": {
@@ -324,11 +344,12 @@ def _append_turn_history(state: SupervisorState, assistant_output: Any) -> Super
             updated_state["conversation_summary"] = summary
 
             # Archive summary to Zep for retrieval
-            if thread and _ZEP_CLIENT:
+            client = _get_zep_client()
+            if thread and client:
                 try:
-                    _ZEP_CLIENT.add_memory(
-                        session_id=thread,
-                        messages=[{
+                    client.add_messages(
+                        thread,
+                        [{
                             "role": "system",
                             "content": f"[CONVERSATION SUMMARY] {summary}",
                             "metadata": {
@@ -444,6 +465,18 @@ def _apply_memory_context(state: SupervisorState) -> SupervisorState:
         return state
 
     context, meta = fetch_thread_context(thread_id, mode="summary")
+
+    # DEBUG: Log what Zep returned
+    print(f"[ZEP CONTEXT] Thread {thread_id}: Retrieved context")
+    print(f"[ZEP CONTEXT] Meta: {meta}")
+    if context:
+        summary_len = len(context.get("context", ""))
+        facts_count = len(context.get("facts", []))
+        recent_count = len(context.get("recent", []))
+        print(f"[ZEP CONTEXT] Context: summary={summary_len} chars, facts={facts_count}, recent={recent_count} messages")
+    else:
+        print(f"[ZEP CONTEXT] Context is empty/None")
+
     conversation_ctx: Dict[str, Any] = dict(state.get("conversation_ctx") or {})
     # Hydrate previously persisted convctx snapshot from cache (fast path)
     try:
@@ -789,7 +822,8 @@ def archive_to_zep(
         from datetime import datetime
 
         # Get Zep client (global instance from module)
-        if not _ZEP_CLIENT:
+        client = _get_zep_client()
+        if not client:
             logger.warning("[LIFECYCLE] Zep client not available, skipping archive")
             return False
 
@@ -806,10 +840,13 @@ def archive_to_zep(
 
         # Add memory to Zep (simple client API: thread_id, role, content)
         summary_content = f"[ARCHIVED SUMMARY {agent_name}] {summary}"
-        _ZEP_CLIENT.add_memory(
-            thread_id=thread_id,
-            role="system",
-            content=summary_content
+        client.add_messages(
+            thread_id,
+            [{
+                "role": "system",
+                "content": summary_content,
+                "metadata": archive_metadata,
+            }]
         )
 
         logger.info(
@@ -920,7 +957,8 @@ def _persist_context_snapshot(state: SupervisorState) -> bool:
     import json
 
     thread_id = state.get("thread_id")
-    if not thread_id or not _ZEP_CLIENT:
+    client = _get_zep_client()
+    if not thread_id or not client:
         return False
 
     try:
@@ -935,10 +973,13 @@ def _persist_context_snapshot(state: SupervisorState) -> bool:
 
         # Archive snapshot to Zep (simple client API: thread_id, role, content)
         snapshot_content = json.dumps(snapshot)
-        _ZEP_CLIENT.add_memory(
-            thread_id=thread_id,
-            role="system",
-            content=snapshot_content
+        client.add_messages(
+            thread_id,
+            [{
+                "role": "system",
+                "content": snapshot_content,
+                "metadata": {"type": "context_snapshot"},
+            }]
         )
 
         logger.info(
@@ -1000,14 +1041,15 @@ def rehydrate_state(thread_id: str) -> Dict[str, Any]:
         logger.info("[%s] Rehydration disabled by config", thread_id)
         return {"rehydrated": False}
 
-    if not thread_id or not _ZEP_CLIENT:
+    client = _get_zep_client()
+    if not thread_id or not client:
         logger.debug("[%s] Cannot rehydrate: no thread_id or Zep client", thread_id)
         return {"rehydrated": False}
 
     try:
         # Query Zep for latest context snapshot
         # Use search/filter to find system messages with type=context_snapshot
-        snapshots = _ZEP_CLIENT.query_memory(
+        snapshots = client.query_memory(
             thread_id,
             query="context_snapshot",
             limit=1,
@@ -1024,7 +1066,7 @@ def rehydrate_state(thread_id: str) -> Dict[str, Any]:
                 logger.warning("[%s] Failed to parse context snapshot", thread_id)
 
         # Query for latest rolling summary
-        summaries = _ZEP_CLIENT.query_memory(
+        summaries = client.query_memory(
             thread_id,
             query="CONVERSATION SUMMARY",
             limit=1,
@@ -1827,15 +1869,8 @@ def build_supervisor_graph():
             }
 
         def route_to_agent(state: SupervisorState) -> str:
-            target = state.get("target_agent", "general_conversation_agent")
-            valid_targets = {
-                "real_estate_agent",
-                "marketplace_agent",
-                "general_conversation_agent",
-                "local_info_agent",
-            }
-            # Normalize unexpected targets (e.g., 'safety_agent') to a safe default
-            return target if target in valid_targets else "general_conversation_agent"
+            # Routing temporarily forced to the real estate agent; skip router logic.
+            return "real_estate_agent"
 
         @traced_worker_agent("general_conversation")
         def general_conversation_handler(state: SupervisorState) -> SupervisorState:

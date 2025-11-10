@@ -144,13 +144,14 @@ def search_listings(
         )
 
     # Execute search with circuit breaker protection
-    def _do_search():
-        response = requests.get(url, params=params, timeout=SEARCH_TIMEOUT_SECONDS)
+    def _do_search(p: Dict[str, Any]):
+        response = requests.get(url, params=p, timeout=SEARCH_TIMEOUT_SECONDS)
         response.raise_for_status()
         return response.json()
 
     try:
-        data = breaker.call(_do_search)
+        # Primary attempt with exact filters
+        data = breaker.call(lambda: _do_search(params))
 
         result_count = data.get("count", 0)
         results = data.get("results", [])
@@ -166,15 +167,55 @@ def search_listings(
             params
         )
 
+        # Progressive fallback: if 0 results, relax filters
+        effective_params = dict(params)
+        if result_count == 0:
+            # 1) Drop budget cap if present
+            if "price_max" in effective_params:
+                relaxed = dict(effective_params)
+                relaxed.pop("price_max", None)
+                try:
+                    logger.info(
+                        "[RE Search] Fallback: dropping price_max and retrying (params=%s)",
+                        relaxed
+                    )
+                    data_relaxed = breaker.call(lambda: _do_search(relaxed))
+                    rc = int(data_relaxed.get("count", 0))
+                    if rc > 0:
+                        result_count = rc
+                        results = data_relaxed.get("results", [])
+                        effective_params = relaxed
+                except Exception:
+                    pass
+
+        if result_count == 0:
+            # 2) Drop rent_type restriction to include 'both' and any available
+            if "rent_type" in effective_params:
+                relaxed2 = dict(effective_params)
+                relaxed2.pop("rent_type", None)
+                try:
+                    logger.info(
+                        "[RE Search] Fallback: dropping rent_type and retrying (params=%s)",
+                        relaxed2
+                    )
+                    data_relaxed2 = breaker.call(lambda: _do_search(relaxed2))
+                    rc2 = int(data_relaxed2.get("count", 0))
+                    if rc2 > 0:
+                        result_count = rc2
+                        results = data_relaxed2.get("results", [])
+                        effective_params = relaxed2
+                except Exception:
+                    pass
+
         result = {
             "count": result_count,
             "results": results,
-            "filters_used": params,
+            "filters_used": effective_params,
             "cached": False
         }
 
         # Cache result for 30s
-        cache.set(cache_key, result, timeout=SEARCH_CACHE_TTL)
+        cache.set(_build_cache_key(effective_params), result, timeout=SEARCH_CACHE_TTL)
 
         return result
 
@@ -244,6 +285,40 @@ def search_listings(
         }
 
 
+def _generate_badges(listing: Dict[str, Any]) -> List[str]:
+    """
+    Generate badge labels from listing amenities and features.
+
+    Args:
+        listing: Raw listing dict from API
+
+    Returns:
+        List of badge labels (max 3 for UI)
+    """
+    badges = []
+    amenities = listing.get("amenities", [])
+
+    # Map key amenities to user-friendly badges
+    amenity_map = {
+        "wifi": "WiFi",
+        "ac": "AC",
+        "pool": "Pool",
+        "parking": "Parking",
+        "sea_view": "Sea View",
+        "furnished": "Furnished",
+        "gym": "Gym",
+        "beach_access": "Beach Access"
+    }
+
+    for amenity, label in amenity_map.items():
+        if amenity in amenities:
+            badges.append(label)
+            if len(badges) >= 3:  # Limit to 3 badges
+                break
+
+    return badges
+
+
 def format_listing_for_card(listing: Dict[str, Any]) -> Dict[str, Any]:
     """
     Format a listing object into a recommendation card item.
@@ -252,7 +327,7 @@ def format_listing_for_card(listing: Dict[str, Any]) -> Dict[str, Any]:
         listing: Raw listing dict from API
 
     Returns:
-        Dict formatted for CardItem schema
+        Dict formatted for CardItem schema (camelCase for frontend compatibility)
 
     Example:
         >>> format_listing_for_card({
@@ -263,6 +338,7 @@ def format_listing_for_card(listing: Dict[str, Any]) -> Dict[str, Any]:
         ...     "monthly_price": 500,
         ...     "bedrooms": 2,
         ...     "bathrooms": 1.0,
+        ...     "rating": 4.5,
         ...     "images": ["https://..."],
         ...     "amenities": ["wifi", "ac"]
         ... })
@@ -271,7 +347,10 @@ def format_listing_for_card(listing: Dict[str, Any]) -> Dict[str, Any]:
             "title": "2BR Apartment",
             "subtitle": "Girne, Karakum",
             "price": "£500/mo",
-            "image_url": "https://...",
+            "imageUrl": "https://...",
+            "rating": 4.5,
+            "area": "Karakum",
+            "badges": ["WiFi", "AC"],
             "metadata": {"bedrooms": 2, "bathrooms": 1.0, "amenities": ["wifi", "ac"]}
         }
     """
@@ -295,6 +374,9 @@ def format_listing_for_card(listing: Dict[str, Any]) -> Dict[str, Any]:
     images = listing.get("images", [])
     image_url = images[0] if images else None
 
+    # Generate badges from amenities
+    badges = _generate_badges(listing)
+
     # Build metadata
     metadata = {
         "bedrooms": listing.get("bedrooms"),
@@ -309,6 +391,9 @@ def format_listing_for_card(listing: Dict[str, Any]) -> Dict[str, Any]:
         "title": listing.get("title", ""),
         "subtitle": subtitle,
         "price": price_str,
-        "image_url": image_url,
+        "imageUrl": image_url,  # ✅ camelCase for frontend compatibility
+        "rating": listing.get("rating"),  # ✅ Add rating field
+        "area": listing.get("district"),  # ✅ Map district to area
+        "badges": badges,  # ✅ Add badges from amenities
         "metadata": metadata
     }

@@ -20,10 +20,30 @@ const ChatPage: React.FC = () => {
     wsCorrelationId,
     handleAssistantError,
     setRehydrationData,
+    results, // Add results to check state
   } = useChat();
 
+  console.log('[ChatPage] State check:', {
+    threadId,
+    activeJob,
+    messagesCount: messages.length,
+    resultsCount: results.length,
+    hasRecommendations: results.length > 0
+  });
+
   // Connect to WebSocket for real-time updates
+  const handleWsStatus = useCallback((status: 'connected' | 'disconnected' | 'connecting' | 'error') => {
+    console.log('[ChatPage] WebSocket status changed:', status);
+    setConnectionStatus(status);
+  }, [setConnectionStatus]);
+
   const handleWsMessage = useCallback((wsMessage: any) => {
+    console.log('[ChatPage] WebSocket message received:', {
+      type: wsMessage.type,
+      event: wsMessage.event,
+      hasRecommendations: !!wsMessage.payload?.rich?.recommendations,
+      recommendationsCount: wsMessage.payload?.rich?.recommendations?.length || 0
+    });
     // Handle server-side rehydration push on reconnect
     if (wsMessage.type === 'rehydration') {
       console.log('[Chat] Rehydration data received:', {
@@ -63,7 +83,7 @@ const ChatPage: React.FC = () => {
 
   useChatSocket(threadId, {
     onMessage: handleWsMessage,
-    onStatus: setConnectionStatus,
+    onStatus: handleWsStatus,
     onError: handleWsError,
     onTyping: setTyping,
     correlationId: wsCorrelationId || undefined,
@@ -84,7 +104,16 @@ const ChatPage: React.FC = () => {
         <ChatHeader />
         <div className="flex-1 overflow-y-auto px-4 max-h-[58vh]">
           <ChatThread messages={chatMessages} />
-          {activeJob && <InlineRecsCarousel />}
+          {(() => {
+            console.log('[ChatPage] Carousel render condition:', {
+              activeJob,
+              hasActiveJob: !!activeJob,
+              resultsLength: messages.length, // Check if we should show carousel
+              willRenderCarousel: true // Always try to render, let carousel decide
+            });
+            // Always render carousel - it will handle empty state internally
+            return <InlineRecsCarousel />;
+          })()}
         </div>
         <Composer />
       </section>

@@ -39,7 +39,7 @@ export const clearAccessToken = () => setAccessToken(null);
  */
 export const refreshAccessToken = async () => {
   try {
-    const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || window.location.origin;
+    const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000';
     const response = await fetch(`${API_BASE_URL}/api/token/refresh/`, {
       method: 'POST',
       credentials: 'include', // Send refresh cookie

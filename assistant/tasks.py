@@ -102,20 +102,21 @@ def _default_memory_trace() -> Dict[str, Any]:
 
 
 class _ZepWriteContext:
-    __slots__ = ("client", "thread_id", "used")
+    __slots__ = ("client", "thread_id", "user_id", "used")
 
-    def __init__(self, client, thread_id: str) -> None:
+    def __init__(self, client, thread_id: str, user_id: str) -> None:
         self.client = client
         self.thread_id = thread_id
+        self.user_id = user_id
         self.used = False
 
     def add_message(self, op: str, payload: Dict[str, Any]) -> bool:
         def _send():
-            # Preferred path: legacy client with add_messages
+            # Preferred path: new client with add_messages (supports user_id for thread creation)
             if hasattr(self.client, "add_messages"):
-                return self.client.add_messages(self.thread_id, [payload])
+                return self.client.add_messages(self.thread_id, [payload], user_id=self.user_id)
 
-            # New lightweight client exposes add_memory(thread_id, role, content)
+            # Fallback: legacy client with add_memory (no thread creation support)
             if hasattr(self.client, "add_memory"):
                 role = payload.get("role", "user")
                 content = payload.get("content", "")
@@ -130,12 +131,14 @@ class _ZepWriteContext:
 
 
 def _prepare_zep_write_context(thread: ConversationThread) -> Optional[_ZepWriteContext]:
-    """Return a write context for Zep Cloud (no explicit ensure calls required)."""
+    """Return a write context for Zep Cloud. Thread creation is handled automatically."""
     client = get_client(require_write=True)
     if not client:
         return None
 
-    return _ZepWriteContext(client, thread.thread_id)
+    # Pass user_id to enable automatic thread creation in add_messages()
+    user_id = str(thread.user_id)
+    return _ZepWriteContext(client, thread.thread_id, user_id)
 
 
 def _build_zep_message_payload(
@@ -1708,7 +1711,7 @@ def process_chat_message(self, message_id: str, thread_id: str, client_msg_id: O
         except ValidationError as ex:
             _record_invalid_envelope(channel_layer, group_name, thread.thread_id, correlation_id, str(ex))
             if WS_STRICT_VALIDATION:
-                return
+                return result_dict  # Return result even on validation failure
             payload = {
                 "type": "chat_message",
                 "event": "assistant_message",
@@ -1717,6 +1720,7 @@ def process_chat_message(self, message_id: str, thread_id: str, client_msg_id: O
                 "meta": ws_meta,
             }
         else:
+            # Strict path: send validated payload
             async_to_sync(channel_layer.group_send)(
                 group_name,
                 {
@@ -1724,16 +1728,17 @@ def process_chat_message(self, message_id: str, thread_id: str, client_msg_id: O
                     "data": payload,
                 },
             )
-            return
+            # Don't return here - fall through to logging and return result_dict
 
         # Non-strict path: send original payload even after validation failure
-        async_to_sync(channel_layer.group_send)(
-            group_name,
-            {
-                "type": "chat.message",
-                "data": payload,
-            },
-        )
+        if not WS_STRICT_VALIDATION or 'ex' in locals():
+            async_to_sync(channel_layer.group_send)(
+                group_name,
+                {
+                    "type": "chat.message",
+                    "data": payload,
+                },
+            )
 
         # Structured per-turn log emission (PR-I)
         zep_meta = ws_meta.get("traces", {}).get("memory", {})
@@ -1755,6 +1760,9 @@ def process_chat_message(self, message_id: str, thread_id: str, client_msg_id: O
             client_msg_id_assistant=str(assistant_client_uuid) if assistant_client_uuid else None,
             correlation_id=correlation_id,
         )
+
+        # Return result_dict for caller (e.g., testing, API responses)
+        return result_dict
 
     except MaxRetriesExceededError as e:
         # Gate B: DLQ handling for poison tasks
@@ -1977,3 +1985,118 @@ def log_preference_extraction_failure(task_id, exc, traceback, thread_id):
         "thread_id": thread_id,
         "error": str(exc),
     }
+
+
+@shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_kwargs={"max_retries": 3})
+def inject_system_message_to_chat(self, thread_id: str, message: str, metadata: dict = None):
+    """
+    Inject a system-generated message into a chat thread.
+    
+    Used for external events (like Twilio webhook responses) to automatically
+    add messages to ongoing conversations.
+    
+    Args:
+        thread_id: The conversation thread ID
+        message: The system message to inject
+        metadata: Optional metadata about the message source
+        
+    Example:
+        inject_system_message_to_chat.delay(
+            thread_id="9814114a-...",
+            message="The property is available!",
+            metadata={"source": "twilio_webhook", "availability": True}
+        )
+    """
+    from assistant.models import ConversationThread, Message
+    from asgiref.sync import async_to_sync
+    from channels.layers import get_channel_layer
+    from assistant.brain.schemas import WsAssistantFrame
+    import uuid
+    
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Get the conversation thread
+        try:
+            thread = ConversationThread.objects.get(thread_id=thread_id)
+        except ConversationThread.DoesNotExist:
+            logger.error(f"Thread {thread_id} not found for system message injection")
+            return {"ok": False, "error": "thread_not_found"}
+        
+        # Create a system message in the database
+        system_message = Message.objects.create(
+            type="assistant",  # System messages appear as assistant messages
+            conversation_id=thread.thread_id,
+            content=message,
+            sender=None,  # No user sender for system messages
+            client_msg_id=uuid.uuid4(),
+            metadata=metadata or {}
+        )
+        
+        logger.info(
+            f"[System Message] Injected to thread {thread_id}: {message[:100]}, "
+            f"message_id={system_message.id}, metadata={metadata}"
+        )
+        
+        # Send via WebSocket to frontend
+        channel_layer = get_channel_layer()
+        group_name = f"thread-{thread_id}"
+        
+        # Generate a fake client_msg_id for in_reply_to (system messages don't reply to specific user messages)
+        # But we need one for the WebSocket protocol
+        system_client_id = str(uuid.uuid4())
+        
+        frame_payload = {
+            "text": message,
+            "rich": {},
+            "agent": "system"  # Mark as system message
+        }
+        
+        ws_meta = {
+            "in_reply_to": system_client_id,
+            "queued_message_id": str(system_message.id),
+            "system_generated": True,  # Flag for frontend
+            "metadata": metadata or {}
+        }
+        
+        try:
+            frame = WsAssistantFrame(
+                type="chat_message",
+                event="assistant_message",
+                thread_id=thread.thread_id,
+                payload=frame_payload,
+                meta=ws_meta,
+            )
+            payload = frame.model_dump(mode="json")
+        except Exception as ex:
+            logger.warning(f"Frame validation failed for system message: {ex}")
+            # Fallback to plain dict
+            payload = {
+                "type": "chat_message",
+                "event": "assistant_message",
+                "thread_id": str(thread.thread_id),
+                "payload": frame_payload,
+                "meta": ws_meta,
+            }
+        
+        # Send to WebSocket group
+        async_to_sync(channel_layer.group_send)(
+            group_name,
+            {
+                "type": "chat.message",
+                "data": payload,
+            },
+        )
+        
+        logger.info(f"[System Message] Sent via WebSocket to group {group_name}")
+        
+        return {
+            "ok": True,
+            "thread_id": thread_id,
+            "message_id": str(system_message.id),
+            "message": message
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to inject system message to thread {thread_id}: {e}", exc_info=True)
+        raise

@@ -170,7 +170,7 @@ class GraphManager:
 
         Args:
             api_key: Zep API key (default: from ZEP_API_KEY env)
-            base_url: Zep base URL (default: from ZEP_BASE_URL env)
+            base_url: Zep Graph base URL (default: from ZEP_GRAPH_BASE_URL or ZEP_BASE_URL/api/v2)
             enable_circuit_breaker: Enable circuit breaker for fault tolerance
 
         Raises:
@@ -183,7 +183,13 @@ class GraphManager:
             )
 
         api_key = api_key or os.getenv("ZEP_API_KEY")
-        base_url = base_url or os.getenv("ZEP_BASE_URL")
+        # Prefer ZEP_GRAPH_BASE_URL, fallback to ZEP_BASE_URL/api/v2 for backward compat
+        base_url = base_url or os.getenv("ZEP_GRAPH_BASE_URL")
+        if not base_url:
+            fallback = os.getenv("ZEP_BASE_URL")
+            if fallback:
+                # Auto-append /api/v2 if not present
+                base_url = f"{fallback.rstrip('/')}/api/v2" if not fallback.endswith("/api/v2") else fallback
 
         # Temporary debug log to verify key loading
         if api_key:

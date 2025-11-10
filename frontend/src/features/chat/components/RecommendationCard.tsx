@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
-import { Heart } from 'lucide-react';
+import { Heart, Image as ImageIcon, Info, Calendar } from 'lucide-react';
 import { http } from '../../../api';
+import GalleryModal from './GalleryModal';
+import InfoModal from './InfoModal';
 
 /**
  * Standardized recommendation card component
@@ -17,6 +19,15 @@ export interface RecItem {
   badges?: string[];
   imageUrl?: string;
   area?: string;
+  galleryImages?: string[]; // Array of image URLs for gallery
+  metadata?: {
+    bedrooms?: number;
+    bathrooms?: number;
+    amenities?: string[];
+    sqm?: number;
+    description?: string;
+    rent_type?: string;
+  };
 }
 
 export interface RecommendationCardProps {
@@ -25,6 +36,32 @@ export interface RecommendationCardProps {
 
 const RecommendationCard: React.FC<RecommendationCardProps> = ({ item }) => {
   const [isLoading, setIsLoading] = useState(false);
+  const [isGalleryOpen, setIsGalleryOpen] = useState(false);
+  const [isInfoOpen, setIsInfoOpen] = useState(false);
+
+  const handleViewGallery = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsGalleryOpen(true);
+  };
+
+  const handleViewInfo = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsInfoOpen(true);
+  };
+
+  const handleCheckAvailability = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsLoading(true);
+    try {
+      await http.post('/api/v1/availability/check/', { listing_id: item.id });
+      console.log('Availability check request sent');
+      // User will see response in chat automatically
+    } catch (error) {
+      console.error('Availability check failed:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleReserve = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -122,7 +159,36 @@ const RecommendationCard: React.FC<RecommendationCardProps> = ({ item }) => {
           </div>
         )}
 
-        {/* Action Buttons */}
+        {/* Quick Action Buttons */}
+        <div className="grid grid-cols-3 gap-1 pt-1">
+          <button
+            onClick={handleViewGallery}
+            className="p-2 text-xs bg-slate-50 text-slate-700 rounded-lg hover:bg-slate-100 transition flex items-center justify-center gap-1"
+            title="View Photos"
+          >
+            <ImageIcon className="h-3 w-3" />
+            <span className="hidden sm:inline">Photos</span>
+          </button>
+          <button
+            onClick={handleViewInfo}
+            className="p-2 text-xs bg-slate-50 text-slate-700 rounded-lg hover:bg-slate-100 transition flex items-center justify-center gap-1"
+            title="View Details"
+          >
+            <Info className="h-3 w-3" />
+            <span className="hidden sm:inline">Info</span>
+          </button>
+          <button
+            onClick={handleCheckAvailability}
+            disabled={isLoading}
+            className="p-2 text-xs bg-slate-50 text-slate-700 rounded-lg hover:bg-slate-100 transition disabled:opacity-50 flex items-center justify-center gap-1"
+            title="Check Availability"
+          >
+            <Calendar className="h-3 w-3" />
+            <span className="hidden sm:inline">Check</span>
+          </button>
+        </div>
+
+        {/* Primary Action Buttons */}
         <div className="flex items-center gap-2 pt-1">
           <button
             onClick={handleReserve}
@@ -140,6 +206,23 @@ const RecommendationCard: React.FC<RecommendationCardProps> = ({ item }) => {
           </button>
         </div>
       </div>
+
+      {/* Gallery Modal */}
+      {isGalleryOpen && (
+        <GalleryModal
+          images={item.galleryImages || (item.imageUrl ? [item.imageUrl] : [])}
+          title={item.title}
+          onClose={() => setIsGalleryOpen(false)}
+        />
+      )}
+
+      {/* Info Modal */}
+      {isInfoOpen && (
+        <InfoModal
+          item={item}
+          onClose={() => setIsInfoOpen(false)}
+        />
+      )}
     </div>
   );
 };

@@ -143,7 +143,8 @@ def handle_real_estate_prompt_driven(state: SupervisorState) -> SupervisorState:
 
     # Step 2: Render prompt with full context
     conversation_summary = state.get("memory_context_summary", "")
-    fused_context = state.get("agent_specific_context", "")
+    # Use fused_context (summary + retrieved memory + recent turns) for stronger grounding
+    fused_context = state.get("fused_context", "")
     user_profile = state.get("user_profile", {})
     token_budget = {
         "remaining": state.get("token_budget_remaining", 0),
@@ -177,7 +178,9 @@ def handle_real_estate_prompt_driven(state: SupervisorState) -> SupervisorState:
                 {"role": "user", "content": user_input}
             ],
             temperature=0.7,
-            max_tokens=500
+            max_tokens=500,
+            # Encourage strict JSON from the model
+            response_format={"type": "json_object"}
         )
 
         prompt_duration_ms = (time.time() - prompt_start_time) * 1000
@@ -200,12 +203,14 @@ def handle_real_estate_prompt_driven(state: SupervisorState) -> SupervisorState:
     parsed = parse_real_estate_response(llm_response_text, strict=True)
 
     if not parsed:
-        logger.error(
-            f"[{thread_id}] RE Agent: JSON parsing failed, raw response: {llm_response_text[:200]}"
+        # Soft fallback: treat raw text as a clarifying response instead of erroring
+        safe_text = (llm_response_text or "").strip() or "Got it. Could you clarify your rental needs (short-term vs long-term)?"
+        logger.warning(
+            f"[{thread_id}] RE Agent: JSON parsing failed; using soft fallback speak-only response"
         )
         record_json_parse_fail()
-        record_error("json_contract")
-        return _build_error_response(state, "I apologize, I need to reformulate my response. Could you repeat that?")
+        notes = {"continuity_reason": "parse_fallback"}
+        return _handle_clarify(state, safe_text, merged_slots, notes)
 
     act = parsed.get("act")
     speak = parsed.get("speak", "")
@@ -405,7 +410,11 @@ def _handle_search_and_recommend(
 
         # Format listings as cards (only if recommendation cards enabled)
         if ENABLE_RECOMMEND_CARD and result_count > 0:
-            card_items = [format_listing_for_card(listing) for listing in listings]
+            # Convert listing dicts to card format
+            card_dicts = [format_listing_for_card(listing) for listing in listings]
+
+            # ✅ Convert dicts to Pydantic CardItem models
+            card_items = [CardItem(**card_dict) for card_dict in card_dicts]
 
             # Build recommendation card payload
             card_payload = RecommendationCardPayload(
@@ -415,7 +424,7 @@ def _handle_search_and_recommend(
                 summary=speak
             )
 
-            # Convert to dict for JSON serialization
+            # Convert back to dicts for JSON serialization
             recommendations = [item.dict() for item in card_items]
 
             # Record card emission metrics

@@ -140,10 +140,19 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // ✅ Extract recommendations from rich payload
     try {
       const recommendations = (frame.payload as any)?.rich?.recommendations;
+      console.log('[ChatContext] WebSocket recommendations extraction:', {
+        hasRecommendations: !!recommendations,
+        isArray: Array.isArray(recommendations),
+        count: recommendations?.length || 0,
+        agent: (frame.payload as any)?.agent,
+        payloadKeys: Object.keys(frame.payload || {})
+      });
       if (Array.isArray(recommendations) && recommendations.length > 0) {
+        console.log('[ChatContext] Setting results from WebSocket:', recommendations.length, 'items');
         setResults(recommendations);
       }
     } catch (e) {
+      console.error('[ChatContext] Error extracting WebSocket recommendations:', e);
       // best-effort only
     }
 
@@ -264,13 +273,30 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const data = await response.json();
 
+      console.log('[ChatContext] HTTP response received:', {
+        hasRecommendations: !!data.recommendations,
+        recommendationsCount: data.recommendations?.length || 0,
+        responseKeys: Object.keys(data),
+        message: data.message || data.response,
+        threadId: data.thread_id
+      });
+
       // Extract recommendations from HTTP response (same as WebSocket)
       try {
         const recommendations = data.recommendations;
+        console.log('[ChatContext] Extracting recommendations:', {
+          recommendations,
+          isArray: Array.isArray(recommendations),
+          length: recommendations?.length || 0
+        });
         if (Array.isArray(recommendations) && recommendations.length > 0) {
+          console.log('[ChatContext] Setting results with recommendations');
           setResults(recommendations);
+        } else {
+          console.log('[ChatContext] No recommendations to set');
         }
       } catch (e) {
+        console.error('[ChatContext] Error extracting recommendations:', e);
         // best-effort only
       }
 

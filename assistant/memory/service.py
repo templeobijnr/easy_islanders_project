@@ -27,7 +27,9 @@ from .flags import (
     reset_consecutive_failures,
     CONSECUTIVE_FAILURES_THRESHOLD,
 )
-from .zep_client import ZepClient, ZepCircuitOpenError, ZepRequestError
+# Import Zep Cloud SDK client (uses official /api/v2/threads/ endpoints)
+# Old custom client: from .zep_client import ZepClient, ZepCircuitOpenError, ZepRequestError
+from .zep_sdk_client import ZepCloudClient as ZepClient, ZepCircuitOpenError, ZepRequestError
 from assistant.monitoring.metrics import (
     inc_zep_read_failure,
     inc_zep_read_request,

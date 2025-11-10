@@ -1,24 +1,51 @@
 import { useSellerProfile } from "../../../hooks/useSellerDashboard";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Bell, LogOut } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "../../../components/ui/avatar";
+import { Bell, LogOut, Menu } from "lucide-react";
+import { Button } from "../../../components/ui/button";
 import { useAuth } from "../../../contexts/AuthContext";
 
-export function TopBar() {
-  const { seller, loading } = useSellerProfile();
+interface SellerProfile {
+  business_name: string;
+  verified: boolean;
+  logo_url?: string;
+  total_listings?: number;
+}
+
+interface TopBarProps {
+  onMenuClick?: () => void;
+}
+
+export function TopBar({ onMenuClick }: TopBarProps) {
+  const { seller, loading } = useSellerProfile() as {
+    seller: SellerProfile | null;
+    loading: boolean;
+    error: any;
+  };
   const { logout } = useAuth();
 
   return (
-    <header className="h-16 border-b bg-white flex items-center justify-between px-6 fixed top-0 left-60 right-0 z-40 shadow-sm">
-      <div>
-        <h1 className="text-lg font-semibold text-gray-800">
-          {loading ? "Loading..." : seller?.business_name || "Seller Dashboard"}
-        </h1>
-        {seller?.verified && (
-          <span className="text-xs text-green-600 flex items-center gap-1">
-            ✓ Verified Business
-          </span>
+    <header className="h-16 border-b bg-white flex items-center justify-between px-6 fixed top-0 lg:left-60 left-0 right-0 z-40 shadow-sm">
+      <div className="flex items-center gap-4">
+        {/* Mobile menu button */}
+        {onMenuClick && (
+          <button
+            onClick={onMenuClick}
+            className="lg:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <Menu className="w-6 h-6 text-gray-600" />
+          </button>
         )}
+
+        <div>
+          <h1 className="text-lg font-semibold text-gray-800">
+            {loading ? "Loading..." : seller?.business_name || "Seller Dashboard"}
+          </h1>
+          {seller?.verified && (
+            <span className="text-xs text-green-600 flex items-center gap-1">
+              ✓ Verified Business
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center gap-4">

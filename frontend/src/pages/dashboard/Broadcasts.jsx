@@ -30,7 +30,7 @@ const Broadcasts = () => {
   };
 
   const handlePublish = async (id) => {
-    if (!confirm('Publish this broadcast? It will be visible to all users.')) return;
+    if (!window.confirm('Publish this broadcast? It will be visible to all users.')) return;
     try {
       await publishBroadcast(id);
     } catch (err) {
@@ -39,7 +39,7 @@ const Broadcasts = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('Delete this broadcast? This action cannot be undone.')) return;
+    if (!window.confirm('Delete this broadcast? This action cannot be undone.')) return;
     try {
       await deleteBroadcast(id);
     } catch (err) {

@@ -1,4 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
+import { motion } from "framer-motion";
 import { cn } from "../../../lib/utils";
 import { navItems } from "./NavItems";
 import { X } from "lucide-react";
@@ -41,7 +42,18 @@ export function DashboardSidebar({ isOpen = true, onClose }: DashboardSidebarPro
         {/* Dashboard Header */}
         <div className="relative overflow-hidden rounded-xl mb-4 p-3 bg-gradient-to-r from-lime-200 via-emerald-200 to-sky-200">
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-xl bg-lime-600 shadow-inner" />
+            <motion.div
+              className="h-8 w-8 rounded-xl bg-lime-600 shadow-inner"
+              animate={{
+                rotate: [0, 5, -5, 0],
+                scale: [1, 1.05, 1]
+              }}
+              transition={{
+                duration: 3,
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
+            />
             <div className="font-semibold">Seller Dashboard</div>
           </div>
           <div className="text-xs text-slate-700 mt-1">Manage your business</div>
@@ -51,24 +63,36 @@ export function DashboardSidebar({ isOpen = true, onClose }: DashboardSidebarPro
         {/* Navigation */}
         <div className="text-xs text-slate-500 mb-2">Dashboard</div>
         <nav className="space-y-1.5">
-          {navItems.map((item) => {
+          {navItems.map((item, index) => {
             const Icon = item.icon;
             const active = location.pathname === item.path;
             return (
-              <Link
+              <motion.div
                 key={item.name}
-                to={item.path}
-                onClick={() => onClose?.()}
-                className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all",
-                  active
-                    ? "bg-lime-100 text-lime-700 shadow-sm"
-                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                )}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: index * 0.05 }}
               >
-                <Icon size={18} className="flex-shrink-0" />
-                <span>{item.name}</span>
-              </Link>
+                <Link
+                  to={item.path}
+                  onClick={() => onClose?.()}
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group",
+                    active
+                      ? "bg-lime-100 text-lime-700 shadow-sm"
+                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                  )}
+                >
+                  <motion.div
+                    whileHover={{ scale: 1.2, rotate: 5 }}
+                    whileTap={{ scale: 0.9 }}
+                    transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                  >
+                    <Icon size={18} className="flex-shrink-0" />
+                  </motion.div>
+                  <span>{item.name}</span>
+                </Link>
+              </motion.div>
             );
           })}
         </nav>

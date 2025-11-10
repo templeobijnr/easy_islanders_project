@@ -2,6 +2,7 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import DashboardLayout from '../../features/seller-dashboard/layout/DashboardLayout';
 import MyListings from './MyListings';
+import Bookings from './Bookings';
 import BusinessProfile from './BusinessProfile';
 import Analytics from './Analytics';
 import Broadcasts from './Broadcasts';
@@ -23,6 +24,7 @@ const Dashboard = () => {
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard/my-listings" replace />} />
         <Route path="/my-listings" element={<MyListings />} />
+        <Route path="/bookings" element={<Bookings />} />
         <Route path="/seller-inbox" element={<SellerInbox />} />
         <Route path="/broadcasts" element={<Broadcasts />} />
         <Route path="/sales" element={<Sales />} />

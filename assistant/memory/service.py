@@ -439,3 +439,102 @@ def rehydrate_state(thread_id: str) -> Optional[Dict[str, Any]]:
     except Exception as e:
         logger.error("[REHYDRATE] Failed to rehydrate state for thread %s: %s", thread_id, e)
         return None
+
+
+# =============================================================================
+# Conversation Capsule Management
+# =============================================================================
+# Lightweight state tracking for UI interactions and agent awareness
+# Stored in Redis cache for fast access
+
+
+def get_conversation_capsule(thread_id: str) -> Dict[str, Any]:
+    """
+    Retrieve conversation capsule for a thread.
+
+    The capsule stores UI interaction state like:
+    - active_listing: Currently viewed listing
+    - search_results: Last search results shown to user
+    - user_preferences: Inferred preferences from interactions
+
+    Args:
+        thread_id: Thread identifier
+
+    Returns:
+        Dictionary with capsule data (empty dict if not found)
+    """
+    if not thread_id:
+        return {}
+
+    cache_key = f"capsule:{thread_id}"
+    capsule = cache.get(cache_key, {})
+
+    logger.debug(
+        "capsule_retrieved",
+        extra={
+            "thread_id": thread_id,
+            "keys": list(capsule.keys()) if isinstance(capsule, dict) else None,
+        }
+    )
+
+    return capsule if isinstance(capsule, dict) else {}
+
+
+def update_conversation_capsule(thread_id: str, data: Dict[str, Any]) -> None:
+    """
+    Update conversation capsule with new data.
+
+    Merges provided data into existing capsule.
+
+    Args:
+        thread_id: Thread identifier
+        data: Dictionary of data to merge into capsule
+
+    Example:
+        update_conversation_capsule("thread123", {
+            "active_listing": {
+                "listing_id": "abc123",
+                "title": "2BR Apartment",
+                "price": "£700/month",
+            }
+        })
+    """
+    if not thread_id or not isinstance(data, dict):
+        return
+
+    cache_key = f"capsule:{thread_id}"
+    capsule = cache.get(cache_key, {})
+
+    if not isinstance(capsule, dict):
+        capsule = {}
+
+    # Merge new data into existing capsule
+    capsule.update(data)
+
+    # Store with 1 hour TTL (refreshed on each access)
+    cache.set(cache_key, capsule, timeout=3600)
+
+    logger.info(
+        "capsule_updated",
+        extra={
+            "thread_id": thread_id,
+            "updated_keys": list(data.keys()),
+            "total_keys": list(capsule.keys()),
+        }
+    )
+
+
+def clear_conversation_capsule(thread_id: str) -> None:
+    """
+    Clear conversation capsule for a thread.
+
+    Args:
+        thread_id: Thread identifier
+    """
+    if not thread_id:
+        return
+
+    cache_key = f"capsule:{thread_id}"
+    cache.delete(cache_key)
+
+    logger.info("capsule_cleared", extra={"thread_id": thread_id})

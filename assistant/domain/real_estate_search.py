@@ -48,7 +48,8 @@ def _build_cache_key(params: Dict[str, Any]) -> str:
 def search_listings(
     filled_slots: Dict[str, Any],
     max_results: int = 20,
-    api_base: Optional[str] = None
+    api_base: Optional[str] = None,
+    thread_id: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Search real estate listings using filled slots.
@@ -59,6 +60,7 @@ def search_listings(
         filled_slots: Dict with keys: rental_type, location, budget, bedrooms, check_in, check_out
         max_results: Maximum number of results to return (default: 20)
         api_base: Optional API base URL (default: from settings or localhost)
+        thread_id: Optional thread ID to cache results in conversation capsule
 
     Returns:
         Dict with:
@@ -216,6 +218,27 @@ def search_listings(
 
         # Cache result for 30s
         cache.set(_build_cache_key(effective_params), result, timeout=SEARCH_CACHE_TTL)
+
+        # Cache results in conversation capsule for agent awareness
+        if thread_id and results:
+            try:
+                from assistant.memory.service import update_conversation_capsule
+                update_conversation_capsule(thread_id, {
+                    "search_results": results,
+                    "search_timestamp": time.time(),
+                    "search_params": effective_params,
+                })
+                logger.info(
+                    "[RE Search] Cached %d results in capsule for thread %s",
+                    len(results),
+                    thread_id
+                )
+            except Exception as e:
+                logger.warning(
+                    "[RE Search] Failed to cache results in capsule: %s",
+                    e,
+                    exc_info=True
+                )
 
         return result
 

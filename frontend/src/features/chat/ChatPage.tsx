@@ -20,6 +20,7 @@ const ChatPage: React.FC = () => {
     wsCorrelationId,
     handleAssistantError,
     setRehydrationData,
+    setWebSocketRef,
     results, // Add results to check state
   } = useChat();
 
@@ -81,13 +82,20 @@ const ChatPage: React.FC = () => {
     console.error('[Chat] WebSocket error:', error);
   }, []);
 
-  useChatSocket(threadId, {
+  const wsRef = useChatSocket(threadId, {
     onMessage: handleWsMessage,
     onStatus: handleWsStatus,
     onError: handleWsError,
     onTyping: setTyping,
     correlationId: wsCorrelationId || undefined,
   });
+
+  // Pass WebSocket ref to ChatContext for sending user events
+  React.useEffect(() => {
+    if (wsRef && setWebSocketRef) {
+      setWebSocketRef(wsRef);
+    }
+  }, [wsRef, setWebSocketRef]);
 
   // Convert Message[] to ChatMessage[]
   const chatMessages: ChatMessage[] = messages.map(msg => ({

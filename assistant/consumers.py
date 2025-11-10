@@ -299,6 +299,7 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
 
         Supports:
         - client_hello: For typing state recovery (optional)
+        - user_event: User interaction events for agent awareness
         - Future: client pings, typing indicators
         """
         msg_type = content.get("type")
@@ -310,7 +311,76 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                 extra={"thread_id": getattr(self, "thread_id", None)}
             )
             # Future: Re-emit typing_done if backend has pending state
+
+        elif msg_type == "user_event":
+            # Handle user interaction events (listing selection, card clicks, etc.)
+            await self.handle_user_event(content)
+
         # Future: Handle client typing, pings, etc.
+
+    async def handle_user_event(self, content):
+        """
+        Handle user interaction events for agent awareness.
+
+        Events include:
+        - select_listing: User clicked on a listing card
+        - view_gallery: User opened gallery modal
+        - initiate_contact: User started contact flow
+
+        These events update the conversation capsule to inform agent context.
+        """
+        event_type = content.get("event_type")
+        payload = content.get("payload", {})
+        thread_id = content.get("thread_id") or getattr(self, "thread_id", None)
+
+        logger.info(
+            "ws_user_event",
+            extra={
+                "thread_id": thread_id,
+                "event_type": event_type,
+                "payload_keys": list(payload.keys()) if isinstance(payload, dict) else None,
+            }
+        )
+
+        if event_type == "select_listing":
+            # Update conversation capsule with active listing
+            try:
+                from assistant.memory.service import update_conversation_capsule
+
+                update_conversation_capsule(thread_id, {"active_listing": payload})
+
+                logger.info(
+                    "user_event_processed",
+                    extra={
+                        "thread_id": thread_id,
+                        "event_type": event_type,
+                        "listing_id": payload.get("listing_id"),
+                    }
+                )
+
+                # Send acknowledgement to client
+                await self.safe_send_json({
+                    "type": "user_event_ack",
+                    "event_type": event_type,
+                    "status": "success",
+                })
+
+            except Exception as e:
+                logger.error(
+                    "user_event_error",
+                    exc_info=True,
+                    extra={
+                        "thread_id": thread_id,
+                        "event_type": event_type,
+                        "error": str(e),
+                    }
+                )
+                await self.safe_send_json({
+                    "type": "user_event_ack",
+                    "event_type": event_type,
+                    "status": "error",
+                    "error": str(e),
+                })
 
     async def safe_send_json(self, payload):
         """

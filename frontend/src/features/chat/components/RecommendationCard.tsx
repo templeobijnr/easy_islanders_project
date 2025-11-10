@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Heart, Image as ImageIcon, Info, Calendar } from 'lucide-react';
 import { http } from '../../../api';
+import { useChat } from '../../../shared/context/ChatContext';
 import GalleryModal from './GalleryModal';
 import InfoModal from './InfoModal';
 
@@ -38,6 +39,23 @@ const RecommendationCard: React.FC<RecommendationCardProps> = ({ item }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
+  const { sendUserEvent } = useChat();
+
+  // Send listing selection event to backend for agent awareness
+  const handleCardClick = () => {
+    console.log('[RecCard] User clicked on listing:', item.id);
+    sendUserEvent?.({
+      type: 'select_listing',
+      payload: {
+        listing_id: item.id,
+        title: item.title,
+        price: item.price,
+        area: item.area,
+        imageUrl: item.imageUrl,
+        metadata: item.metadata,
+      },
+    });
+  };
 
   const handleViewGallery = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -98,7 +116,10 @@ const RecommendationCard: React.FC<RecommendationCardProps> = ({ item }) => {
   };
 
   return (
-    <div className="w-72 text-left shrink-0 rounded-2xl border border-slate-200 bg-white hover:shadow-md overflow-hidden transition">
+    <div
+      className="w-72 text-left shrink-0 rounded-2xl border border-slate-200 bg-white hover:shadow-md overflow-hidden transition cursor-pointer"
+      onClick={handleCardClick}
+    >
       {/* Image Section */}
       <div className="h-28 bg-slate-100 flex items-center justify-center text-slate-400 relative">
         {item.imageUrl ? (

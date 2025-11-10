@@ -52,6 +52,10 @@ interface ChatState {
   rehydrationData: RehydrationData | null;
   setRehydrationData: (data: RehydrationData) => void;
 
+  // User interaction events for agent awareness
+  sendUserEvent?: (event: { type: string; payload: any }) => void;
+  setWebSocketRef?: (ws: React.MutableRefObject<WebSocket | null>) => void;
+
   // Dev HUD (debug-only) fields
   dev_lastMemoryTrace: any | null;
   dev_lastCorrelationId: string | null;
@@ -77,6 +81,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const pendingTraceRef = useRef<any | null>(null);
   const pendingCorrRef = useRef<string | null>(null);
 
+  // WebSocket ref for sending user events
+  const wsRef = useRef<WebSocket | null>(null);
+
   const connectionStatusRef = useRef<ConnectionStatus>(connectionStatus);
   const pendingRepliesRef = useRef<Set<string>>(new Set());
   const handledRepliesRef = useRef<Set<string>>(new Set());
@@ -98,6 +105,61 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setConnectionStatusState(status);
     connectionStatusRef.current = status;
   }, []);
+
+  // Set WebSocket ref from ChatPage
+  const setWebSocketRef = useCallback((ws: React.MutableRefObject<WebSocket | null>) => {
+    wsRef.current = ws.current;
+  }, []);
+
+  // Send user interaction events to backend for agent awareness
+  const sendUserEvent = useCallback((event: { type: string; payload: any }) => {
+    console.log('[ChatContext] Sending user event:', event);
+
+    const message = {
+      type: 'user_event',
+      event_type: event.type,
+      payload: event.payload,
+      thread_id: threadId,
+      timestamp: Date.now(),
+    };
+
+    // Try WebSocket first
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      try {
+        wsRef.current.send(JSON.stringify(message));
+        console.log('[ChatContext] User event sent via WebSocket');
+        return;
+      } catch (err) {
+        console.warn('[ChatContext] WebSocket send failed, falling back to HTTP:', err);
+      }
+    }
+
+    // Fallback to HTTP if WebSocket unavailable
+    const authToken = localStorage.getItem('token') || localStorage.getItem('access_token') || '';
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (authToken) {
+      headers.Authorization = `Bearer ${authToken}`;
+    }
+
+    fetch(`${config.API_BASE_URL}/api/user-event/`, {
+      method: 'POST',
+      headers,
+      credentials: 'include',
+      body: JSON.stringify(message),
+    })
+      .then((res) => {
+        if (res.ok) {
+          console.log('[ChatContext] User event sent via HTTP fallback');
+        } else {
+          console.error('[ChatContext] HTTP fallback failed:', res.status);
+        }
+      })
+      .catch((err) => {
+        console.error('[ChatContext] Failed to send user event:', err);
+      });
+  }, [threadId]);
 
   const markPendingResolved = useCallback((clientId: string) => {
     if (!clientId) return;
@@ -371,6 +433,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // rehydration (server-side push)
         rehydrationData,
         setRehydrationData,
+        // user interaction events for agent awareness
+        sendUserEvent,
+        setWebSocketRef,
         // dev hud
         dev_lastMemoryTrace: lastMemoryTrace,
         dev_lastCorrelationId: lastCorrelationId,

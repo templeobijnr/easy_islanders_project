@@ -103,3 +103,105 @@ class Image(models.Model):
 
     def __str__(self):
         return f"Image for {self.listing.title} uploaded at {self.uploaded_at.strftime('%Y-%m-%d')}"
+
+
+class Booking(models.Model):
+    """
+    Unified booking model supporting both short-term and long-term bookings.
+    Short-term: vacation rentals, hotel-style bookings with specific dates
+    Long-term: rental agreements, property reservations
+    """
+
+    BOOKING_TYPE_CHOICES = [
+        ('short_term', 'Short Term'),
+        ('long_term', 'Long Term'),
+    ]
+
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('confirmed', 'Confirmed'),
+        ('cancelled', 'Cancelled'),
+        ('completed', 'Completed'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='bookings'
+    )
+    listing = models.ForeignKey(
+        Listing,
+        on_delete=models.CASCADE,
+        related_name='bookings'
+    )
+
+    # Booking type and dates
+    booking_type = models.CharField(
+        max_length=20,
+        choices=BOOKING_TYPE_CHOICES,
+        default='short_term'
+    )
+    check_in = models.DateField(null=True, blank=True)
+    check_out = models.DateField(null=True, blank=True)
+
+    # Pricing
+    total_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Total booking price"
+    )
+    currency = models.CharField(max_length=10, default='EUR')
+
+    # Status and metadata
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending'
+    )
+    notes = models.TextField(blank=True, help_text="Additional booking notes")
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'status']),
+            models.Index(fields=['listing', 'booking_type', 'status']),
+            models.Index(fields=['check_in', 'check_out']),
+        ]
+
+    def __str__(self):
+        return f"{self.listing.title} - {self.booking_type} ({self.user.username})"
+
+    @property
+    def is_short_term(self):
+        """Check if this is a short-term booking"""
+        return self.booking_type == 'short_term'
+
+    @property
+    def is_long_term(self):
+        """Check if this is a long-term booking"""
+        return self.booking_type == 'long_term'
+
+    @property
+    def duration_days(self):
+        """Calculate booking duration in days"""
+        if self.check_in and self.check_out:
+            return (self.check_out - self.check_in).days
+        return None
+
+    def clean(self):
+        """Validate booking dates"""
+        from django.core.exceptions import ValidationError
+
+        if self.check_in and self.check_out:
+            if self.check_in >= self.check_out:
+                raise ValidationError("Check-out date must be after check-in date.")
+
+        if self.is_short_term and (not self.check_in or not self.check_out):
+            raise ValidationError("Short-term bookings require check-in and check-out dates.")

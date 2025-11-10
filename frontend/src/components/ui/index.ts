@@ -17,3 +17,4 @@ export {
 } from './dialog';
 export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './tooltip';
 export { Avatar, AvatarImage, AvatarFallback } from './avatar';
+export { Calendar } from './calendar';

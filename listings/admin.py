@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Category, Subcategory, Listing, Image
+from .models import Category, Subcategory, Listing, Image, Booking
 
 # Register your models here.
 @admin.register(Category)
@@ -51,3 +51,38 @@ class ListingAdmin(admin.ModelAdmin):
 class ImageAdmin(admin.ModelAdmin):
     list_display = ('listing', 'image', 'uploaded_at')
     list_filter = ('listing',)
+
+
+@admin.register(Booking)
+class BookingAdmin(admin.ModelAdmin):
+    list_display = ('id', 'listing', 'user', 'booking_type', 'check_in', 'check_out', 'status', 'total_price_display', 'created_at')
+    list_filter = ('booking_type', 'status', 'created_at')
+    search_fields = ('user__username', 'listing__title', 'notes')
+    readonly_fields = ('id', 'created_at', 'updated_at', 'duration_days')
+    date_hierarchy = 'created_at'
+
+    fieldsets = (
+        ('Booking Information', {
+            'fields': ('user', 'listing', 'booking_type', 'status')
+        }),
+        ('Dates', {
+            'fields': ('check_in', 'check_out', 'duration_days')
+        }),
+        ('Payment', {
+            'fields': ('total_price', 'currency')
+        }),
+        ('Additional Information', {
+            'fields': ('notes',),
+            'classes': ('collapse',)
+        }),
+        ('Metadata', {
+            'fields': ('id', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    @admin.display(description='Total Price')
+    def total_price_display(self, obj):
+        if obj.total_price and obj.currency:
+            return f"{obj.total_price} {obj.currency}"
+        return "N/A"

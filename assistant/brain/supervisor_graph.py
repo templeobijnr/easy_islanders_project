@@ -1232,6 +1232,78 @@ def _fuse_context(state: SupervisorState) -> SupervisorState:
         if facts_lines:
             context_parts.append(f"[Known Facts]:\n" + "\n".join(facts_lines))
 
+    # 7. Conversation capsule (UI interaction state for agent awareness)
+    thread_id = state.get("thread_id")
+    if thread_id:
+        try:
+            from assistant.memory.service import get_conversation_capsule
+            capsule = get_conversation_capsule(thread_id)
+
+            # Active listing (user clicked on specific listing)
+            active_listing = capsule.get("active_listing")
+            if active_listing and isinstance(active_listing, dict):
+                listing_id = active_listing.get("listing_id")
+                title = active_listing.get("title", "Unknown")
+                price = active_listing.get("price", "N/A")
+                area = active_listing.get("area", "N/A")
+
+                context_parts.append(
+                    f"[User is Currently Viewing Listing]:\n"
+                    f"ID: {listing_id}\n"
+                    f"Title: {title}\n"
+                    f"Price: {price}\n"
+                    f"Area: {area}"
+                )
+
+                # Include full metadata if available
+                metadata = active_listing.get("metadata")
+                if metadata and isinstance(metadata, dict):
+                    meta_lines = []
+                    if metadata.get("bedrooms"):
+                        meta_lines.append(f"Bedrooms: {metadata['bedrooms']}")
+                    if metadata.get("bathrooms"):
+                        meta_lines.append(f"Bathrooms: {metadata['bathrooms']}")
+                    if metadata.get("sqm"):
+                        meta_lines.append(f"Size: {metadata['sqm']} sqm")
+                    if metadata.get("amenities"):
+                        amenities = ", ".join(metadata['amenities'][:5])  # Limit to 5
+                        meta_lines.append(f"Amenities: {amenities}")
+
+                    if meta_lines:
+                        context_parts[-1] += "\n" + "\n".join(meta_lines)
+
+            # Search results (listings displayed to user)
+            search_results = capsule.get("search_results")
+            if search_results and isinstance(search_results, list) and len(search_results) > 0:
+                result_count = len(search_results)
+                search_params = capsule.get("search_params", {})
+
+                context_parts.append(
+                    f"[Last Search Results Shown to User]:\n"
+                    f"Count: {result_count} listings\n"
+                    f"Filters: {search_params}"
+                )
+
+                # Include top 3 listing IDs for reference
+                top_listings = search_results[:3]
+                listing_refs = []
+                for listing in top_listings:
+                    if isinstance(listing, dict):
+                        lid = listing.get("id") or listing.get("listing_id")
+                        ltitle = listing.get("title", "Unknown")
+                        listing_refs.append(f"  - {lid}: {ltitle}")
+
+                if listing_refs:
+                    context_parts[-1] += "\nTop listings:\n" + "\n".join(listing_refs)
+
+        except Exception as e:
+            logger.warning(
+                "[%s] Failed to retrieve capsule for context fusion: %s",
+                thread_id,
+                e,
+                exc_info=True
+            )
+
     # Build fused context
     if context_parts:
         fused = "\n\n".join(context_parts)

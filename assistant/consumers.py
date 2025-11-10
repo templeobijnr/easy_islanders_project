@@ -358,6 +358,44 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                     }
                 )
 
+                # Optional: Sync user interaction to Zep Graph for long-term memory
+                try:
+                    from assistant.memory.graph_manager import get_graph_manager
+                    from django.conf import settings
+
+                    # Only sync if Zep Graph is enabled
+                    if getattr(settings, "ZEP_GRAPH_ENABLED", False):
+                        graph_mgr = get_graph_manager()
+                        user = self.scope.get("user")
+
+                        if graph_mgr and user and hasattr(user, "id"):
+                            # Sync user→listing interaction as graph edge
+                            graph_mgr.add_fact_triplet(
+                                user_id=str(user.id),
+                                source_node_name=f"user_{user.id}",
+                                target_node_name=f"listing_{payload.get('listing_id')}",
+                                fact=f"viewed_listing_{payload.get('listing_id')}",
+                                confidence=0.95,
+                            )
+                            logger.info(
+                                "graph_sync_success",
+                                extra={
+                                    "user_id": user.id,
+                                    "listing_id": payload.get("listing_id"),
+                                    "event_type": event_type,
+                                }
+                            )
+                except Exception as graph_err:
+                    # Graph sync is best-effort, don't fail the event
+                    logger.warning(
+                        "graph_sync_failed",
+                        extra={
+                            "thread_id": thread_id,
+                            "event_type": event_type,
+                            "error": str(graph_err),
+                        }
+                    )
+
                 # Send acknowledgement to client
                 await self.safe_send_json({
                     "type": "user_event_ack",

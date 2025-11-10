@@ -1,75 +1,79 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Loader2, TrendingUp, Eye, Heart, MessageCircle, Users, DollarSign } from 'lucide-react';
+import React from 'react';
+import { TrendingUp, Eye, ShoppingBag, MessageCircle, Star, Award, Calendar, Target } from 'lucide-react';
 import DashboardHeader from '../../components/dashboard/DashboardHeader';
-// import { useAuth } from '../../contexts/AuthContext'; // Unused
-import axios from 'axios';
-import config from '../../config';
-
-// Valid ranges used by the UI. Adjust if you support other ranges.
-const DEFAULT_RANGE = '30d';
+import { useSellerAnalytics } from '../../hooks/useSellerDashboard';
 
 const Analytics = () => {
-  const [analytics, setAnalytics] = useState(null); // Placeholder for when API is connected
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [timeRange, setTimeRange] = useState(DEFAULT_RANGE);
+  const { analytics, loading, error, refetch } = useSellerAnalytics();
 
-  const fetchAnalytics = useCallback(async () => {
-    try {
-      setLoading(true);
-      const token = localStorage.getItem('access_token');
-      const response = await axios.get(`${config.API_BASE_URL}/api/analytics/`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-        params: { time_range: timeRange }
-      });
-      setAnalytics(response.data);
-    } catch (err) {
-      console.error('Error fetching analytics:', err);
-      setError('Failed to load analytics data');
-    } finally {
-      setLoading(false);
-    }
-  }, [timeRange]);
+  if (loading) {
+    return (
+      <div className="flex flex-col h-full">
+        <DashboardHeader title="Analytics" subtitle="Track your business performance" />
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-gray-600">Loading analytics...</p>
+        </div>
+      </div>
+    );
+  }
 
-  // useEffect(() => {
-  //   fetchAnalytics();
-  // }, [fetchAnalytics]);
+  if (error) {
+    return (
+      <div className="flex flex-col h-full">
+        <DashboardHeader title="Analytics" subtitle="Track your business performance" />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-red-600 mb-4">{error}</p>
+            <button
+              onClick={refetch}
+              className="px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-dark"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-  // Mock data for now - replace with real data when API is connected
-  const stats = {
-    total_views: 0,
-    total_likes: 0,
-    total_messages: 0,
-    total_revenue: 0,
-    views_growth: 0,
-    likes_growth: 0,
-    messages_growth: 0,
-    revenue_growth: 0
-  };
-  const listings = [];
+  const stats = analytics?.stats || {};
+  const categoryBreakdown = analytics?.category_breakdown || {};
+  const trends = analytics?.trends || {};
+  const insights = analytics?.insights || [];
 
   return (
     <div className="flex flex-col h-full">
-      <DashboardHeader title="Analytics" subtitle="Track your listing performance" />
+      <DashboardHeader
+        title="Analytics"
+        subtitle="Track your business performance"
+        action={
+          <button
+            onClick={refetch}
+            className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <TrendingUp className="w-4 h-4" />
+            Refresh
+          </button>
+        }
+      />
+
       <div className="flex-1 overflow-y-auto p-6">
-        {/* Time Range Selector */}
-        <div className="mb-6">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-gray-700">Time Range:</span>
-            <select 
-              value={timeRange} 
-              onChange={(e) => setTimeRange(e.target.value)}
-              className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
-            >
-              <option value="7d">Last 7 days</option>
-              <option value="30d">Last 30 days</option>
-              <option value="90d">Last 90 days</option>
-              <option value="1y">Last year</option>
-            </select>
+        {/* AI Insights */}
+        {insights.length > 0 && (
+          <div className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+              <Award className="w-5 h-5 text-blue-600" />
+              AI-Powered Insights
+            </h3>
+            <div className="space-y-2">
+              {insights.map((insight, index) => (
+                <p key={index} className="text-gray-700">
+                  {insight}
+                </p>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Key Metrics */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -84,148 +88,182 @@ const Analytics = () => {
               </div>
             </div>
             <div className="mt-2">
-              <span className="text-sm text-green-600 font-medium">+{stats.views_growth || 0}%</span>
-              <span className="text-sm text-gray-500 ml-1">vs previous period</span>
+              <span className="text-sm text-gray-500">Across all listings</span>
             </div>
           </div>
 
           <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Total Likes</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.total_likes || 0}</p>
-              </div>
-              <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
-                <Heart className="w-6 h-6 text-red-600" />
-              </div>
-            </div>
-            <div className="mt-2">
-              <span className="text-sm text-green-600 font-medium">+{stats.likes_growth || 0}%</span>
-              <span className="text-sm text-gray-500 ml-1">vs previous period</span>
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Messages</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.total_messages || 0}</p>
+                <p className="text-sm font-medium text-gray-600">Total Listings</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.total_listings || 0}</p>
               </div>
               <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                <MessageCircle className="w-6 h-6 text-green-600" />
+                <ShoppingBag className="w-6 h-6 text-green-600" />
               </div>
             </div>
             <div className="mt-2">
-              <span className="text-sm text-green-600 font-medium">+{stats.messages_growth || 0}%</span>
-              <span className="text-sm text-gray-500 ml-1">vs previous period</span>
+              <span className="text-sm text-green-600 font-medium">
+                {stats.active_listings || 0} active
+              </span>
             </div>
           </div>
 
           <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Revenue</p>
-                <p className="text-2xl font-bold text-gray-900">€{stats.total_revenue || 0}</p>
+                <p className="text-sm font-medium text-gray-600">Pending Requests</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.pending_requests || 0}</p>
               </div>
-              <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                <DollarSign className="w-6 h-6 text-yellow-600" />
+              <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                <MessageCircle className="w-6 h-6 text-purple-600" />
               </div>
             </div>
             <div className="mt-2">
-              <span className="text-sm text-green-600 font-medium">+{stats.revenue_growth || 0}%</span>
-              <span className="text-sm text-gray-500 ml-1">vs previous period</span>
+              <span className="text-sm text-gray-500">Waiting for response</span>
+            </div>
+          </div>
+
+          <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Average Rating</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.avg_rating?.toFixed(1) || '0.0'}</p>
+              </div>
+              <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                <Star className="w-6 h-6 text-yellow-600" />
+              </div>
+            </div>
+            <div className="mt-2">
+              <span className="text-sm text-gray-500">Out of 5.0</span>
             </div>
           </div>
         </div>
 
-        {/* Top Performing Listings */}
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
-          <div className="p-6 border-b border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-800">Top Performing Listings</h3>
-            <p className="text-sm text-gray-600 mt-1">Your best performing listings this period</p>
+        {/* Additional Stats Row */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-medium text-gray-600">Conversion Rate</p>
+              <Target className="w-5 h-5 text-gray-400" />
+            </div>
+            <p className="text-2xl font-bold text-gray-900">{stats.conversion_rate?.toFixed(1) || 0}%</p>
+            <p className="text-xs text-gray-500 mt-1">Requests to listings ratio</p>
           </div>
-          <div className="p-6">
-            {listings.length > 0 ? (
-              <div className="space-y-4">
-                {listings.slice(0, 5).map((listing, index) => (
-                  <div key={listing.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                    <div className="flex items-center gap-4">
-                      <div className="w-8 h-8 bg-brand text-white rounded-full flex items-center justify-center text-sm font-semibold">
-                        {index + 1}
-                      </div>
-                      <div>
-                        <h4 className="font-medium text-gray-800">{listing.title}</h4>
-                        <p className="text-sm text-gray-600">{listing.category?.name || 'N/A'}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-6 text-sm">
-                      <div className="text-center">
-                        <p className="font-semibold text-gray-800">{listing.views || 0}</p>
-                        <p className="text-gray-600">Views</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="font-semibold text-gray-800">{listing.likes || 0}</p>
-                        <p className="text-gray-600">Likes</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="font-semibold text-gray-800">{listing.messages || 0}</p>
-                        <p className="text-gray-600">Messages</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <TrendingUp className="w-8 h-8 text-gray-400" />
-                </div>
-                <h4 className="text-lg font-semibold text-gray-800 mb-2">No Data Available</h4>
-                <p className="text-gray-600">Start creating listings to see your analytics here.</p>
-              </div>
-            )}
+
+          <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-medium text-gray-600">Total Broadcasts</p>
+              <Calendar className="w-5 h-5 text-gray-400" />
+            </div>
+            <p className="text-2xl font-bold text-gray-900">{stats.total_broadcasts || 0}</p>
+            <p className="text-xs text-gray-500 mt-1">
+              {stats.active_broadcasts || 0} active · {stats.broadcast_views || 0} views
+            </p>
+          </div>
+
+          <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-medium text-gray-600">Broadcast Responses</p>
+              <MessageCircle className="w-5 h-5 text-gray-400" />
+            </div>
+            <p className="text-2xl font-bold text-gray-900">{stats.broadcast_responses || 0}</p>
+            <p className="text-xs text-gray-500 mt-1">Total engagement</p>
           </div>
         </div>
 
-        {/* Quick Actions */}
-        <div className="mt-8 p-6 bg-gray-50 border border-gray-200 rounded-lg">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Quick Actions</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <button className="p-4 bg-white rounded-lg border border-gray-200 hover:border-brand transition-colors text-left">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <Eye className="w-5 h-5 text-blue-600" />
+        {/* Category Breakdown */}
+        {Object.keys(categoryBreakdown).length > 0 && (
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm mb-8">
+            <div className="p-6 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-800">Category Distribution</h3>
+              <p className="text-sm text-gray-600 mt-1">Listings by category</p>
+            </div>
+            <div className="p-6">
+              <div className="space-y-4">
+                {Object.entries(categoryBreakdown)
+                  .sort(([, a], [, b]) => b - a)
+                  .map(([category, count]) => {
+                    const total = Object.values(categoryBreakdown).reduce((sum, c) => sum + c, 0);
+                    const percentage = total > 0 ? (count / total) * 100 : 0;
+                    return (
+                      <div key={category}>
+                        <div className="flex justify-between text-sm mb-2">
+                          <span className="font-medium text-gray-800">{category}</span>
+                          <span className="text-gray-600">{count} listings ({percentage.toFixed(0)}%)</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div
+                            className="bg-brand h-2 rounded-full transition-all duration-300"
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Performance Trends */}
+        {trends && (
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
+            <div className="p-6 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-800">Performance Trends</h3>
+              <p className="text-sm text-gray-600 mt-1">
+                Last {trends.period_days || 30} days
+              </p>
+            </div>
+            <div className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="text-center p-4 bg-gray-50 rounded-lg">
+                  <p className="text-sm text-gray-600 mb-2">New Listings</p>
+                  <p className="text-3xl font-bold text-gray-900">{trends.new_listings || 0}</p>
+                  <p className="text-xs text-gray-500 mt-1">Added this period</p>
                 </div>
-                <div>
-                  <h4 className="font-medium text-gray-800">View All Listings</h4>
-                  <p className="text-sm text-gray-600">Manage your listings</p>
+                <div className="text-center p-4 bg-gray-50 rounded-lg">
+                  <p className="text-sm text-gray-600 mb-2">New Broadcasts</p>
+                  <p className="text-3xl font-bold text-gray-900">{trends.new_broadcasts || 0}</p>
+                  <p className="text-xs text-gray-500 mt-1">Created this period</p>
+                </div>
+                <div className="text-center p-4 bg-gray-50 rounded-lg">
+                  <p className="text-sm text-gray-600 mb-2">Total Views</p>
+                  <p className="text-3xl font-bold text-gray-900">{trends.current_total_views || 0}</p>
+                  <p className="text-xs text-gray-500 mt-1">Current total</p>
                 </div>
               </div>
-            </button>
-            
-            <button className="p-4 bg-white rounded-lg border border-gray-200 hover:border-brand transition-colors text-left">
+            </div>
+          </div>
+        )}
+
+        {/* Recent Activity Summary */}
+        <div className="mt-8 p-6 bg-gray-50 border border-gray-200 rounded-lg">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">Recent Activity (30 days)</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-4 bg-white rounded-lg border border-gray-200">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                  <TrendingUp className="w-5 h-5 text-green-600" />
+                  <ShoppingBag className="w-5 h-5 text-green-600" />
                 </div>
                 <div>
-                  <h4 className="font-medium text-gray-800">Create New Listing</h4>
-                  <p className="text-sm text-gray-600">Add more listings</p>
+                  <h4 className="font-medium text-gray-800">{stats.recent_listings_30d || 0} New Listings</h4>
+                  <p className="text-sm text-gray-600">Added in the last month</p>
                 </div>
               </div>
-            </button>
-            
-            <button className="p-4 bg-white rounded-lg border border-gray-200 hover:border-brand transition-colors text-left">
+            </div>
+
+            <div className="p-4 bg-white rounded-lg border border-gray-200">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                  <Users className="w-5 h-5 text-purple-600" />
+                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <MessageCircle className="w-5 h-5 text-blue-600" />
                 </div>
                 <div>
-                  <h4 className="font-medium text-gray-800">View Messages</h4>
-                  <p className="text-sm text-gray-600">Check customer inquiries</p>
+                  <h4 className="font-medium text-gray-800">{stats.pending_requests || 0} Pending Requests</h4>
+                  <p className="text-sm text-gray-600">Waiting for your response</p>
                 </div>
               </div>
-            </button>
+            </div>
           </div>
         </div>
       </div>

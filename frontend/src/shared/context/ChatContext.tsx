@@ -66,7 +66,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [typing, setTyping] = useState(false);
-  const [results] = useState<any[]>([]);
+  const [results, setResults] = useState<any[]>([]);  // ✅ Add setter for recommendations
   const [connectionStatus, setConnectionStatusState] = useState<ConnectionStatus>('disconnected');
   const [threadId, setThreadId] = useState<string | null>(() => localStorage.getItem('threadId'));
   const [wsCorrelationId] = useState<string | null>(null);
@@ -136,6 +136,16 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const fallbackId = fallbackRepliesRef.current.get(inReplyTo);
     const text = typeof frame.payload?.text === 'string' ? frame.payload.text : '';
     const ts = Date.now();
+
+    // ✅ Extract recommendations from rich payload
+    try {
+      const recommendations = (frame.payload as any)?.rich?.recommendations;
+      if (Array.isArray(recommendations) && recommendations.length > 0) {
+        setResults(recommendations);
+      }
+    } catch (e) {
+      // best-effort only
+    }
 
     if (fallbackId) {
       setMessages((prev) => prev.map((m) => (
@@ -254,9 +264,14 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const data = await response.json();
 
-      if (data.thread_id) {
-        localStorage.setItem('threadId', data.thread_id);
-        setThreadId(data.thread_id);
+      // Extract recommendations from HTTP response (same as WebSocket)
+      try {
+        const recommendations = data.recommendations;
+        if (Array.isArray(recommendations) && recommendations.length > 0) {
+          setResults(recommendations);
+        }
+      } catch (e) {
+        // best-effort only
       }
 
       if (await shouldUseHttpFallback()) {

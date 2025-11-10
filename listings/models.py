@@ -57,7 +57,15 @@ class Listing(models.Model):
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='listings', null=True, blank=True)
-    
+    seller = models.ForeignKey(
+        'SellerProfile',
+        on_delete=models.CASCADE,
+        related_name='listings',
+        null=True,
+        blank=True,
+        help_text='Business seller (if applicable)'
+    )
+
     # Basic info
     title = models.CharField(max_length=255, blank=True, default='')
     description = models.TextField(blank=True)
@@ -205,3 +213,71 @@ class Booking(models.Model):
 
         if self.is_short_term and (not self.check_in or not self.check_out):
             raise ValidationError("Short-term bookings require check-in and check-out dates.")
+
+
+class SellerProfile(models.Model):
+    """
+    Business seller profile for marketplace listings.
+    Enables verified businesses to manage multiple listings across categories.
+    """
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='seller_profile'
+    )
+    business_name = models.CharField(max_length=255)
+    verified = models.BooleanField(
+        default=False,
+        help_text='Whether this seller has been verified by admins'
+    )
+    rating = models.FloatField(
+        default=0.0,
+        help_text='Average rating from 0.0 to 5.0'
+    )
+    total_listings = models.PositiveIntegerField(
+        default=0,
+        help_text='Total number of active listings'
+    )
+    ai_agent_enabled = models.BooleanField(
+        default=True,
+        help_text='Whether AI agent can auto-respond to buyer requests'
+    )
+
+    # Contact information
+    phone = models.CharField(max_length=50, blank=True)
+    email = models.EmailField(blank=True)
+    website = models.URLField(blank=True)
+
+    # Metadata
+    description = models.TextField(blank=True)
+    logo_url = models.URLField(blank=True, null=True)
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['verified', '-rating']),
+            models.Index(fields=['user']),
+        ]
+
+    def __str__(self):
+        return f"{self.business_name} ({self.user.username})"
+
+    def increment_listing_count(self):
+        """Increment total listings counter"""
+        self.total_listings += 1
+        self.save(update_fields=['total_listings'])
+
+    def decrement_listing_count(self):
+        """Decrement total listings counter"""
+        if self.total_listings > 0:
+            self.total_listings -= 1
+            self.save(update_fields=['total_listings'])
+
+    def update_rating(self, new_rating):
+        """Update seller rating (simplified - in production use weighted average)"""
+        self.rating = new_rating
+        self.save(update_fields=['rating'])

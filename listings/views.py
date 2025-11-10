@@ -1,10 +1,16 @@
-from rest_framework import generics, permissions, status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework import generics, permissions, status, viewsets, filters
+from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.response import Response
 from django.db.models import Q
 from datetime import datetime
-from .models import Booking, Listing
-from .serializers import BookingSerializer, ListingSerializer
+from django_filters.rest_framework import DjangoFilterBackend
+from .models import Booking, Listing, SellerProfile
+from .serializers import (
+    BookingSerializer,
+    ListingSerializer,
+    SellerProfileSerializer,
+    SellerProfileCreateSerializer
+)
 
 
 class ShortTermBookingView(generics.CreateAPIView):
@@ -247,3 +253,68 @@ def user_bookings(request):
 
     serializer = BookingSerializer(bookings, many=True)
     return Response(serializer.data)
+
+
+class SellerProfileViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for seller profiles.
+
+    Endpoints:
+    - GET /api/sellers/ - List all sellers
+    - POST /api/sellers/ - Create seller profile
+    - GET /api/sellers/{id}/ - Get seller details
+    - PATCH /api/sellers/{id}/ - Update seller profile
+    - DELETE /api/sellers/{id}/ - Delete seller profile
+    - GET /api/sellers/me/ - Get current user's seller profile
+    """
+
+    queryset = SellerProfile.objects.all()
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter, DjangoFilterBackend]
+    search_fields = ['business_name', 'description']
+    ordering_fields = ['rating', 'created_at', 'total_listings']
+    filterset_fields = ['verified']
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return SellerProfileCreateSerializer
+        return SellerProfileSerializer
+
+    def get_queryset(self):
+        """Filter queryset based on permissions"""
+        queryset = super().get_queryset()
+
+        # Regular users can only see verified sellers
+        if not self.request.user.is_staff:
+            queryset = queryset.filter(verified=True)
+
+        return queryset
+
+    def perform_create(self, serializer):
+        """Create seller profile for current user"""
+        # Check if user already has a seller profile
+        if SellerProfile.objects.filter(user=self.request.user).exists():
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError("User already has a seller profile")
+
+        serializer.save(user=self.request.user)
+
+    def perform_update(self, serializer):
+        """Only allow users to update their own profile"""
+        if serializer.instance.user != self.request.user and not self.request.user.is_staff:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("You can only update your own seller profile")
+        serializer.save()
+
+    @action(detail=False, methods=['get'])
+    def me(self, request):
+        """Get current user's seller profile"""
+        try:
+            seller = SellerProfile.objects.get(user=request.user)
+            serializer = self.get_serializer(seller)
+            return Response(serializer.data)
+        except SellerProfile.DoesNotExist:
+            return Response(
+                {"detail": "You do not have a seller profile"},
+                status=status.HTTP_404_NOT_FOUND
+            )

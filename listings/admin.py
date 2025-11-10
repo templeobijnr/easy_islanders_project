@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Category, Subcategory, Listing, Image, Booking
+from .models import Category, Subcategory, Listing, Image, Booking, SellerProfile
 
 # Register your models here.
 @admin.register(Category)
@@ -86,3 +86,43 @@ class BookingAdmin(admin.ModelAdmin):
         if obj.total_price and obj.currency:
             return f"{obj.total_price} {obj.currency}"
         return "N/A"
+
+
+@admin.register(SellerProfile)
+class SellerProfileAdmin(admin.ModelAdmin):
+    """Admin interface for seller profiles"""
+
+    list_display = [
+        'business_name',
+        'user',
+        'verified',
+        'rating',
+        'total_listings',
+        'ai_agent_enabled',
+        'created_at',
+    ]
+    list_filter = ['verified', 'ai_agent_enabled', 'created_at']
+    search_fields = ['business_name', 'user__username', 'user__email', 'description']
+    readonly_fields = ['user', 'total_listings', 'created_at', 'updated_at']
+    date_hierarchy = 'created_at'
+
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('user', 'business_name', 'description')
+        }),
+        ('Status & Verification', {
+            'fields': ('verified', 'rating', 'total_listings', 'ai_agent_enabled')
+        }),
+        ('Contact Information', {
+            'fields': ('phone', 'email', 'website', 'logo_url')
+        }),
+        ('Metadata', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    def get_queryset(self, request):
+        """Optimize queryset with select_related"""
+        queryset = super().get_queryset(request)
+        return queryset.select_related('user')

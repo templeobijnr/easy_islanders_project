@@ -1,13 +1,19 @@
-from django.urls import path
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
 from .views import (
     ShortTermBookingView,
     LongTermBookingView,
     check_availability,
     booking_status_webhook,
     user_bookings,
+    SellerProfileViewSet,
 )
 
 app_name = 'listings'
+
+# Router for ViewSets
+router = DefaultRouter()
+router.register(r'sellers', SellerProfileViewSet, basename='seller')
 
 urlpatterns = [
     # Short-term booking endpoints
@@ -22,4 +28,7 @@ urlpatterns = [
 
     # Webhook for status updates
     path('bookings/status-webhook/', booking_status_webhook, name='booking-status-webhook'),
+
+    # Seller endpoints (router)
+    path('', include(router.urls)),
 ]

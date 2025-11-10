@@ -61,11 +61,10 @@ INSTALLED_APPS = [
 
     # Local apps - users must come before assistant
     'users',
-    'listings',
+    'listings',  # Universal marketplace (includes seller management)
     'assistant',
     'router_service',
     'real_estate',
-    'marketplace',  # Multi-domain marketplace
 ]
 
 MIDDLEWARE = [

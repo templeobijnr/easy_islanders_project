@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Booking, Listing
+from .models import Booking, Listing, SellerProfile
 from datetime import date
 
 
@@ -89,3 +89,51 @@ class ListingSerializer(serializers.ModelSerializer):
         if request and images:
             return [request.build_absolute_uri(image.image.url) for image in images]
         return []
+
+
+class SellerProfileSerializer(serializers.ModelSerializer):
+    """Serializer for seller profiles"""
+
+    username = serializers.CharField(source='user.username', read_only=True)
+    user_id = serializers.IntegerField(source='user.id', read_only=True)
+
+    class Meta:
+        model = SellerProfile
+        fields = [
+            'id',
+            'user',
+            'user_id',
+            'username',
+            'business_name',
+            'verified',
+            'rating',
+            'total_listings',
+            'ai_agent_enabled',
+            'phone',
+            'email',
+            'website',
+            'description',
+            'logo_url',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['user', 'user_id', 'username', 'verified', 'rating', 'total_listings', 'created_at', 'updated_at']
+
+
+class SellerProfileCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating seller profiles"""
+
+    class Meta:
+        model = SellerProfile
+        fields = [
+            'business_name',
+            'phone',
+            'email',
+            'website',
+            'description',
+            'logo_url',
+        ]
+
+    def create(self, validated_data):
+        # User is set in the view
+        return super().create(validated_data)

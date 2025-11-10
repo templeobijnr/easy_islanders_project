@@ -39,8 +39,7 @@ urlpatterns = [
     path('api/', include('users.urls')),
     path('api/', include('assistant.urls')),
     path('api/', include('router_service.urls')),
-    path('api/', include('listings.urls')),  # Bookings & listings API
-    path('api/v1/marketplace/', include('marketplace.urls')),  # Marketplace API
+    path('api/', include('listings.urls')),  # Bookings, listings & sellers API
 
     # Real Estate Search API
     path('api/v1/real_estate/search', listing_search, name='real-estate-search'),

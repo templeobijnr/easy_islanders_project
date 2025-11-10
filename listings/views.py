@@ -4,13 +4,19 @@ from rest_framework.response import Response
 from django.db.models import Q
 from datetime import datetime
 from django_filters.rest_framework import DjangoFilterBackend
-from .models import Booking, Listing, SellerProfile
+from .models import Booking, Listing, SellerProfile, BuyerRequest, BroadcastMessage
 from .serializers import (
     BookingSerializer,
     ListingSerializer,
     SellerProfileSerializer,
-    SellerProfileCreateSerializer
+    SellerProfileCreateSerializer,
+    BuyerRequestSerializer,
+    BuyerRequestCreateSerializer,
+    BroadcastMessageSerializer,
+    BroadcastMessageCreateSerializer,
+    SellerAnalyticsSerializer,
 )
+from .analytics import compute_dashboard_summary
 
 
 class ShortTermBookingView(generics.CreateAPIView):
@@ -318,3 +324,235 @@ class SellerProfileViewSet(viewsets.ModelViewSet):
                 {"detail": "You do not have a seller profile"},
                 status=status.HTTP_404_NOT_FOUND
             )
+
+
+class BuyerRequestViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for buyer requests.
+
+    Endpoints:
+    - GET /api/buyer-requests/ - List all buyer requests
+    - POST /api/buyer-requests/ - Create a new buyer request
+    - GET /api/buyer-requests/{id}/ - Get request details
+    - PATCH /api/buyer-requests/{id}/ - Update request (owner only)
+    - DELETE /api/buyer-requests/{id}/ - Delete request (owner only)
+    - GET /api/buyer-requests/my-requests/ - Get current user's requests
+    """
+
+    queryset = BuyerRequest.objects.all()
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter, DjangoFilterBackend]
+    search_fields = ['message', 'location']
+    ordering_fields = ['created_at', 'budget']
+    filterset_fields = ['category', 'is_fulfilled']
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return BuyerRequestCreateSerializer
+        return BuyerRequestSerializer
+
+    def get_queryset(self):
+        """Show unfulfilled requests to all, but only owner can see their fulfilled requests"""
+        queryset = super().get_queryset()
+
+        # If filtering by user's own requests
+        if self.action == 'my_requests':
+            return queryset.filter(buyer=self.request.user)
+
+        # Show unfulfilled requests to everyone (for sellers to browse)
+        # Staff can see all requests
+        if not self.request.user.is_staff:
+            queryset = queryset.filter(
+                Q(is_fulfilled=False) | Q(buyer=self.request.user)
+            )
+
+        return queryset.select_related('buyer', 'category').order_by('-created_at')
+
+    def perform_create(self, serializer):
+        """Create buyer request for current user"""
+        serializer.save(buyer=self.request.user)
+
+    def perform_update(self, serializer):
+        """Only allow users to update their own requests"""
+        if serializer.instance.buyer != self.request.user and not self.request.user.is_staff:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("You can only update your own requests")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        """Only allow users to delete their own requests"""
+        if instance.buyer != self.request.user and not self.request.user.is_staff:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("You can only delete your own requests")
+        instance.delete()
+
+    @action(detail=False, methods=['get'])
+    def my_requests(self, request):
+        """Get current user's buyer requests"""
+        requests = self.get_queryset().filter(buyer=request.user)
+        serializer = self.get_serializer(requests, many=True)
+        return Response(serializer.data)
+
+
+class BroadcastMessageViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for broadcast messages.
+
+    Endpoints:
+    - GET /api/broadcasts/ - List active broadcasts (public)
+    - POST /api/broadcasts/ - Create broadcast (sellers only)
+    - GET /api/broadcasts/{id}/ - Get broadcast details
+    - PATCH /api/broadcasts/{id}/ - Update broadcast (owner only)
+    - DELETE /api/broadcasts/{id}/ - Delete broadcast (owner only)
+    - GET /api/broadcasts/my-broadcasts/ - Get current seller's broadcasts
+    - POST /api/broadcasts/{id}/publish/ - Publish a draft broadcast
+    - POST /api/broadcasts/{id}/increment-view/ - Increment view count
+    """
+
+    queryset = BroadcastMessage.objects.all()
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter, DjangoFilterBackend]
+    search_fields = ['title', 'message']
+    ordering_fields = ['created_at', 'published_at', 'views_count']
+    filterset_fields = ['category', 'status', 'seller']
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return BroadcastMessageCreateSerializer
+        return BroadcastMessageSerializer
+
+    def get_queryset(self):
+        """Show active broadcasts to all, drafts only to owner"""
+        queryset = super().get_queryset()
+
+        # If filtering by user's own broadcasts
+        if self.action == 'my_broadcasts':
+            try:
+                seller = SellerProfile.objects.get(user=self.request.user)
+                return queryset.filter(seller=seller)
+            except SellerProfile.DoesNotExist:
+                return queryset.none()
+
+        # Regular users only see active broadcasts
+        # Staff and sellers can see their own drafts
+        if not self.request.user.is_staff:
+            try:
+                seller = SellerProfile.objects.get(user=self.request.user)
+                queryset = queryset.filter(
+                    Q(status='active') | Q(seller=seller)
+                )
+            except SellerProfile.DoesNotExist:
+                queryset = queryset.filter(status='active')
+
+        return queryset.select_related('seller', 'category').order_by('-published_at', '-created_at')
+
+    def perform_create(self, serializer):
+        """Create broadcast for current user's seller profile"""
+        try:
+            seller = SellerProfile.objects.get(user=self.request.user)
+            serializer.save(seller=seller)
+        except SellerProfile.DoesNotExist:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError("You must have a seller profile to create broadcasts")
+
+    def perform_update(self, serializer):
+        """Only allow sellers to update their own broadcasts"""
+        if serializer.instance.seller.user != self.request.user and not self.request.user.is_staff:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("You can only update your own broadcasts")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        """Only allow sellers to delete their own broadcasts"""
+        if instance.seller.user != self.request.user and not self.request.user.is_staff:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("You can only delete your own broadcasts")
+        instance.delete()
+
+    @action(detail=False, methods=['get'])
+    def my_broadcasts(self, request):
+        """Get current seller's broadcasts"""
+        try:
+            seller = SellerProfile.objects.get(user=request.user)
+            broadcasts = self.get_queryset().filter(seller=seller)
+            serializer = self.get_serializer(broadcasts, many=True)
+            return Response(serializer.data)
+        except SellerProfile.DoesNotExist:
+            return Response(
+                {"detail": "You do not have a seller profile"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+    @action(detail=True, methods=['post'])
+    def publish(self, request, pk=None):
+        """Publish a draft broadcast"""
+        broadcast = self.get_object()
+
+        # Check permissions
+        if broadcast.seller.user != request.user and not request.user.is_staff:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("You can only publish your own broadcasts")
+
+        if broadcast.status != 'draft':
+            return Response(
+                {"detail": "Only draft broadcasts can be published"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        broadcast.publish()
+        serializer = self.get_serializer(broadcast)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def increment_view(self, request, pk=None):
+        """Increment view count for a broadcast"""
+        broadcast = self.get_object()
+        broadcast.increment_views()
+        return Response({"views_count": broadcast.views_count})
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def seller_analytics(request):
+    """
+    Get comprehensive analytics for the current seller's dashboard.
+
+    GET /api/sellers/analytics/
+
+    Returns:
+    {
+        "stats": {
+            "total_views": 1234,
+            "total_listings": 15,
+            "active_listings": 12,
+            "pending_requests": 8,
+            "conversion_rate": 45.5,
+            "avg_rating": 4.5,
+            ...
+        },
+        "category_breakdown": {
+            "Real Estate": 8,
+            "Services": 5,
+            ...
+        },
+        "trends": {
+            "period_days": 30,
+            "new_listings": 3,
+            ...
+        },
+        "insights": [
+            "💡 Tip: Adding more listings increases visibility...",
+            ...
+        ]
+    }
+    """
+    try:
+        seller = SellerProfile.objects.get(user=request.user)
+        dashboard_data = compute_dashboard_summary(seller)
+        serializer = SellerAnalyticsSerializer(dashboard_data)
+        return Response(serializer.data)
+    except SellerProfile.DoesNotExist:
+        return Response(
+            {"detail": "You do not have a seller profile"},
+            status=status.HTTP_404_NOT_FOUND
+        )

@@ -7,6 +7,9 @@ from .views import (
     booking_status_webhook,
     user_bookings,
     SellerProfileViewSet,
+    BuyerRequestViewSet,
+    BroadcastMessageViewSet,
+    seller_analytics,
 )
 
 app_name = 'listings'
@@ -14,6 +17,8 @@ app_name = 'listings'
 # Router for ViewSets
 router = DefaultRouter()
 router.register(r'sellers', SellerProfileViewSet, basename='seller')
+router.register(r'buyer-requests', BuyerRequestViewSet, basename='buyer-request')
+router.register(r'broadcasts', BroadcastMessageViewSet, basename='broadcast')
 
 urlpatterns = [
     # Short-term booking endpoints
@@ -29,6 +34,9 @@ urlpatterns = [
     # Webhook for status updates
     path('bookings/status-webhook/', booking_status_webhook, name='booking-status-webhook'),
 
-    # Seller endpoints (router)
+    # Seller analytics endpoint
+    path('sellers/analytics/', seller_analytics, name='seller-analytics'),
+
+    # Seller, buyer requests, and broadcasts endpoints (router)
     path('', include(router.urls)),
 ]

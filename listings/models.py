@@ -281,3 +281,139 @@ class SellerProfile(models.Model):
         """Update seller rating (simplified - in production use weighted average)"""
         self.rating = new_rating
         self.save(update_fields=['rating'])
+
+
+class BuyerRequest(models.Model):
+    """
+    A request from a buyer for specific property/service requirements.
+    Example: "Looking for 2BR apartment in Kyrenia under €500/month"
+
+    Sellers can view and respond to relevant requests based on their categories.
+    """
+    buyer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='buyer_requests'
+    )
+    category = models.ForeignKey(
+        Category,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text='Category of request (real estate, services, etc.)'
+    )
+    message = models.TextField(help_text='Detailed request description')
+    location = models.CharField(max_length=128, blank=True)
+    budget = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='Maximum budget'
+    )
+    currency = models.CharField(max_length=10, default='EUR')
+
+    # Status tracking
+    is_fulfilled = models.BooleanField(
+        default=False,
+        help_text='Whether buyer found what they needed'
+    )
+    response_count = models.PositiveIntegerField(
+        default=0,
+        help_text='Number of seller responses received'
+    )
+
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['category', '-created_at']),
+            models.Index(fields=['buyer', '-created_at']),
+            models.Index(fields=['is_fulfilled']),
+        ]
+
+    def __str__(self):
+        preview = self.message[:50] + '...' if len(self.message) > 50 else self.message
+        return f"Request by {self.buyer.username}: {preview}"
+
+
+class BroadcastMessage(models.Model):
+    """
+    Promotional or informational broadcast created by sellers.
+    Can target specific audiences based on location, category, etc.
+
+    Example: "New luxury apartments available in Kyrenia Marina"
+    """
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('active', 'Active'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
+    ]
+
+    seller = models.ForeignKey(
+        SellerProfile,
+        on_delete=models.CASCADE,
+        related_name='broadcasts'
+    )
+    title = models.CharField(max_length=255)
+    message = models.TextField()
+    category = models.ForeignKey(
+        Category,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text='Category this broadcast relates to'
+    )
+
+    # Targeting
+    target_audience = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='Filters for targeting, e.g. {"city": "Kyrenia", "budget_min": 500}'
+    )
+
+    # Status and metrics
+    status = models.CharField(
+        max_length=32,
+        choices=STATUS_CHOICES,
+        default='draft'
+    )
+    views_count = models.PositiveIntegerField(default=0)
+    response_count = models.PositiveIntegerField(default=0)
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    published_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['seller', 'status']),
+            models.Index(fields=['category', 'status']),
+            models.Index(fields=['-published_at']),
+        ]
+
+    def __str__(self):
+        return f"Broadcast by {self.seller.business_name}: {self.title}"
+
+    def publish(self):
+        """Publish the broadcast"""
+        from django.utils import timezone
+        self.status = 'active'
+        self.published_at = timezone.now()
+        self.save(update_fields=['status', 'published_at'])
+
+    def increment_views(self):
+        """Increment view counter"""
+        self.views_count += 1
+        self.save(update_fields=['views_count'])
+
+    def increment_responses(self):
+        """Increment response counter"""
+        self.response_count += 1
+        self.save(update_fields=['response_count'])

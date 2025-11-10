@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Category, Subcategory, Listing, Image, Booking, SellerProfile
+from .models import Category, Subcategory, Listing, Image, Booking, SellerProfile, BuyerRequest, BroadcastMessage
 
 # Register your models here.
 @admin.register(Category)
@@ -126,3 +126,92 @@ class SellerProfileAdmin(admin.ModelAdmin):
         """Optimize queryset with select_related"""
         queryset = super().get_queryset(request)
         return queryset.select_related('user')
+
+
+@admin.register(BuyerRequest)
+class BuyerRequestAdmin(admin.ModelAdmin):
+    """Admin interface for buyer requests"""
+
+    list_display = [
+        'id',
+        'buyer',
+        'category',
+        'location',
+        'budget_display',
+        'is_fulfilled',
+        'response_count',
+        'created_at',
+    ]
+    list_filter = ['category', 'is_fulfilled', 'created_at', 'currency']
+    search_fields = ['buyer__username', 'buyer__email', 'message', 'location']
+    readonly_fields = ['buyer', 'response_count', 'created_at', 'updated_at']
+    date_hierarchy = 'created_at'
+
+    fieldsets = (
+        ('Request Information', {
+            'fields': ('buyer', 'category', 'message', 'location')
+        }),
+        ('Budget', {
+            'fields': ('budget', 'currency')
+        }),
+        ('Status', {
+            'fields': ('is_fulfilled', 'response_count')
+        }),
+        ('Metadata', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    @admin.display(description='Budget')
+    def budget_display(self, obj):
+        if obj.budget and obj.currency:
+            return f"{obj.budget} {obj.currency}"
+        return "N/A"
+
+    def get_queryset(self, request):
+        """Optimize queryset with select_related"""
+        queryset = super().get_queryset(request)
+        return queryset.select_related('buyer', 'category')
+
+
+@admin.register(BroadcastMessage)
+class BroadcastMessageAdmin(admin.ModelAdmin):
+    """Admin interface for broadcast messages"""
+
+    list_display = [
+        'title',
+        'seller',
+        'category',
+        'status',
+        'views_count',
+        'response_count',
+        'published_at',
+        'created_at',
+    ]
+    list_filter = ['status', 'category', 'created_at', 'published_at']
+    search_fields = ['title', 'message', 'seller__business_name']
+    readonly_fields = ['seller', 'views_count', 'response_count', 'created_at', 'updated_at', 'published_at']
+    date_hierarchy = 'created_at'
+
+    fieldsets = (
+        ('Broadcast Information', {
+            'fields': ('seller', 'title', 'message', 'category')
+        }),
+        ('Targeting', {
+            'fields': ('target_audience',),
+            'description': 'JSON filters for targeting, e.g. {"city": "Kyrenia", "budget_min": 500}'
+        }),
+        ('Status & Metrics', {
+            'fields': ('status', 'views_count', 'response_count')
+        }),
+        ('Metadata', {
+            'fields': ('created_at', 'updated_at', 'published_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    def get_queryset(self, request):
+        """Optimize queryset with select_related"""
+        queryset = super().get_queryset(request)
+        return queryset.select_related('seller', 'category')

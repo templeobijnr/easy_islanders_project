@@ -11,8 +11,8 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
 
-    /* Brand lime green as primary */
-    --primary: 103 59% 53%;  /* #6CC24A */
+    /* Brand lime green as primary - #6CC24A */
+    --primary: 103 59% 53%;
     --primary-foreground: 0 0% 100%;
 
     --secondary: 210 40% 96.1%;
@@ -27,11 +27,24 @@
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
+    /* Success and warning colors for listings/bookings */
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 103 59% 53%;  /* Match brand color */
+    --ring: 103 59% 53%;
 
-    --radius: 1.25rem;  /* Match your 2xl default */
+    --radius: 1.25rem;
+
+    /* Chart colors for analytics/dashboard */
+    --chart-1: 103 59% 53%;  /* Brand lime */
+    --chart-2: 173 58% 39%;  /* Teal for rentals */
+    --chart-3: 197 37% 24%;  /* Dark blue for sales */
+    --chart-4: 43 74% 66%;   /* Yellow for pending */
+    --chart-5: 27 87% 67%;   /* Orange for services */
   }
 
   .dark {
@@ -58,9 +71,22 @@
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
 
+    /* Success and warning in dark mode */
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 103 59% 53%;
+
+    /* Chart colors in dark mode */
+    --chart-1: 103 59% 53%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
   }
 }
 

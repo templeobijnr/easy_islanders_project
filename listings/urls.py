@@ -8,8 +8,6 @@ from .views import (
     user_bookings,
     update_booking,
     SellerProfileViewSet,
-    BuyerRequestViewSet,
-    BroadcastMessageViewSet,
     seller_analytics,
     my_listings,
     categories_list,
@@ -21,8 +19,6 @@ app_name = 'listings'
 # Router for ViewSets
 router = DefaultRouter()
 router.register(r'sellers', SellerProfileViewSet, basename='seller')
-router.register(r'buyer-requests', BuyerRequestViewSet, basename='buyer-request')
-router.register(r'broadcasts', BroadcastMessageViewSet, basename='broadcast')
 
 urlpatterns = [
     # Short-term booking endpoints

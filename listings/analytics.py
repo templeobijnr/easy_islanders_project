@@ -7,7 +7,7 @@ for business sellers using the platform.
 from django.db.models import Count, Sum, Q, Avg
 from django.utils import timezone
 from datetime import timedelta
-from .models import Listing, BuyerRequest, BroadcastMessage, SellerProfile
+from .models import Listing, SellerProfile
 
 
 def compute_seller_stats(seller):
@@ -33,9 +33,7 @@ def compute_seller_stats(seller):
     # Buyer requests in seller's categories
     # Note: Assumes SellerProfile has a 'categories' M2M or similar
     # For now, count all unfulfilled requests as potential opportunities
-    pending_requests = BuyerRequest.objects.filter(
-        is_fulfilled=False
-    ).count()
+    pending_requests = 0  # Placeholder until buyer requests are re-implemented
 
     # Broadcasts statistics
     broadcasts = BroadcastMessage.objects.filter(seller=seller)

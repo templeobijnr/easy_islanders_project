@@ -1,16 +1,16 @@
 from django.contrib import admin
-from .models import Category, Subcategory, Listing, Image, Booking, SellerProfile, BuyerRequest, BroadcastMessage
+from .models import Category, SubCategory, Listing, ListingImage, Booking, SellerProfile
 
 # Register your models here.
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
-    list_display = ('name', 'slug', 'is_featured_category', 'display_order')
-    list_editable = ('is_featured_category', 'display_order')
+    list_display = ('name', 'slug', 'is_bookable', 'is_active')
+    list_editable = ('is_bookable', 'is_active')
     prepopulated_fields = {'slug': ('name',)}
 
-@admin.register(Subcategory)
-class SubcategoryAdmin(admin.ModelAdmin):
-    list_display = ('name', 'slug', 'category', 'display_order')
+@admin.register(SubCategory)
+class SubCategoryAdmin(admin.ModelAdmin):
+    list_display = ('name', 'slug', 'category')
     list_filter = ('category',)
     prepopulated_fields = {'slug': ('name',)}
 
@@ -47,33 +47,29 @@ class ListingAdmin(admin.ModelAdmin):
             return obj.price
         return "N/A"
 
-@admin.register(Image)
-class ImageAdmin(admin.ModelAdmin):
+@admin.register(ListingImage)
+class ListingImageAdmin(admin.ModelAdmin):
     list_display = ('listing', 'image', 'uploaded_at')
     list_filter = ('listing',)
 
 
 @admin.register(Booking)
 class BookingAdmin(admin.ModelAdmin):
-    list_display = ('id', 'listing', 'user', 'booking_type', 'check_in', 'check_out', 'status', 'total_price_display', 'created_at')
-    list_filter = ('booking_type', 'status', 'created_at')
-    search_fields = ('user__username', 'listing__title', 'notes')
-    readonly_fields = ('id', 'created_at', 'updated_at', 'duration_days')
+    list_display = ('id', 'listing', 'user', 'start_date', 'end_date', 'status', 'total_price_display', 'created_at')
+    list_filter = ('status', 'created_at')
+    search_fields = ('user__username', 'listing__title')
+    readonly_fields = ('id', 'created_at', 'updated_at')
     date_hierarchy = 'created_at'
 
     fieldsets = (
         ('Booking Information', {
-            'fields': ('user', 'listing', 'booking_type', 'status')
+            'fields': ('user', 'listing', 'status')
         }),
         ('Dates', {
-            'fields': ('check_in', 'check_out', 'duration_days')
+            'fields': ('start_date', 'end_date')
         }),
         ('Payment', {
             'fields': ('total_price', 'currency')
-        }),
-        ('Additional Information', {
-            'fields': ('notes',),
-            'classes': ('collapse',)
         }),
         ('Metadata', {
             'fields': ('id', 'created_at', 'updated_at'),
@@ -128,90 +124,3 @@ class SellerProfileAdmin(admin.ModelAdmin):
         return queryset.select_related('user')
 
 
-@admin.register(BuyerRequest)
-class BuyerRequestAdmin(admin.ModelAdmin):
-    """Admin interface for buyer requests"""
-
-    list_display = [
-        'id',
-        'buyer',
-        'category',
-        'location',
-        'budget_display',
-        'is_fulfilled',
-        'response_count',
-        'created_at',
-    ]
-    list_filter = ['category', 'is_fulfilled', 'created_at', 'currency']
-    search_fields = ['buyer__username', 'buyer__email', 'message', 'location']
-    readonly_fields = ['buyer', 'response_count', 'created_at', 'updated_at']
-    date_hierarchy = 'created_at'
-
-    fieldsets = (
-        ('Request Information', {
-            'fields': ('buyer', 'category', 'message', 'location')
-        }),
-        ('Budget', {
-            'fields': ('budget', 'currency')
-        }),
-        ('Status', {
-            'fields': ('is_fulfilled', 'response_count')
-        }),
-        ('Metadata', {
-            'fields': ('created_at', 'updated_at'),
-            'classes': ('collapse',)
-        }),
-    )
-
-    @admin.display(description='Budget')
-    def budget_display(self, obj):
-        if obj.budget and obj.currency:
-            return f"{obj.budget} {obj.currency}"
-        return "N/A"
-
-    def get_queryset(self, request):
-        """Optimize queryset with select_related"""
-        queryset = super().get_queryset(request)
-        return queryset.select_related('buyer', 'category')
-
-
-@admin.register(BroadcastMessage)
-class BroadcastMessageAdmin(admin.ModelAdmin):
-    """Admin interface for broadcast messages"""
-
-    list_display = [
-        'title',
-        'seller',
-        'category',
-        'status',
-        'views_count',
-        'response_count',
-        'published_at',
-        'created_at',
-    ]
-    list_filter = ['status', 'category', 'created_at', 'published_at']
-    search_fields = ['title', 'message', 'seller__business_name']
-    readonly_fields = ['seller', 'views_count', 'response_count', 'created_at', 'updated_at', 'published_at']
-    date_hierarchy = 'created_at'
-
-    fieldsets = (
-        ('Broadcast Information', {
-            'fields': ('seller', 'title', 'message', 'category')
-        }),
-        ('Targeting', {
-            'fields': ('target_audience',),
-            'description': 'JSON filters for targeting, e.g. {"city": "Kyrenia", "budget_min": 500}'
-        }),
-        ('Status & Metrics', {
-            'fields': ('status', 'views_count', 'response_count')
-        }),
-        ('Metadata', {
-            'fields': ('created_at', 'updated_at', 'published_at'),
-            'classes': ('collapse',)
-        }),
-    )
-
-    def get_queryset(self, request):
-        """Optimize queryset with select_related"""
-        queryset = super().get_queryset(request)
-        return queryset.select_related('seller', 'category')

@@ -1,21 +1,7 @@
 // Frontend configuration for Easy Islanders
 const config = {
-  // API Configuration - Try port 8001 first, fallback to 8000
-  API_BASE_URL: process.env.REACT_APP_API_URL || (function() {
-    // Check if port 8001 is available, otherwise use 8000
-    const checkPort = (port) => {
-      try {
-        const xhr = new XMLHttpRequest();
-        xhr.open('GET', `http://127.0.0.1:${port}/api/categories/`, false);
-        xhr.send();
-        return xhr.status === 200;
-      } catch (e) {
-        return false;
-      }
-    };
-
-    return checkPort(8001) ? 'http://127.0.0.1:8001' : 'http://127.0.0.1:8000';
-  })(),
+  // API Configuration - Django server is running on port 8001
+  API_BASE_URL: process.env.REACT_APP_API_URL || 'http://127.0.0.1:8001',
   
   // Environment
   NODE_ENV: process.env.NODE_ENV || 'development',

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Booking, Listing, SellerProfile, BuyerRequest, BroadcastMessage
+from .models import Booking, Listing, SellerProfile
 from datetime import date
 
 
@@ -139,112 +139,6 @@ class SellerProfileCreateSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 
-class BuyerRequestSerializer(serializers.ModelSerializer):
-    """Serializer for buyer requests"""
-
-    buyer_username = serializers.CharField(source='buyer.username', read_only=True)
-    category_name = serializers.CharField(source='category.name', read_only=True)
-
-    class Meta:
-        model = BuyerRequest
-        fields = [
-            'id',
-            'buyer',
-            'buyer_username',
-            'category',
-            'category_name',
-            'message',
-            'location',
-            'budget',
-            'currency',
-            'is_fulfilled',
-            'response_count',
-            'created_at',
-            'updated_at',
-        ]
-        read_only_fields = ['id', 'buyer', 'buyer_username', 'response_count', 'created_at', 'updated_at']
-
-
-class BuyerRequestCreateSerializer(serializers.ModelSerializer):
-    """Serializer for creating buyer requests"""
-
-    class Meta:
-        model = BuyerRequest
-        fields = [
-            'category',
-            'message',
-            'location',
-            'budget',
-            'currency',
-        ]
-
-    def validate_message(self, value):
-        """Ensure message is not empty"""
-        if not value.strip():
-            raise serializers.ValidationError("Request message cannot be empty.")
-        return value
-
-
-class BroadcastMessageSerializer(serializers.ModelSerializer):
-    """Serializer for broadcast messages"""
-
-    seller_business_name = serializers.CharField(source='seller.business_name', read_only=True)
-    category_name = serializers.CharField(source='category.name', read_only=True)
-
-    class Meta:
-        model = BroadcastMessage
-        fields = [
-            'id',
-            'seller',
-            'seller_business_name',
-            'title',
-            'message',
-            'category',
-            'category_name',
-            'target_audience',
-            'status',
-            'views_count',
-            'response_count',
-            'created_at',
-            'updated_at',
-            'published_at',
-        ]
-        read_only_fields = [
-            'id',
-            'seller',
-            'seller_business_name',
-            'views_count',
-            'response_count',
-            'created_at',
-            'updated_at',
-            'published_at',
-        ]
-
-
-class BroadcastMessageCreateSerializer(serializers.ModelSerializer):
-    """Serializer for creating broadcast messages"""
-
-    class Meta:
-        model = BroadcastMessage
-        fields = [
-            'title',
-            'message',
-            'category',
-            'target_audience',
-            'status',
-        ]
-
-    def validate_title(self, value):
-        """Ensure title is not empty"""
-        if not value.strip():
-            raise serializers.ValidationError("Broadcast title cannot be empty.")
-        return value
-
-    def validate_message(self, value):
-        """Ensure message is not empty"""
-        if not value.strip():
-            raise serializers.ValidationError("Broadcast message cannot be empty.")
-        return value
 
 
 class SellerAnalyticsSerializer(serializers.Serializer):

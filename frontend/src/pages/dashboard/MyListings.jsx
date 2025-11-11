@@ -20,6 +20,9 @@ import {
   Calendar,
   DollarSign
 } from 'lucide-react';
+import { CATEGORY_DESIGN, getAllCategories } from '../../lib/categoryDesign';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../components/ui/tabs';
+import { Badge } from '../../components/ui/badge';
 import EditListingModal from '../../components/modals/EditListingModal';
 import DeleteConfirmModal from '../../components/modals/DeleteConfirmModal';
 import PublishActionModal from '../../components/modals/PublishActionModal';
@@ -32,6 +35,7 @@ const MyListings = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState('all'); // all, published, draft
+  const [categoryFilter, setCategoryFilter] = useState('all'); // all, or category slug
   const [sortBy, setSortBy] = useState('newest');
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState('grid'); // grid or table
@@ -76,13 +80,18 @@ const MyListings = () => {
       (filter === 'published' && listing.status === 'published') ||
       (filter === 'draft' && listing.status === 'draft');
 
+    const matchesCategory =
+      categoryFilter === 'all' ||
+      listing.category?.slug === categoryFilter ||
+      listing.category?.name?.toLowerCase().replace(/\s+/g, '-') === categoryFilter;
+
     const matchesSearch =
       !searchQuery ||
       listing.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       listing.category?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       listing.location?.toLowerCase().includes(searchQuery.toLowerCase());
 
-    return matchesFilter && matchesSearch;
+    return matchesFilter && matchesCategory && matchesSearch;
   });
 
   // Sort listings
@@ -295,11 +304,59 @@ const MyListings = () => {
           </motion.div>
         </motion.div>
 
-        {/* Filters & Search */}
+        {/* Category Filter Tabs */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
+          className="mb-6"
+        >
+          <Tabs value={categoryFilter} onValueChange={setCategoryFilter} className="w-full">
+            <TabsList className="w-full justify-start overflow-x-auto bg-slate-100 p-1.5 rounded-xl">
+              <TabsTrigger value="all" className="flex items-center gap-2 px-4">
+                <Package className="w-4 h-4" />
+                <span>All Categories</span>
+                <Badge variant="secondary" className="ml-1 bg-slate-200 text-slate-700">
+                  {listings.length}
+                </Badge>
+              </TabsTrigger>
+
+              {getAllCategories().map((category) => {
+                const Icon = category.icon;
+                const categoryListings = listings.filter(
+                  (l) => l.category?.slug === category.slug ||
+                         l.category?.name?.toLowerCase().replace(/\s+/g, '-') === category.slug
+                );
+                const count = categoryListings.length;
+
+                if (count === 0) return null;
+
+                return (
+                  <TabsTrigger
+                    key={category.slug}
+                    value={category.slug}
+                    className="flex items-center gap-2 px-4"
+                  >
+                    <Icon className="w-4 h-4" />
+                    <span>{category.name}</span>
+                    <Badge
+                      variant="secondary"
+                      className={`ml-1 ${category.badgeBg} ${category.badgeText}`}
+                    >
+                      {count}
+                    </Badge>
+                  </TabsTrigger>
+                );
+              })}
+            </TabsList>
+          </Tabs>
+        </motion.div>
+
+        {/* Filters & Search */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
           className="bg-white border border-slate-200 rounded-2xl p-6 mb-6 shadow-sm"
         >
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

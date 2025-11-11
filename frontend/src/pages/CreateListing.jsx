@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Car, ShoppingBag, Building2, Briefcase,
   ChevronRight, Upload, MapPin, DollarSign, Image as ImageIcon,
-  Check, X, Sparkles, AlertCircle, Loader2, Home, Lock
+  Check, X, Sparkles, AlertCircle, Loader2, Home, Lock, UtensilsCrossed, Waves
 } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext'; // Import useAuth
 import config from '../config';
+import { CATEGORY_DESIGN } from '../lib/categoryDesign';
 
 const CreateListingPage = () => {
   // Use global auth state
@@ -81,21 +83,14 @@ const CreateListingPage = () => {
 
   const t = translations[selectedLanguage] || translations.en;
 
+  // Enhanced category icon map with proper icons
   const categoryIconMap = {
     'car-rental': Car,
     'accommodation': Building2,
     'activities': Sparkles,
-    'dining': Briefcase,
-    'beaches': Home, // Placeholder
+    'dining': UtensilsCrossed,
+    'beaches': Waves,
   };
-
-  // const categoryColorMap = {
-  //   'car-rental': 'from-orange-500 to-pink-600',
-  //   'accommodation': 'from-violet-500 to-purple-600',
-  //   'activities': 'from-cyan-500 to-blue-600',
-  //   'dining': 'from-emerald-500 to-teal-600',
-  //   'beaches': 'from-yellow-500 to-amber-600',
-  // };
 
   useEffect(() => {
     // Fetch categories only if user is a business user
@@ -288,33 +283,130 @@ const CreateListingPage = () => {
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                  {categories.map((category) => {
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-8"
+                >
+                  {categories.map((category, index) => {
                     const IconComponent = categoryIconMap[category.slug] || ShoppingBag;
                     const isSelected = selectedCategory?.id === category.id;
+
+                    // Get category design from our system
+                    const categoryDesign = CATEGORY_DESIGN[category.slug];
+                    const gradient = categoryDesign?.gradient || 'from-gray-500 to-gray-600';
+                    const gradientLight = categoryDesign?.gradientLight || 'from-gray-50 to-gray-100';
+                    const description = categoryDesign?.description || 'Explore this category';
+
                     return (
-                      <button 
-                        key={category.id} 
-                        onClick={() => handleCategorySelect(category)} 
-                        className={`bg-white rounded-2xl p-6 border-2 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 ${isSelected ? 'border-brand shadow-lg' : 'border-gray-100'}`}
+                      <motion.button
+                        key={category.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.1 }}
+                        whileHover={{ y: -8, scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => handleCategorySelect(category)}
+                        className={`relative overflow-hidden rounded-3xl p-8 transition-all duration-300 ${
+                          isSelected
+                            ? `bg-gradient-to-br ${gradient} shadow-2xl border-2 border-white`
+                            : `bg-gradient-to-br ${gradientLight} border-2 border-gray-200 hover:border-gray-300`
+                        }`}
                       >
-                        <IconComponent className="w-8 h-8 text-brand mb-4" />
-                        <h3 className="text-xl font-bold text-gray-800 text-left">{category.name}</h3>
-                      </button>
+                        {/* Animated background effect */}
+                        <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-0 hover:opacity-100 transition-opacity" />
+
+                        <div className="relative z-10">
+                          {/* Icon */}
+                          <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 ${
+                            isSelected
+                              ? 'bg-white/20 backdrop-blur'
+                              : `bg-gradient-to-br ${gradient}`
+                          }`}>
+                            <IconComponent className={`w-9 h-9 ${isSelected ? 'text-white' : 'text-white'}`} />
+                          </div>
+
+                          {/* Category Name */}
+                          <h3 className={`text-2xl font-bold mb-2 text-left ${
+                            isSelected ? 'text-white' : 'text-gray-900'
+                          }`}>
+                            {category.name}
+                          </h3>
+
+                          {/* Description */}
+                          <p className={`text-sm text-left ${
+                            isSelected ? 'text-white/90' : 'text-gray-600'
+                          }`}>
+                            {description}
+                          </p>
+
+                          {/* Selection Indicator */}
+                          <AnimatePresence>
+                            {isSelected && (
+                              <motion.div
+                                initial={{ scale: 0, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                exit={{ scale: 0, opacity: 0 }}
+                                transition={{ type: "spring", stiffness: 500, damping: 25 }}
+                                className="absolute top-4 right-4 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-lg"
+                              >
+                                <Check className="w-5 h-5 text-green-600" />
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      </motion.button>
                     );
                   })}
-                </div>
+                </motion.div>
                 {selectedCategory && (
-                  <div className="bg-white rounded-2xl p-8 border border-gray-100">
-                    <h3 className="text-xl font-bold text-gray-800 mb-6">{t.selectSubcategory}</h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                      {subcategories.map((subcategory) => (
-                        <button key={subcategory.id} onClick={() => handleSubcategorySelect(subcategory)} className="bg-gray-50 border border-gray-200 rounded-xl p-4 hover:border-brand transition-all">
-                          <p className="text-gray-800 font-semibold text-center">{subcategory.name}</p>
-                        </button>
-                      ))}
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 }}
+                    className="bg-white rounded-3xl p-8 border-2 border-gray-200 shadow-lg"
+                  >
+                    {/* Subcategory Header */}
+                    <div className="mb-6">
+                      <h3 className="text-2xl font-bold text-gray-900 mb-2">{t.selectSubcategory}</h3>
+                      <p className="text-gray-600">Choose a specific type for your {selectedCategory.name.toLowerCase()} listing</p>
                     </div>
-                  </div>
+
+                    {/* Subcategory Pills */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                      {subcategories.map((subcategory, index) => {
+                        const categoryDesign = CATEGORY_DESIGN[selectedCategory.slug];
+                        const gradient = categoryDesign?.gradient || 'from-gray-500 to-gray-600';
+                        const borderColor = categoryDesign?.borderColor || 'border-gray-300';
+
+                        return (
+                          <motion.button
+                            key={subcategory.id}
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ delay: 0.4 + index * 0.05 }}
+                            whileHover={{ scale: 1.05, y: -2 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => handleSubcategorySelect(subcategory)}
+                            className={`relative group bg-gradient-to-br from-white to-gray-50 border-2 ${borderColor} rounded-xl p-4 hover:shadow-lg transition-all overflow-hidden`}
+                          >
+                            {/* Hover gradient overlay */}
+                            <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-0 group-hover:opacity-10 transition-opacity`} />
+
+                            {/* Content */}
+                            <div className="relative z-10">
+                              <p className="text-gray-900 font-semibold text-center text-sm">
+                                {subcategory.name}
+                              </p>
+                            </div>
+
+                            {/* Animated border on hover */}
+                            <div className={`absolute inset-0 rounded-xl border-2 border-transparent group-hover:border-current transition-colors`} style={{ color: categoryDesign?.accentColor || '#6CC24A' }} />
+                          </motion.button>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
                 )}
               </>
             )}

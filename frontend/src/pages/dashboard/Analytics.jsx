@@ -1,6 +1,8 @@
-import React from 'react';
-import { TrendingUp, Eye, ShoppingBag, MessageCircle, Star, Award, Calendar, Target } from 'lucide-react';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { TrendingUp, Eye, ShoppingBag, MessageCircle, Star, Award, Calendar, Target, Sparkles } from 'lucide-react';
 import { useSellerAnalytics } from '../../hooks/useSellerDashboard';
+import { CATEGORY_DESIGN, getCategoryIcon, getCategoryGradient } from '../../lib/categoryDesign';
 
 const Analytics = () => {
   const { analytics, loading, error, refetch } = useSellerAnalytics();
@@ -11,7 +13,12 @@ const Analytics = () => {
         <h1 className="text-2xl font-bold text-slate-900 mb-2">Analytics</h1>
         <p className="text-slate-600 mb-8">Track your business performance</p>
         <div className="flex items-center justify-center py-12">
-          <p className="text-slate-600">Loading analytics...</p>
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+          >
+            <TrendingUp className="w-8 h-8 text-lime-600" />
+          </motion.div>
         </div>
       </div>
     );
@@ -62,85 +69,158 @@ const Analytics = () => {
       <div>
         {/* AI Insights */}
         {insights.length > 0 && (
-          <div className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="mb-6 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 border border-blue-200 rounded-xl p-6 shadow-sm"
+          >
             <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-              <Award className="w-5 h-5 text-blue-600" />
+              <motion.div
+                animate={{ rotate: [0, 10, -10, 0] }}
+                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+              >
+                <Sparkles className="w-5 h-5 text-blue-600" />
+              </motion.div>
               AI-Powered Insights
             </h3>
             <div className="space-y-2">
               {insights.map((insight, index) => (
-                <p key={index} className="text-gray-700">
+                <motion.p
+                  key={index}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  className="text-gray-700"
+                >
                   {insight}
-                </p>
+                </motion.p>
               ))}
             </div>
-          </div>
+          </motion.div>
         )}
 
         {/* Key Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ staggerChildren: 0.1 }}
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            whileHover={{ y: -4, scale: 1.02 }}
+            transition={{ type: "spring", stiffness: 400, damping: 17 }}
+            className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-xl border border-blue-200 shadow-sm cursor-pointer"
+          >
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Total Views</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.total_views || 0}</p>
+                <p className="text-sm font-medium text-blue-700">Total Views</p>
+                <motion.p
+                  initial={{ scale: 0.5 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: "spring", stiffness: 300 }}
+                  className="text-3xl font-bold text-blue-900 mt-1"
+                >
+                  {stats.total_views || 0}
+                </motion.p>
               </div>
-              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                <Eye className="w-6 h-6 text-blue-600" />
+              <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
+                <Eye className="w-7 h-7 text-white" />
               </div>
             </div>
-            <div className="mt-2">
-              <span className="text-sm text-gray-500">Across all listings</span>
+            <div className="mt-3">
+              <span className="text-xs text-blue-600 font-medium">Across all listings</span>
             </div>
-          </div>
+          </motion.div>
 
-          <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            whileHover={{ y: -4, scale: 1.02 }}
+            className="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-xl border border-green-200 shadow-sm cursor-pointer"
+          >
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Total Listings</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.total_listings || 0}</p>
+                <p className="text-sm font-medium text-green-700">Total Listings</p>
+                <motion.p
+                  initial={{ scale: 0.5 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: "spring", stiffness: 300, delay: 0.1 }}
+                  className="text-3xl font-bold text-green-900 mt-1"
+                >
+                  {stats.total_listings || 0}
+                </motion.p>
               </div>
-              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                <ShoppingBag className="w-6 h-6 text-green-600" />
+              <div className="w-14 h-14 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg">
+                <ShoppingBag className="w-7 h-7 text-white" />
               </div>
             </div>
-            <div className="mt-2">
-              <span className="text-sm text-green-600 font-medium">
+            <div className="mt-3">
+              <span className="text-xs text-green-600 font-semibold">
                 {stats.active_listings || 0} active
               </span>
             </div>
-          </div>
+          </motion.div>
 
-          <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            whileHover={{ y: -4, scale: 1.02 }}
+            className="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-xl border border-purple-200 shadow-sm cursor-pointer"
+          >
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Pending Requests</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.pending_requests || 0}</p>
+                <p className="text-sm font-medium text-purple-700">Pending Requests</p>
+                <motion.p
+                  initial={{ scale: 0.5 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: "spring", stiffness: 300, delay: 0.2 }}
+                  className="text-3xl font-bold text-purple-900 mt-1"
+                >
+                  {stats.pending_requests || 0}
+                </motion.p>
               </div>
-              <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                <MessageCircle className="w-6 h-6 text-purple-600" />
+              <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+                <MessageCircle className="w-7 h-7 text-white" />
               </div>
             </div>
-            <div className="mt-2">
-              <span className="text-sm text-gray-500">Waiting for response</span>
+            <div className="mt-3">
+              <span className="text-xs text-purple-600 font-medium">Waiting for response</span>
             </div>
-          </div>
+          </motion.div>
 
-          <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            whileHover={{ y: -4, scale: 1.02 }}
+            className="bg-gradient-to-br from-yellow-50 to-yellow-100 p-6 rounded-xl border border-yellow-200 shadow-sm cursor-pointer"
+          >
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Average Rating</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.avg_rating?.toFixed(1) || '0.0'}</p>
+                <p className="text-sm font-medium text-yellow-700">Average Rating</p>
+                <motion.p
+                  initial={{ scale: 0.5 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: "spring", stiffness: 300, delay: 0.3 }}
+                  className="text-3xl font-bold text-yellow-900 mt-1"
+                >
+                  {stats.avg_rating?.toFixed(1) || '0.0'}
+                </motion.p>
               </div>
-              <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                <Star className="w-6 h-6 text-yellow-600" />
+              <div className="w-14 h-14 bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-xl flex items-center justify-center shadow-lg">
+                <Star className="w-7 h-7 text-white fill-white" />
               </div>
             </div>
-            <div className="mt-2">
-              <span className="text-sm text-gray-500">Out of 5.0</span>
+            <div className="mt-3">
+              <span className="text-xs text-yellow-600 font-medium">Out of 5.0</span>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
 
         {/* Additional Stats Row */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -174,38 +254,76 @@ const Analytics = () => {
           </div>
         </div>
 
-        {/* Category Breakdown */}
+        {/* Category Breakdown - Enhanced with Multi-Domain Design */}
         {Object.keys(categoryBreakdown).length > 0 && (
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm mb-8">
-            <div className="p-6 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-800">Category Distribution</h3>
-              <p className="text-sm text-gray-600 mt-1">Listings by category</p>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            className="bg-white rounded-xl border border-gray-200 shadow-sm mb-8 overflow-hidden"
+          >
+            <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-slate-50 to-gray-50">
+              <h3 className="text-xl font-bold text-gray-800">Category Distribution</h3>
+              <p className="text-sm text-gray-600 mt-1">Your listings across different categories</p>
             </div>
             <div className="p-6">
-              <div className="space-y-4">
+              <div className="space-y-6">
                 {Object.entries(categoryBreakdown)
                   .sort(([, a], [, b]) => b - a)
-                  .map(([category, count]) => {
+                  .map(([categoryName, count], index) => {
                     const total = Object.values(categoryBreakdown).reduce((sum, c) => sum + c, 0);
                     const percentage = total > 0 ? (count / total) * 100 : 0;
+
+                    // Find matching category design (case-insensitive match)
+                    const categorySlug = categoryName.toLowerCase().replace(/\s+/g, '-');
+                    const categoryDesign = Object.values(CATEGORY_DESIGN).find(
+                      cat => cat.name.toLowerCase() === categoryName.toLowerCase() ||
+                             cat.slug === categorySlug
+                    );
+
+                    const CategoryIcon = categoryDesign?.icon || ShoppingBag;
+                    const gradient = categoryDesign?.gradient || 'from-gray-500 to-gray-600';
+                    const badgeBg = categoryDesign?.badgeBg || 'bg-gray-100';
+                    const badgeText = categoryDesign?.badgeText || 'text-gray-700';
+
                     return (
-                      <div key={category}>
-                        <div className="flex justify-between text-sm mb-2">
-                          <span className="font-medium text-gray-800">{category}</span>
-                          <span className="text-gray-600">{count} listings ({percentage.toFixed(0)}%)</span>
+                      <motion.div
+                        key={categoryName}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.6 + index * 0.1 }}
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${gradient} flex items-center justify-center shadow-md`}>
+                              <CategoryIcon className="w-5 h-5 text-white" />
+                            </div>
+                            <div>
+                              <span className="font-semibold text-gray-900">{categoryName}</span>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className={`text-xs px-2 py-0.5 rounded-full ${badgeBg} ${badgeText} font-medium`}>
+                                  {count} {count === 1 ? 'listing' : 'listings'}
+                                </span>
+                                <span className="text-xs text-gray-500">·</span>
+                                <span className="text-xs text-gray-600 font-medium">{percentage.toFixed(0)}%</span>
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                        <div className="w-full bg-slate-200 rounded-full h-2">
-                          <div
-                            className="bg-lime-600 h-2 rounded-full transition-all duration-300"
-                            style={{ width: `${percentage}%` }}
+                        <div className="relative w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${percentage}%` }}
+                            transition={{ duration: 1, delay: 0.7 + index * 0.1, ease: "easeOut" }}
+                            className={`h-full bg-gradient-to-r ${gradient} rounded-full shadow-sm`}
                           />
                         </div>
-                      </div>
+                      </motion.div>
                     );
                   })}
               </div>
             </div>
-          </div>
+          </motion.div>
         )}
 
         {/* Performance Trends */}

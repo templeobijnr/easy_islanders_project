@@ -43,6 +43,7 @@ interface ChatState {
 
   // Realtime additions expected by ChatPage
   threadId: string | null;
+  connectionStatus: ConnectionStatus;
   setConnectionStatus: (s: ConnectionStatus) => void;
   pushAssistantMessage: (frame: AssistantFrame) => void;
   wsCorrelationId: string | null;
@@ -364,6 +365,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         sendMessage,
         // realtime additions
         threadId,
+        connectionStatus,
         setConnectionStatus,
         pushAssistantMessage,
         wsCorrelationId,

@@ -3,6 +3,8 @@ import { ChatHeader } from './components/ChatHeader';
 import { ChatThread } from './components/ChatThread';
 import InlineRecsCarousel from './components/InlineRecsCarousel';
 import Composer from './components/Composer';
+import TypingDots from './components/TypingDots';
+import ConnectionStatus from './components/ConnectionStatus';
 import FeaturedPane from '../featured/FeaturedPane';
 import { useUi } from '../../shared/context/UiContext';
 import { useChat } from '../../shared/context/ChatContext';
@@ -14,6 +16,8 @@ const ChatPage: React.FC = () => {
   const {
     messages,
     threadId,
+    typing,
+    connectionStatus,
     pushAssistantMessage,
     setConnectionStatus,
     setTyping,
@@ -101,9 +105,22 @@ const ChatPage: React.FC = () => {
     <div className="space-y-4">
       {/* CHAT SECTION - Top of main column */}
       <section className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 overflow-hidden flex flex-col">
+        {/* Connection Status Badge */}
+        <div className="absolute top-4 right-4 z-10">
+          <ConnectionStatus status={connectionStatus} />
+        </div>
+
         <ChatHeader />
         <div className="flex-1 overflow-y-auto px-4 max-h-[58vh]">
           <ChatThread messages={chatMessages} />
+
+          {/* Typing Indicator */}
+          {typing && (
+            <div className="py-2">
+              <TypingDots />
+            </div>
+          )}
+
           {(() => {
             console.log('[ChatPage] Carousel render condition:', {
               activeJob,

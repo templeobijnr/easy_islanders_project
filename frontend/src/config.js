@@ -60,7 +60,16 @@ const config = {
   // WebSocket Configuration (for real-time updates)
   WEBSOCKET: {
     ENABLED: process.env.REACT_APP_WEBSOCKET_ENABLED !== 'false', // Enabled by default
-    URL: process.env.REACT_APP_WS_URL || process.env.REACT_APP_WEBSOCKET_URL || 'ws://127.0.0.1:8000',
+    // Dynamically set WebSocket URL to match API_BASE_URL port
+    get URL() {
+      if (process.env.REACT_APP_WS_URL || process.env.REACT_APP_WEBSOCKET_URL) {
+        return process.env.REACT_APP_WS_URL || process.env.REACT_APP_WEBSOCKET_URL;
+      }
+      // Extract port from API_BASE_URL and use for WebSocket
+      const apiUrl = config.API_BASE_URL;
+      const wsUrl = apiUrl.replace(/^http/, 'ws');
+      return wsUrl;
+    },
   },
   
   // Polling Configuration

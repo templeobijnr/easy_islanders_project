@@ -107,16 +107,22 @@ export const AuthProvider = ({ children }) => {
       // Clear JWT tokens
       clearAccessToken();
       localStorage.removeItem('refresh');
+      // Clear thread ID to prevent cross-user contamination
+      localStorage.removeItem('threadId');
       setIsAuthenticated(false);
       setUser(null);
       setAuthError(null);
+      setUnreadCount(0);
     } catch (error) {
       console.error('Logout failed:', error);
       // Clear tokens even if logout request fails
       clearAccessToken();
       localStorage.removeItem('refresh');
+      // Clear thread ID to prevent cross-user contamination
+      localStorage.removeItem('threadId');
       setIsAuthenticated(false);
       setUser(null);
+      setUnreadCount(0);
     }
   }, []);
 

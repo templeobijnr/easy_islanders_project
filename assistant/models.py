@@ -385,10 +385,10 @@ class Booking(models.Model):
         ('completed', 'Completed'),
         ('cancelled', 'Cancelled'),
     ]
-    
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    listing = models.ForeignKey('listings.Listing', on_delete=models.CASCADE, related_name='bookings')
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='bookings', null=True, blank=True)
+    listing = models.ForeignKey('listings.Listing', on_delete=models.CASCADE, related_name='assistant_bookings')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='assistant_bookings', null=True, blank=True)
     preferred_date = models.DateTimeField()
     preferred_time = models.TimeField()
     message = models.TextField(blank=True, help_text='Additional message for the agent')
@@ -401,14 +401,14 @@ class Booking(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     confirmed_at = models.DateTimeField(blank=True, null=True)
-    
+
     class Meta:
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['listing', '-created_at']),
             models.Index(fields=['user', 'status']),
         ]
-    
+
     def __str__(self):
         return f"Booking for {self.listing.title} - {self.status}"
 
@@ -707,7 +707,7 @@ class UserPreference(models.Model):
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='preferences')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='assistant_preferences')
 
     # Categorization
     category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, db_index=True)

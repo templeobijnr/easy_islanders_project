@@ -22,12 +22,12 @@ const MessageView = ({ threadId, fetchUnreadCount }) => {
       </div>
       <div className="p-4 border-t bg-white">
         <div className="relative">
-          <input 
+          <input
             type="text"
             placeholder="Type a message..."
-            className="w-full pl-4 pr-12 py-3 border rounded-full bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full pl-4 pr-12 py-3 border rounded-full bg-gray-100 focus:outline-none focus:ring-2 focus:ring-brand"
           />
-          <button className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-blue-500 text-white hover:bg-blue-600">
+          <button className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-brand text-white hover:bg-brand-dark">
             <Send size={20} />
           </button>
         </div>
@@ -105,9 +105,9 @@ const Messages = () => {
             <div className="p-4 text-red-500">{error}</div>
           )}
           {threads.map(thread => (
-            <div 
-              key={thread.thread_id} 
-              className={`p-4 border-b hover:bg-gray-100 cursor-pointer flex items-center ${activeThreadId === thread.thread_id ? 'bg-blue-50' : ''}`}
+            <div
+              key={thread.thread_id}
+              className={`p-4 border-b hover:bg-gray-100 cursor-pointer flex items-center ${activeThreadId === thread.thread_id ? 'bg-lime-100' : ''}`}
               onClick={() => setActiveThreadId(thread.thread_id)}
             >
               <div className="w-12 h-12 rounded-full bg-gray-300 mr-4"></div>
@@ -126,9 +126,9 @@ const Messages = () => {
             </div>
           ))}
           {hasNext && (
-            <button 
+            <button
               onClick={() => loadThreads(page + 1)}
-              className="w-full py-3 text-sm font-semibold text-blue-600 hover:bg-blue-50"
+              className="w-full py-3 text-sm font-semibold text-brand hover:bg-lime-100"
               disabled={loading}
             >
               {loading ? 'Loading...' : 'Load More'}

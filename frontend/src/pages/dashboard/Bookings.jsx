@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Calendar, Clock, MapPin, DollarSign, AlertCircle, CheckCircle, Trash2, Star, Filter, Search, Eye, CalendarCheck, XCircle } from 'lucide-react';
+import { CATEGORY_DESIGN, getAllCategories } from '../../lib/categoryDesign';
+import { Badge } from '../../components/ui/badge';
 import config from '../../config';
 import { format, parseISO } from 'date-fns';
 
@@ -22,6 +24,7 @@ const Bookings = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState('all'); // all, pending, confirmed, completed, cancelled
+  const [categoryFilter, setCategoryFilter] = useState('all'); // all, or category slug
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBooking, setSelectedBooking] = useState(null);
 
@@ -88,12 +91,19 @@ const Bookings = () => {
 
   const filteredBookings = bookings.filter(booking => {
     const matchesFilter = filter === 'all' || booking.status === filter;
+
+    const matchesCategory =
+      categoryFilter === 'all' ||
+      booking.listing?.category?.slug === categoryFilter ||
+      booking.listing?.category?.name?.toLowerCase().replace(/\s+/g, '-') === categoryFilter;
+
     const matchesSearch =
       !searchQuery ||
       booking.listing?.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       booking.user?.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       booking.listing?.location?.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesFilter && matchesSearch;
+
+    return matchesFilter && matchesCategory && matchesSearch;
   });
 
   // Calculate stats
@@ -218,6 +228,26 @@ const Bookings = () => {
             />
           </div>
 
+          {/* Category Filter */}
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-slate-500" />
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-lime-600 text-sm min-w-[140px]"
+            >
+              <option value="all">All Categories</option>
+              {getAllCategories().map((category) => {
+                const Icon = category.icon;
+                return (
+                  <option key={category.slug} value={category.slug}>
+                    {category.name}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+
           {/* Status Filter */}
           <div className="flex items-center gap-2">
             <Filter className="w-4 h-4 text-slate-500" />
@@ -226,7 +256,7 @@ const Bookings = () => {
               onChange={(e) => setFilter(e.target.value)}
               className="px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-lime-600 text-sm"
             >
-              <option value="all">All Bookings</option>
+              <option value="all">All Status</option>
               <option value="pending">Pending</option>
               <option value="confirmed">Confirmed</option>
               <option value="completed">Completed</option>
@@ -266,21 +296,48 @@ const Bookings = () => {
               booking.status === 'confirmed' ? CheckCircle :
               booking.status === 'completed' ? CalendarCheck : XCircle;
 
+            // Get category design
+            const categorySlug = booking.listing?.category?.slug ||
+                                 booking.listing?.category?.name?.toLowerCase().replace(/\s+/g, '-');
+            const categoryDesign = categorySlug ? Object.values(CATEGORY_DESIGN).find(
+              cat => cat.slug === categorySlug || cat.name.toLowerCase() === booking.listing?.category?.name?.toLowerCase()
+            ) : null;
+
+            const CategoryIcon = categoryDesign?.icon;
+            const gradient = categoryDesign?.gradient || 'from-gray-500 to-gray-600';
+            const badgeBg = categoryDesign?.badgeBg || 'bg-gray-100';
+            const badgeText = categoryDesign?.badgeText || 'text-gray-700';
+
             return (
               <motion.div
                 key={booking.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
-                className="bg-white border border-slate-200 rounded-xl p-6 hover:shadow-lg transition-all cursor-pointer"
+                className="relative bg-white border border-slate-200 rounded-xl p-6 hover:shadow-lg transition-all cursor-pointer overflow-hidden"
                 onClick={() => setSelectedBooking(booking)}
               >
+                {/* Category gradient accent strip */}
+                {categoryDesign && (
+                  <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${gradient}`} />
+                )}
+
                 <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-3">
+                  <div className="flex-1 ml-2">
+                    <div className="flex items-center gap-3 mb-3 flex-wrap">
                       <h3 className="text-lg font-semibold text-slate-900">
                         {booking.listing?.title || 'Untitled Listing'}
                       </h3>
+
+                      {/* Category Badge */}
+                      {categoryDesign && CategoryIcon && (
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${badgeBg} ${badgeText}`}>
+                          <CategoryIcon className="w-3 h-3" />
+                          {booking.listing?.category?.name || categoryDesign.name}
+                        </span>
+                      )}
+
+                      {/* Status Badge */}
                       <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${statusColors[booking.status] || statusColors.pending}`}>
                         <StatusIcon className="inline w-3 h-3 mr-1" />
                         {booking.status}

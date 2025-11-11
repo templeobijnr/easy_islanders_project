@@ -19,7 +19,6 @@ const DashboardSidebar = ({ isOpen, onClose }) => {
         { label: 'My Listings', path: '/dashboard/my-listings', icon: FileText },
         { label: 'Seller Inbox', path: '/dashboard/seller-inbox', icon: MessageSquare },
         { label: 'Sales', path: '/dashboard/sales', icon: DollarSign },
-        { label: 'Messages', path: '/dashboard/messages', icon: MessageSquare },
       ]
     },
     { label: 'Analytics', path: '/dashboard/analytics', icon: BarChart3 },
@@ -28,10 +27,9 @@ const DashboardSidebar = ({ isOpen, onClose }) => {
   ];
 
   const isActive = (path) => location.pathname === path;
-  const isDashboardActive = location.pathname.startsWith('/dashboard/my-listings') || 
+  const isDashboardActive = location.pathname.startsWith('/dashboard/my-listings') ||
                             location.pathname.startsWith('/dashboard/seller-inbox') ||
-                            location.pathname.startsWith('/dashboard/sales') ||
-                            location.pathname.startsWith('/dashboard/messages');
+                            location.pathname.startsWith('/dashboard/sales');
 
   const handleLogoutClick = () => {
     handleLogout();

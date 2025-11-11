@@ -9,6 +9,12 @@ from assistant.views.preferences import (
 )
 from assistant.views.availability import check_availability
 from assistant.views.twilio_webhook import twilio_whatsapp_webhook
+from assistant.views.messages import (
+    get_messages,
+    get_unread_count,
+    mark_thread_read,
+    get_threads,
+)
 
 urlpatterns = [
     path("chat/", ChatEnqueueView.as_view(), name="chat-enqueue"),
@@ -21,4 +27,9 @@ urlpatterns = [
     path("v1/availability/check/", check_availability, name="availability-check"),
     # Twilio WhatsApp webhook
     path("webhooks/twilio/whatsapp/", twilio_whatsapp_webhook, name="twilio-whatsapp-webhook"),
+    # F.3 Messages API - V1.0 Contract
+    path("v1/messages/", get_messages, name="messages-list"),
+    path("v1/messages/unread-count/", get_unread_count, name="messages-unread-count"),
+    path("v1/messages/<str:thread_id>/read_status/", mark_thread_read, name="messages-mark-read"),
+    path("v1/threads/", get_threads, name="threads-list"),
 ]

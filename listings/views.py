@@ -556,3 +556,137 @@ def seller_analytics(request):
             {"detail": "You do not have a seller profile"},
             status=status.HTTP_404_NOT_FOUND
         )
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def my_listings(request):
+    """
+    Get all listings for the authenticated user's seller profile.
+
+    GET /api/listings/my/
+    Query params: ?status=active|inactive|pending_verification&category=slug
+
+    Returns: List of listings owned by the current seller
+    """
+    try:
+        seller = SellerProfile.objects.get(user=request.user)
+    except SellerProfile.DoesNotExist:
+        return Response(
+            {"detail": "You do not have a seller profile", "listings": []},
+            status=status.HTTP_200_OK
+        )
+
+    # Get all listings for this seller
+    listings = Listing.objects.filter(seller=seller).select_related('category', 'subcategory')
+
+    # Filter by status
+    status_filter = request.query_params.get('status')
+    if status_filter:
+        listings = listings.filter(status=status_filter)
+
+    # Filter by category
+    category_filter = request.query_params.get('category')
+    if category_filter:
+        listings = listings.filter(category__slug=category_filter)
+
+    # Order by most recent first
+    listings = listings.order_by('-created_at')
+
+    # Serialize
+    serializer = ListingSerializer(listings, many=True)
+
+    return Response({
+        "listings": serializer.data,
+        "count": listings.count()
+    })
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def categories_list(request):
+    """
+    Get all available categories.
+
+    GET /api/categories/
+
+    Returns: List of all categories with their subcategories
+    """
+    from .models import Category
+
+    categories = Category.objects.all().prefetch_related('subcategories')
+
+    # Build response
+    categories_data = []
+    for category in categories:
+        subcategories_data = [
+            {
+                'id': sub.id,
+                'slug': sub.slug,
+                'name': sub.name,
+                'display_order': sub.display_order,
+            }
+            for sub in category.subcategories.all()
+        ]
+
+        categories_data.append({
+            'id': category.id,
+            'slug': category.slug,
+            'name': category.name,
+            'is_featured': category.is_featured_category,
+            'display_order': category.display_order,
+            'subcategories': subcategories_data,
+        })
+
+    return Response({
+        "categories": categories_data,
+        "count": len(categories_data)
+    })
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def subcategories_list(request, category_slug):
+    """
+    Get all subcategories for a specific category.
+
+    GET /api/categories/{slug}/subcategories/
+
+    Returns: List of subcategories for the specified category
+    """
+    from .models import Category, Subcategory
+
+    try:
+        category = Category.objects.get(slug=category_slug)
+    except Category.DoesNotExist:
+        return Response(
+            {"error": "Category not found"},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    subcategories = Subcategory.objects.filter(category=category)
+
+    subcategories_data = [
+        {
+            'id': sub.id,
+            'slug': sub.slug,
+            'name': sub.name,
+            'display_order': sub.display_order,
+            'category': {
+                'id': category.id,
+                'slug': category.slug,
+                'name': category.name,
+            }
+        }
+        for sub in subcategories
+    ]
+
+    return Response({
+        "subcategories": subcategories_data,
+        "category": {
+            'id': category.id,
+            'slug': category.slug,
+            'name': category.name,
+        },
+        "count": len(subcategories_data)
+    })

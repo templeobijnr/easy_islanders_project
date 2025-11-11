@@ -10,6 +10,9 @@ from .views import (
     BuyerRequestViewSet,
     BroadcastMessageViewSet,
     seller_analytics,
+    my_listings,
+    categories_list,
+    subcategories_list,
 )
 
 app_name = 'listings'
@@ -36,6 +39,13 @@ urlpatterns = [
 
     # Seller analytics endpoint
     path('sellers/analytics/', seller_analytics, name='seller-analytics'),
+
+    # My Listings endpoint (seller's listings)
+    path('listings/my/', my_listings, name='my-listings'),
+
+    # Categories and subcategories endpoints
+    path('categories/', categories_list, name='categories-list'),
+    path('categories/<slug:category_slug>/subcategories/', subcategories_list, name='subcategories-list'),
 
     # Seller, buyer requests, and broadcasts endpoints (router)
     path('', include(router.urls)),

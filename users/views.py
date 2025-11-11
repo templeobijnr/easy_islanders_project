@@ -6,7 +6,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model
 from django.db import models
-from .models import BusinessProfile
+from .models import BusinessProfile, UserPreferences
 import requests
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
@@ -139,9 +139,9 @@ class LogoutView(APIView):
 
 
 class UserProfileView(APIView):
-    """Get current user's profile"""
+    """Get and update current user's profile"""
     permission_classes = [IsAuthenticated]
-    
+
     def get(self, request):
         user = request.user
         data = {
@@ -151,7 +151,7 @@ class UserProfileView(APIView):
             'user_type': user.user_type,
             'phone': user.phone,
         }
-        
+
         # Include business profile if exists
         if hasattr(user, 'business_profile'):
             profile = user.business_profile
@@ -159,8 +159,65 @@ class UserProfileView(APIView):
                 'business_name': profile.business_name,
                 'is_verified_by_admin': profile.is_verified_by_admin,
             }
-        
+
         return Response(data, status=status.HTTP_200_OK)
+
+    def put(self, request):
+        """Update user profile"""
+        user = request.user
+        data = request.data
+
+        # Update allowed fields
+        if 'username' in data:
+            # Check if username is already taken by another user
+            if User.objects.exclude(id=user.id).filter(username=data['username']).exists():
+                return Response(
+                    {'error': 'Username already taken'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            user.username = data['username']
+
+        if 'email' in data:
+            # Check if email is already taken by another user
+            if User.objects.exclude(id=user.id).filter(email=data['email']).exists():
+                return Response(
+                    {'error': 'Email already taken'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            user.email = data['email']
+
+        if 'phone' in data:
+            user.phone = data['phone']
+
+        try:
+            user.save()
+
+            # If business user, update business profile
+            if user.user_type == 'business' and hasattr(user, 'business_profile'):
+                business_data = data.get('business_profile', {})
+                if business_data:
+                    business_profile = user.business_profile
+                    if 'business_name' in business_data:
+                        business_profile.business_name = business_data['business_name']
+                    if 'description' in business_data:
+                        business_profile.description = business_data['description']
+                    if 'contact_phone' in business_data:
+                        business_profile.contact_phone = business_data['contact_phone']
+                    if 'website' in business_data:
+                        business_profile.website = business_data['website']
+                    if 'location' in business_data:
+                        business_profile.location = business_data['location']
+                    business_profile.save()
+
+            return Response(
+                {'message': 'Profile updated successfully'},
+                status=status.HTTP_200_OK
+            )
+        except Exception as e:
+            return Response(
+                {'error': f'Failed to update profile: {str(e)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
 
 class GoogleAuthView(APIView):
@@ -325,5 +382,152 @@ class FacebookAuthView(APIView):
         except Exception as e:
             return Response(
                 {'error': f'Authentication failed: {str(e)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+
+class UserPreferencesView(APIView):
+    """Get and update user preferences"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """Get user preferences"""
+        user = request.user
+
+        # Get or create preferences
+        preferences, created = UserPreferences.objects.get_or_create(
+            user=user,
+            defaults={
+                'language': 'en',
+                'currency': 'EUR',
+                'timezone': 'UTC',
+                'email_notifications': True,
+                'push_notifications': True,
+                'marketing_notifications': False,
+            }
+        )
+
+        return Response({
+            'language': preferences.language,
+            'currency': preferences.currency,
+            'timezone': preferences.timezone,
+            'email_notifications': preferences.email_notifications,
+            'push_notifications': preferences.push_notifications,
+            'marketing_notifications': preferences.marketing_notifications,
+        }, status=status.HTTP_200_OK)
+
+    def put(self, request):
+        """Update user preferences"""
+        user = request.user
+        data = request.data
+
+        # Get or create preferences
+        preferences, created = UserPreferences.objects.get_or_create(user=user)
+
+        # Update preferences
+        if 'language' in data:
+            preferences.language = data['language']
+        if 'currency' in data:
+            preferences.currency = data['currency']
+        if 'timezone' in data:
+            preferences.timezone = data['timezone']
+        if 'email_notifications' in data:
+            preferences.email_notifications = data['email_notifications']
+        if 'push_notifications' in data:
+            preferences.push_notifications = data['push_notifications']
+        if 'marketing_notifications' in data:
+            preferences.marketing_notifications = data['marketing_notifications']
+
+        try:
+            preferences.save()
+            return Response(
+                {'message': 'Preferences updated successfully'},
+                status=status.HTTP_200_OK
+            )
+        except Exception as e:
+            return Response(
+                {'error': f'Failed to update preferences: {str(e)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+
+class ChangePasswordView(APIView):
+    """Change user password"""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        """Change password"""
+        user = request.user
+        data = request.data
+
+        current_password = data.get('current_password')
+        new_password = data.get('new_password')
+
+        if not current_password or not new_password:
+            return Response(
+                {'error': 'Both current_password and new_password are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Check current password
+        if not user.check_password(current_password):
+            return Response(
+                {'error': 'Current password is incorrect'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Validate new password length
+        if len(new_password) < 8:
+            return Response(
+                {'error': 'New password must be at least 8 characters long'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            user.set_password(new_password)
+            user.save()
+            return Response(
+                {'message': 'Password changed successfully'},
+                status=status.HTTP_200_OK
+            )
+        except Exception as e:
+            return Response(
+                {'error': f'Failed to change password: {str(e)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+
+class DeleteAccountView(APIView):
+    """Delete user account"""
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request):
+        """Delete user account permanently"""
+        user = request.user
+        password = request.data.get('password')
+
+        if not password:
+            return Response(
+                {'error': 'Password is required to delete account'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Verify password before deleting
+        if not user.check_password(password):
+            return Response(
+                {'error': 'Incorrect password'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            username = user.username
+            user.delete()
+            return Response(
+                {'message': f'Account {username} has been permanently deleted'},
+                status=status.HTTP_200_OK
+            )
+        except Exception as e:
+            return Response(
+                {'error': f'Failed to delete account: {str(e)}'},
                 status=status.HTTP_400_BAD_REQUEST
             )

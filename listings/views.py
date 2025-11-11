@@ -261,6 +261,53 @@ def user_bookings(request):
     return Response(serializer.data)
 
 
+@api_view(['PATCH'])
+@permission_classes([permissions.IsAuthenticated])
+def update_booking(request, booking_id):
+    """
+    Update a booking (e.g., cancel it).
+    
+    PATCH /api/bookings/{booking_id}/
+    Body: {"status": "cancelled"}
+    """
+    try:
+        booking = Booking.objects.get(id=booking_id, user=request.user)
+    except Booking.DoesNotExist:
+        return Response(
+            {'error': 'Booking not found or you do not have permission to modify it'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    # Only allow updating status
+    new_status = request.data.get('status')
+    if new_status:
+        # Validate status
+        valid_statuses = ['pending', 'confirmed', 'cancelled', 'completed']
+        if new_status not in valid_statuses:
+            return Response(
+                {'error': f'Invalid status. Must be one of: {", ".join(valid_statuses)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Don't allow re-opening cancelled bookings
+        if booking.status == 'cancelled' and new_status != 'cancelled':
+            return Response(
+                {'error': 'Cannot change status of a cancelled booking'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        booking.status = new_status
+        booking.save()
+        
+        serializer = BookingSerializer(booking)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    return Response(
+        {'error': 'No valid fields to update'},
+        status=status.HTTP_400_BAD_REQUEST
+    )
+
+
 class SellerProfileViewSet(viewsets.ModelViewSet):
     """
     ViewSet for seller profiles.

@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import User, BusinessProfile
+from .models import User, BusinessProfile, UserPreferences
 
 
 @admin.register(User)
@@ -25,6 +25,28 @@ class BusinessProfileAdmin(admin.ModelAdmin):
         }),
         ('Verification', {
             'fields': ('is_verified_by_admin', 'verification_notes', 'verified_at')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+@admin.register(UserPreferences)
+class UserPreferencesAdmin(admin.ModelAdmin):
+    list_display = ('user', 'language', 'currency', 'email_notifications', 'push_notifications')
+    list_filter = ('language', 'currency', 'email_notifications', 'push_notifications')
+    search_fields = ('user__username', 'user__email')
+    readonly_fields = ('created_at', 'updated_at')
+    fieldsets = (
+        ('User', {
+            'fields': ('user',)
+        }),
+        ('Preferences', {
+            'fields': ('language', 'currency', 'timezone')
+        }),
+        ('Notifications', {
+            'fields': ('email_notifications', 'push_notifications', 'marketing_notifications')
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at'),

@@ -6,6 +6,7 @@ from .views import (
     check_availability,
     booking_status_webhook,
     user_bookings,
+    update_booking,
     SellerProfileViewSet,
     BuyerRequestViewSet,
     BroadcastMessageViewSet,
@@ -33,6 +34,7 @@ urlpatterns = [
 
     # User bookings
     path('bookings/my-bookings/', user_bookings, name='user-bookings'),
+    path('bookings/<uuid:booking_id>/', update_booking, name='update-booking'),
 
     # Webhook for status updates
     path('bookings/status-webhook/', booking_status_webhook, name='booking-status-webhook'),

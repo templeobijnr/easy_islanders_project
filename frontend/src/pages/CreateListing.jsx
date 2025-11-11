@@ -103,7 +103,7 @@ const CreateListingPage = () => {
     try {
       setCategoriesLoading(true);
       const response = await axios.get(`${config.API_BASE_URL}/api/categories/`);
-      setCategories(response.data);
+      setCategories(response.data.categories || []);
     } catch (err) {
       setError('Failed to load categories');
       console.error('Categories fetch error:', err);
@@ -121,7 +121,7 @@ const CreateListingPage = () => {
   const fetchSubcategories = async (categorySlug) => {
     try {
       const response = await axios.get(`${config.API_BASE_URL}/api/categories/${categorySlug}/subcategories/`);
-      setSubcategories(response.data);
+      setSubcategories(response.data.subcategories || []);
     } catch (err) {
       console.error('Subcategories fetch error:', err);
       setSubcategories([]);

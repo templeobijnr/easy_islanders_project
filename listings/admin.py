@@ -69,7 +69,7 @@ class BookingAdmin(admin.ModelAdmin):
             'fields': ('start_date', 'end_date')
         }),
         ('Payment', {
-            'fields': ('total_price', 'currency')
+            'fields': ('total_price',)
         }),
         ('Metadata', {
             'fields': ('id', 'created_at', 'updated_at'),
@@ -77,10 +77,19 @@ class BookingAdmin(admin.ModelAdmin):
         }),
     )
 
+    def get_queryset(self, request):
+        """Optimize queryset with select_related to avoid N+1 queries"""
+        queryset = super().get_queryset(request)
+        # Only select_related on existing fields
+        # Add 'listing__seller' after running: python manage.py migrate listings
+        return queryset.select_related('user', 'listing')
+
     @admin.display(description='Total Price')
     def total_price_display(self, obj):
-        if obj.total_price and obj.currency:
-            return f"{obj.total_price} {obj.currency}"
+        if obj.total_price:
+            # Get currency from related listing if available
+            currency = obj.listing.currency if obj.listing else 'EUR'
+            return f"{obj.total_price} {currency}"
         return "N/A"
 
 

@@ -19,6 +19,8 @@ import UserMenu from '../components/common/UserMenu';
 import { useUnreadCount } from '../hooks/useMessages';
 import FeaturedPane from '../features/featured/FeaturedPane';
 import FeaturedPanel from '../features/featured/FeaturedPanel';
+import { Button } from '../components/ui/button';
+import { PageTransition } from '../components/ui/animated-wrapper';
 import '../index.css';
 
 // Navigation Bar Component
@@ -29,19 +31,19 @@ function Navigation() {
   const isCreateListingVisible = isAuthenticated && user?.user_type === 'business';
   const isDashboardVisible = isAuthenticated && user?.user_type === 'business';
 
-  const linkStyles = "text-gray-700 font-semibold hover:text-brand transition-colors";
-  const activeLinkStyles = "text-brand font-semibold";
+  const linkStyles = "text-foreground font-semibold hover:text-primary transition-colors";
+  const activeLinkStyles = "text-primary font-semibold";
 
   return (
-    <header className="bg-white border-b border-gray-200 sticky top-0 z-40 h-20 flex items-center">
+    <header className="bg-background border-b border-border sticky top-0 z-40 h-20 flex items-center">
       <div className="w-full mx-auto px-6">
         <div className="flex items-center justify-between">
           {/* Logo/Home Link */}
           <Link to="/" className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-brand rounded-full flex items-center justify-center">
+            <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center">
               <Compass className="text-white w-6 h-6" />
             </div>
-            <span className="text-xl font-bold text-gray-800 hidden sm:inline">
+            <span className="text-xl font-bold text-foreground hidden sm:inline">
               Easy Islanders
             </span>
           </Link>
@@ -79,18 +81,12 @@ function Navigation() {
                 <UserMenu user={user} onLogout={handleLogout} unreadCount={unreadCount} />
               ) : (
                 <>
-                  <button
-                    onClick={() => openAuthModal('login')}
-                    className="text-sm font-semibold text-gray-700 hover:text-brand"
-                  >
+                  <Button variant="ghost" onClick={() => openAuthModal('login')}>
                     Sign In
-                  </button>
-                  <button
-                    onClick={() => openAuthModal('register')}
-                    className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-full hover:bg-brand-dark transition-all duration-200 font-semibold text-sm"
-                  >
-                    <span>Sign Up</span>
-                  </button>
+                  </Button>
+                  <Button variant="premium" onClick={() => openAuthModal('register')}>
+                    Sign Up
+                  </Button>
                 </>
               )}
             </div>
@@ -176,12 +172,12 @@ function AppContent() {
       <AuthModal />
       <div className="flex-1 overflow-y-auto">
         <Routes>
-          <Route path="/" element={<FeaturedPanel />} />
-          <Route path="/messages" element={<Messages />} />
-          <Route path="/requests" element={<Requests />} />
-          <Route path="/bookings" element={<Bookings />} />
-          <Route path="/create-listing" element={<CreateListing />} />
-          <Route path="/dashboard/*" element={<Dashboard />} />
+          <Route path="/" element={<PageTransition><FeaturedPanel /></PageTransition>} />
+          <Route path="/messages" element={<PageTransition><Messages /></PageTransition>} />
+          <Route path="/requests" element={<PageTransition><Requests /></PageTransition>} />
+          <Route path="/bookings" element={<PageTransition><Bookings /></PageTransition>} />
+          <Route path="/create-listing" element={<PageTransition><CreateListing /></PageTransition>} />
+          <Route path="/dashboard/*" element={<PageTransition><Dashboard /></PageTransition>} />
         </Routes>
       </div>
       {HUD_FLAG && hudVisible && (

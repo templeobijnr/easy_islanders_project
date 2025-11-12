@@ -1,11 +1,12 @@
 from django.contrib import admin
-from .models import Category, SubCategory, Listing, ListingImage, Booking, SellerProfile
+from .models import Category, SubCategory, Listing, ListingImage, SellerProfile
 
 # Register your models here.
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
-    list_display = ('name', 'slug', 'is_bookable', 'is_active')
-    list_editable = ('is_bookable', 'is_active')
+    list_display = ('name', 'slug', 'is_bookable', 'is_active', 'is_featured_category')
+    list_editable = ('is_bookable', 'is_active', 'is_featured_category')
+    list_filter = ('is_bookable', 'is_active', 'is_featured_category')
     prepopulated_fields = {'slug': ('name',)}
 
 @admin.register(SubCategory)
@@ -53,44 +54,7 @@ class ListingImageAdmin(admin.ModelAdmin):
     list_filter = ('listing',)
 
 
-@admin.register(Booking)
-class BookingAdmin(admin.ModelAdmin):
-    list_display = ('id', 'listing', 'user', 'start_date', 'end_date', 'status', 'total_price_display', 'created_at')
-    list_filter = ('status', 'created_at')
-    search_fields = ('user__username', 'listing__title')
-    readonly_fields = ('id', 'created_at', 'updated_at')
-    date_hierarchy = 'created_at'
-
-    fieldsets = (
-        ('Booking Information', {
-            'fields': ('user', 'listing', 'status')
-        }),
-        ('Dates', {
-            'fields': ('start_date', 'end_date')
-        }),
-        ('Payment', {
-            'fields': ('total_price',)
-        }),
-        ('Metadata', {
-            'fields': ('id', 'created_at', 'updated_at'),
-            'classes': ('collapse',)
-        }),
-    )
-
-    def get_queryset(self, request):
-        """Optimize queryset with select_related to avoid N+1 queries"""
-        queryset = super().get_queryset(request)
-        # Only select_related on existing fields
-        # Add 'listing__seller' after running: python manage.py migrate listings
-        return queryset.select_related('user', 'listing')
-
-    @admin.display(description='Total Price')
-    def total_price_display(self, obj):
-        if obj.total_price:
-            # Get currency from related listing if available
-            currency = obj.listing.currency if obj.listing else 'EUR'
-            return f"{obj.total_price} {currency}"
-        return "N/A"
+# Booking admin is now registered in bookings/admin.py
 
 
 @admin.register(SellerProfile)

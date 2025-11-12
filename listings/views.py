@@ -4,13 +4,17 @@ from rest_framework.response import Response
 from django.db.models import Q
 from datetime import datetime
 from django_filters.rest_framework import DjangoFilterBackend
-from .models import Booking, Listing, SellerProfile
+from .models import Listing, SellerProfile, Category, SubCategory
+from bookings.models import Booking
 from .serializers import (
     BookingSerializer,
     ListingSerializer,
+    ListingDetailSerializer,
     SellerProfileSerializer,
     SellerProfileCreateSerializer,
     SellerAnalyticsSerializer,
+    CategorySerializer,
+    SubCategorySerializer,
 )
 from .analytics import compute_dashboard_summary
 
@@ -554,3 +558,111 @@ def subcategories_list(request, category_slug):
         },
         "count": len(subcategories_data)
     })
+
+
+# ============================================================================
+# VIEWSETS FOR MODERN REST API
+# ============================================================================
+
+
+class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    API endpoints for browsing categories.
+    
+    GET /api/categories/              - List all active categories
+    GET /api/categories/{id}/         - Get category details
+    GET /api/categories/{id}/subcategories/  - Get subcategories for category
+    """
+    queryset = Category.objects.filter(is_active=True).prefetch_related('subcategories')
+    serializer_class = CategorySerializer
+    permission_classes = [permissions.AllowAny]
+    lookup_field = 'slug'
+    
+    @action(detail=True, methods=['get'])
+    def subcategories(self, request, slug=None):
+        """Get all subcategories for a specific category"""
+        category = self.get_object()
+        subcats = category.subcategories.all()
+        serializer = SubCategorySerializer(subcats, many=True)
+        return Response(serializer.data)
+
+
+class ListingViewSet(viewsets.ModelViewSet):
+    """
+    API endpoints for managing listings.
+    
+    GET    /api/listings/                    - List listings with filters
+    POST   /api/listings/                    - Create a new listing
+    GET    /api/listings/{id}/               - Get listing details
+    PUT    /api/listings/{id}/               - Update listing
+    DELETE /api/listings/{id}/               - Delete listing
+    
+    Filters:
+    - category={slug}        - Filter by category slug
+    - subcategory={slug}     - Filter by subcategory slug
+    - status={status}        - Filter by status (active, draft, sold, paused)
+    - search={query}         - Full-text search in title and description
+    - ordering={field}       - Sort by field (created_at, price, views, -created_at)
+    
+    Example:
+    GET /api/listings/?category=real-estate&status=active&search=apartment
+    """
+    queryset = Listing.objects.select_related('category', 'subcategory', 'owner').prefetch_related('images')
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter, DjangoFilterBackend]
+    search_fields = ['title', 'description']
+    filterset_fields = ['category__slug', 'subcategory__slug', 'status', 'is_featured']
+    ordering_fields = ['created_at', 'price', 'views', '-created_at']
+    ordering = ['-created_at']
+    
+    def get_serializer_class(self):
+        """Use different serializers for list vs detail views"""
+        if self.action == 'retrieve':
+            return ListingDetailSerializer
+        return ListingSerializer
+    
+    def get_queryset(self):
+        """Filter queryset by owner if requested"""
+        queryset = super().get_queryset()
+        # Allow viewing own listings even if not active
+        if self.request.user.is_authenticated and self.request.query_params.get('my_listings'):
+            queryset = queryset.filter(owner=self.request.user)
+        else:
+            # Non-owners can only see active listings
+            queryset = queryset.filter(status='active')
+        return queryset
+    
+    def perform_create(self, serializer):
+        """Set owner to current user when creating"""
+        serializer.save(owner=self.request.user)
+    
+    def perform_update(self, serializer):
+        """Ensure user can only update their own listings"""
+        if serializer.instance.owner != self.request.user and not self.request.user.is_staff:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("You can only update your own listings")
+        serializer.save()
+    
+    def perform_destroy(self, instance):
+        """Ensure user can only delete their own listings"""
+        if instance.owner != self.request.user and not self.request.user.is_staff:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("You can only delete your own listings")
+        instance.delete()
+    
+    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def my_listings(self, request):
+        """Get all listings for the authenticated user"""
+        queryset = Listing.objects.filter(owner=request.user).select_related('category', 'subcategory').prefetch_related('images')
+        
+        # Apply filters
+        category = request.query_params.get('category')
+        if category:
+            queryset = queryset.filter(category__slug=category)
+        
+        status_filter = request.query_params.get('status')
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)

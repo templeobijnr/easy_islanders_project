@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Calendar, Clock, MapPin, DollarSign, AlertCircle, CheckCircle, Trash2, Star, Filter, Search, Eye, CalendarCheck, XCircle } from 'lucide-react';
 import { CATEGORY_DESIGN, getAllCategories } from '../../lib/categoryDesign';
-import { Badge } from '../../components/ui/badge';
 import config from '../../config';
 import { format, parseISO } from 'date-fns';
+import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/card';
+import { Button } from '../../components/ui/button';
+import { Badge } from '../../components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 
 /**
  * Bookings Dashboard Page
@@ -118,15 +121,15 @@ const Bookings = () => {
 
   if (loading) {
     return (
-      <div className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 p-8">
-        <h1 className="text-2xl font-bold text-slate-900 mb-2">Bookings</h1>
-        <p className="text-slate-600 mb-8">Manage reservations and bookings</p>
+      <div className="bg-background/90 backdrop-blur rounded-2xl border border-border p-8">
+        <h1 className="text-2xl font-bold text-foreground mb-2">Bookings</h1>
+        <p className="text-muted-foreground mb-8">Manage reservations and bookings</p>
         <div className="flex items-center justify-center py-12">
           <motion.div
             animate={{ rotate: 360 }}
             transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
           >
-            <CalendarCheck className="w-8 h-8 text-lime-600" />
+            <CalendarCheck className="w-8 h-8 text-primary" />
           </motion.div>
         </div>
       </div>
@@ -135,19 +138,14 @@ const Bookings = () => {
 
   if (error) {
     return (
-      <div className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 p-8">
-        <h1 className="text-2xl font-bold text-slate-900 mb-2">Bookings</h1>
-        <p className="text-slate-600 mb-8">Manage reservations and bookings</p>
+      <div className="bg-background/90 backdrop-blur rounded-2xl border border-border p-8">
+        <h1 className="text-2xl font-bold text-foreground mb-2">Bookings</h1>
+        <p className="text-muted-foreground mb-8">Manage reservations and bookings</p>
         <div className="flex items-center justify-center py-12">
           <div className="text-center">
-            <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-            <p className="text-red-600 font-medium mb-4">{error}</p>
-            <button
-              onClick={fetchBookings}
-              className="px-4 py-2 bg-lime-600 text-white rounded-xl hover:bg-lime-700 transition-colors"
-            >
-              Try Again
-            </button>
+            <AlertCircle className="w-16 h-16 text-destructive mx-auto mb-4" />
+            <p className="text-destructive font-medium mb-4">{error}</p>
+            <Button variant="premium" onClick={fetchBookings}>Try Again</Button>
           </div>
         </div>
       </div>
@@ -155,11 +153,11 @@ const Bookings = () => {
   }
 
   return (
-    <div className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 p-8">
+    <div className="bg-background/90 backdrop-blur rounded-2xl border border-border p-8">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-900 mb-2">Bookings</h1>
-        <p className="text-slate-600">Manage reservations and bookings</p>
+        <h1 className="text-2xl font-bold text-foreground mb-2">Bookings</h1>
+        <p className="text-muted-foreground">Manage reservations and bookings</p>
       </div>
 
       {/* Stats Cards */}
@@ -168,117 +166,126 @@ const Bookings = () => {
         animate={{ opacity: 1, y: 0 }}
         className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8"
       >
-        <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 border border-yellow-200 rounded-xl p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-2">
-            <div className="p-2 bg-yellow-200 rounded-lg">
-              <Clock className="w-5 h-5 text-yellow-700" />
+        <Card className="group cursor-pointer hover:shadow-lg transition-all duration-300">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-2">
+              <div className="p-2 bg-warning/30 rounded-lg">
+                <Clock className="w-5 h-5 text-warning" />
+              </div>
+              <span className="text-2xl font-bold text-warning">{stats.pending}</span>
             </div>
-            <span className="text-2xl font-bold text-yellow-700">{stats.pending}</span>
-          </div>
-          <h3 className="text-sm font-medium text-yellow-900">Pending</h3>
-          <p className="text-xs text-yellow-700 mt-1">Awaiting confirmation</p>
-        </div>
+            <h3 className="text-sm font-medium text-foreground">Pending</h3>
+            <p className="text-xs text-warning mt-1">Awaiting confirmation</p>
+          </CardContent>
+        </Card>
 
-        <div className="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-xl p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-2">
-            <div className="p-2 bg-green-200 rounded-lg">
-              <CheckCircle className="w-5 h-5 text-green-700" />
+        <Card className="group cursor-pointer hover:shadow-lg transition-all duration-300">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-2">
+              <div className="p-2 bg-success/30 rounded-lg">
+                <CheckCircle className="w-5 h-5 text-success" />
+              </div>
+              <span className="text-2xl font-bold text-success">{stats.confirmed}</span>
             </div>
-            <span className="text-2xl font-bold text-green-700">{stats.confirmed}</span>
-          </div>
-          <h3 className="text-sm font-medium text-green-900">Confirmed</h3>
-          <p className="text-xs text-green-700 mt-1">Ready to go</p>
-        </div>
+            <h3 className="text-sm font-medium text-foreground">Confirmed</h3>
+            <p className="text-xs text-success mt-1">Ready to go</p>
+          </CardContent>
+        </Card>
 
-        <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-xl p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-2">
-            <div className="p-2 bg-blue-200 rounded-lg">
-              <CalendarCheck className="w-5 h-5 text-blue-700" />
+        <Card className="group cursor-pointer hover:shadow-lg transition-all duration-300">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-2">
+              <div className="p-2 bg-blue-500/30 rounded-lg">
+                <CalendarCheck className="w-5 h-5 text-blue-700" />
+              </div>
+              <span className="text-2xl font-bold text-blue-700">{stats.completed}</span>
             </div>
-            <span className="text-2xl font-bold text-blue-700">{stats.completed}</span>
-          </div>
-          <h3 className="text-sm font-medium text-blue-900">Completed</h3>
-          <p className="text-xs text-blue-700 mt-1">Successfully finished</p>
-        </div>
+            <h3 className="text-sm font-medium text-foreground">Completed</h3>
+            <p className="text-xs text-blue-700 mt-1">Successfully finished</p>
+          </CardContent>
+        </Card>
 
-        <div className="bg-gradient-to-br from-lime-50 to-lime-100 border border-lime-200 rounded-xl p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-2">
-            <div className="p-2 bg-lime-200 rounded-lg">
-              <CalendarCheck className="w-5 h-5 text-lime-700" />
+        <Card className="group cursor-pointer hover:shadow-lg transition-all duration-300">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-2">
+              <div className="p-2 bg-primary/30 rounded-lg">
+                <CalendarCheck className="w-5 h-5 text-primary" />
+              </div>
+              <span className="text-2xl font-bold text-primary">{stats.total}</span>
             </div>
-            <span className="text-2xl font-bold text-lime-700">{stats.total}</span>
-          </div>
-          <h3 className="text-sm font-medium text-lime-900">Total</h3>
-          <p className="text-xs text-lime-700 mt-1">All bookings</p>
-        </div>
+            <h3 className="text-sm font-medium text-foreground">Total</h3>
+            <p className="text-xs text-primary mt-1">All bookings</p>
+          </CardContent>
+        </Card>
       </motion.div>
 
       {/* Filters and Search */}
-      <div className="bg-white border border-slate-200 rounded-xl p-4 mb-6">
-        <div className="flex flex-col md:flex-row gap-4">
-          {/* Search */}
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search by listing or customer..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-lime-600"
-            />
-          </div>
+      <Card className="shadow-sm mb-6">
+        <CardContent className="p-4">
+          <div className="flex flex-col md:flex-row gap-4">
+            {/* Search */}
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search by listing or customer..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
 
-          {/* Category Filter */}
-          <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-slate-500" />
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-lime-600 text-sm min-w-[140px]"
-            >
-              <option value="all">All Categories</option>
-              {getAllCategories().map((category) => {
-                const Icon = category.icon;
-                return (
+            {/* Category Filter */}
+            <div className="flex items-center gap-2">
+              <Filter className="w-4 h-4 text-slate-500" />
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm min-w-[140px]"
+              >
+                <option value="all">All Categories</option>
+                {getAllCategories().map((category) => (
                   <option key={category.slug} value={category.slug}>
                     {category.name}
                   </option>
-                );
-              })}
-            </select>
-          </div>
+                ))}
+              </select>
+            </div>
 
-          {/* Status Filter */}
-          <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-slate-500" />
-            <select
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              className="px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-lime-600 text-sm"
-            >
-              <option value="all">All Status</option>
-              <option value="pending">Pending</option>
-              <option value="confirmed">Confirmed</option>
-              <option value="completed">Completed</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
+            {/* Status Filter */}
+            <div className="flex items-center gap-2">
+              <Filter className="w-4 h-4 text-slate-500" />
+              <select
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                className="px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+              >
+                <option value="all">All Status</option>
+                <option value="pending">Pending</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Empty State */}
       {filteredBookings.length === 0 && (
-        <div className="bg-white border border-slate-200 rounded-xl p-12 text-center">
-          <Calendar className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-slate-800 mb-2">
-            {searchQuery || filter !== 'all' ? 'No matching bookings' : 'No bookings yet'}
-          </h3>
-          <p className="text-slate-600">
-            {searchQuery || filter !== 'all'
-              ? 'Try adjusting your filters'
-              : 'Bookings will appear here when customers reserve your listings'}
-          </p>
-        </div>
+        <Card className="shadow-sm">
+          <CardContent className="p-12 text-center">
+            <Calendar className="w-16 h-16 text-muted mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-foreground mb-2">
+              {searchQuery || filter !== 'all' ? 'No matching bookings' : 'No bookings yet'}
+            </h3>
+            <p className="text-muted-foreground">
+              {searchQuery || filter !== 'all'
+                ? 'Try adjusting your filters'
+                : 'Bookings will appear here when customers reserve your listings'}
+            </p>
+          </CardContent>
+        </Card>
       )}
 
       {/* Bookings List */}
@@ -314,9 +321,9 @@ const Bookings = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
-                className="relative bg-white border border-slate-200 rounded-xl p-6 hover:shadow-lg transition-all cursor-pointer overflow-hidden"
-                onClick={() => setSelectedBooking(booking)}
               >
+                <Card className="relative hover:shadow-lg transition-all cursor-pointer overflow-hidden" onClick={() => setSelectedBooking(booking)}>
+                  <CardContent className="p-6">
                 {/* Category gradient accent strip */}
                 {categoryDesign && (
                   <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${gradient}`} />
@@ -325,26 +332,31 @@ const Bookings = () => {
                 <div className="flex items-start justify-between">
                   <div className="flex-1 ml-2">
                     <div className="flex items-center gap-3 mb-3 flex-wrap">
-                      <h3 className="text-lg font-semibold text-slate-900">
+                      <h3 className="text-lg font-semibold text-foreground">
                         {booking.listing?.title || 'Untitled Listing'}
                       </h3>
 
                       {/* Category Badge */}
                       {categoryDesign && CategoryIcon && (
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${badgeBg} ${badgeText}`}>
+                        <Badge variant="secondary" className={`${badgeBg} ${badgeText}`}>
                           <CategoryIcon className="w-3 h-3" />
                           {booking.listing?.category?.name || categoryDesign.name}
-                        </span>
+                        </Badge>
                       )}
 
                       {/* Status Badge */}
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${statusColors[booking.status] || statusColors.pending}`}>
-                        <StatusIcon className="inline w-3 h-3 mr-1" />
+                      <Badge variant={
+                        booking.status === 'pending' ? 'warning' :
+                        booking.status === 'confirmed' ? 'success' :
+                        booking.status === 'completed' ? 'default' :
+                        'destructive'
+                      } className="gap-1">
+                        <StatusIcon className="w-3 h-3" />
                         {booking.status}
-                      </span>
+                      </Badge>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-slate-600 mb-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-muted-foreground mb-3">
                       {booking.listing?.location && (
                         <div className="flex items-center gap-2">
                           <MapPin className="w-4 h-4" />
@@ -371,56 +383,63 @@ const Bookings = () => {
                       {booking.listing?.price && (
                         <div className="flex items-center gap-2">
                           <DollarSign className="w-4 h-4" />
-                          <span className="font-semibold text-lime-600">€{booking.listing.price}</span>
+                          <span className="font-semibold text-primary">€{booking.listing.price}</span>
                         </div>
                       )}
                     </div>
 
                     {booking.message && (
-                      <p className="text-sm text-slate-600 italic">
+                      <p className="text-sm text-muted-foreground italic">
                         "{booking.message}"
                       </p>
                     )}
 
                     {booking.agent_response && (
-                      <div className="mt-3 p-3 bg-blue-50 rounded-lg">
-                        <p className="text-sm font-medium text-blue-900 mb-1">Agent Response:</p>
-                        <p className="text-sm text-blue-800">{booking.agent_response}</p>
+                      <div className="mt-3 p-3 bg-blue-500/10 rounded-lg">
+                        <p className="text-sm font-medium text-blue-700 mb-1">Agent Response:</p>
+                        <p className="text-sm text-blue-700">{booking.agent_response}</p>
                       </div>
                     )}
                   </div>
 
                   <div className="ml-4 flex flex-col gap-2">
                     {booking.status === 'pending' && (
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleCancelBooking(booking.id);
                         }}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        className="text-destructive hover:bg-destructive/10"
                         title="Cancel"
                       >
                         <Trash2 className="w-5 h-5" />
-                      </button>
+                      </Button>
                     )}
                     {booking.status === 'completed' && (
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         onClick={(e) => e.stopPropagation()}
-                        className="p-2 text-yellow-600 hover:bg-yellow-50 rounded-lg transition-colors"
+                        className="text-warning hover:bg-warning/10"
                         title="Leave Review"
                       >
                         <Star className="w-5 h-5" />
-                      </button>
+                      </Button>
                     )}
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       onClick={(e) => e.stopPropagation()}
-                      className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
                       title="View Details"
                     >
-                      <Eye className="w-5 h-5 text-slate-600" />
-                    </button>
+                      <Eye className="w-5 h-5" />
+                    </Button>
                   </div>
                 </div>
+                  </CardContent>
+                </Card>
               </motion.div>
             );
           })}
@@ -428,68 +447,64 @@ const Bookings = () => {
       )}
 
       {/* Booking Details Modal */}
-      {selectedBooking && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setSelectedBooking(null)}>
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-          >
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-slate-900">Booking Details</h2>
-              <button
+      <Dialog open={!!selectedBooking} onOpenChange={() => setSelectedBooking(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Booking Details</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {(() => {
+              const StatusIcon = selectedBooking.status === 'pending' ? Clock :
+                selectedBooking.status === 'confirmed' ? CheckCircle :
+                selectedBooking.status === 'completed' ? CalendarCheck : XCircle;
+              return (<>
+            <div>
+              <label className="text-sm font-medium text-foreground block mb-1">Listing</label>
+              <p className="text-foreground">{selectedBooking.listing?.title || 'N/A'}</p>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-foreground block mb-1">Status</label>
+              <Badge variant={
+                selectedBooking.status === 'pending' ? 'warning' :
+                selectedBooking.status === 'confirmed' ? 'success' :
+                selectedBooking.status === 'completed' ? 'default' :
+                'destructive'
+              } className="gap-1">
+                <StatusIcon className="w-3 h-3" />
+                {selectedBooking.status}
+              </Badge>
+            </div>
+
+            {selectedBooking.message && (
+              <div>
+                <label className="text-sm font-medium text-foreground block mb-1">Message</label>
+                <p className="text-foreground bg-muted p-4 rounded-lg">{selectedBooking.message}</p>
+              </div>
+            )}
+
+            {selectedBooking.agent_response && (
+              <div>
+                <label className="text-sm font-medium text-foreground block mb-1">Agent Response</label>
+                <p className="text-foreground bg-blue-500/10 p-4 rounded-lg">{selectedBooking.agent_response}</p>
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-4 border-t border-border">
+              <Button
+                variant="default"
                 onClick={() => setSelectedBooking(null)}
-                className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                className="flex-1"
               >
-                <XCircle className="w-6 h-6 text-slate-600" />
-              </button>
+                Close
+              </Button>
             </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-slate-700 block mb-1">Listing</label>
-                <p className="text-slate-900">{selectedBooking.listing?.title || 'N/A'}</p>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-slate-700 block mb-1">Status</label>
-                <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold border ${
-                  selectedBooking.status === 'pending' ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
-                  selectedBooking.status === 'confirmed' ? 'bg-green-100 text-green-700 border-green-200' :
-                  selectedBooking.status === 'completed' ? 'bg-blue-100 text-blue-700 border-blue-200' :
-                  'bg-red-100 text-red-700 border-red-200'
-                }`}>
-                  {selectedBooking.status}
-                </span>
-              </div>
-
-              {selectedBooking.message && (
-                <div>
-                  <label className="text-sm font-medium text-slate-700 block mb-1">Message</label>
-                  <p className="text-slate-900 bg-slate-50 p-4 rounded-lg">{selectedBooking.message}</p>
-                </div>
-              )}
-
-              {selectedBooking.agent_response && (
-                <div>
-                  <label className="text-sm font-medium text-slate-700 block mb-1">Agent Response</label>
-                  <p className="text-slate-900 bg-blue-50 p-4 rounded-lg">{selectedBooking.agent_response}</p>
-                </div>
-              )}
-
-              <div className="flex gap-3 pt-4 border-t border-slate-200">
-                <button
-                  onClick={() => setSelectedBooking(null)}
-                  className="flex-1 px-4 py-3 bg-slate-600 text-white rounded-xl hover:bg-slate-700 transition-colors font-semibold"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      )}
+              </>)
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

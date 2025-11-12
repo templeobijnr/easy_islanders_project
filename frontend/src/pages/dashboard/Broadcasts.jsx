@@ -9,13 +9,10 @@ import {
   Trash2,
   Radio,
   CheckCircle,
-  FileText,
-  TrendingUp,
   Search,
   Filter,
   X,
-  Sparkles,
-  Users
+  Sparkles
 } from 'lucide-react';
 import { useBroadcasts } from '../../hooks/useSellerDashboard';
 

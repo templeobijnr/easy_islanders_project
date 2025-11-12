@@ -19,7 +19,8 @@ from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 from django.utils import timezone
 
-from assistant.models import PreferenceExtractionEvent, UserPreference
+from assistant.models import PreferenceExtractionEvent
+from users.models import UserPreference
 
 User = get_user_model()
 

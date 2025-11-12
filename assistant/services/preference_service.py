@@ -21,7 +21,8 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from assistant.models import PreferenceExtractionEvent, UserPreference
+from assistant.models import PreferenceExtractionEvent
+from users.models import UserPreference
 
 User = get_user_model()
 logger = logging.getLogger(__name__)

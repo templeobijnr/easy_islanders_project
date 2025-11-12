@@ -224,6 +224,10 @@ class Booking(models.Model):
             models.Index(fields=['listing', 'start_date', 'end_date']),
             models.Index(fields=['booking_type', 'status']),
             models.Index(fields=['reference_number']),
+            models.Index(fields=['user', 'status']),  # For user dashboard
+            models.Index(fields=['payment_status']),  # For financial reports
+            models.Index(fields=['status', '-created_at']),  # For admin filtering
+            models.Index(fields=['start_date', 'status']),  # For availability queries
         ]
         verbose_name = "Booking"
         verbose_name_plural = "Bookings"

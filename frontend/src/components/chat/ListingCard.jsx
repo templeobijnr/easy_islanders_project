@@ -1,6 +1,8 @@
 import React from 'react';
 import ChatImageBubble from './ChatImageBubble';
 import api from '../../api'; // Import the centralized API
+import { Button } from '../ui/button';
+import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 
 const ListingCard = ({ listing, conversationId, onAgentResponse, onRequestPhotos, onViewPhotos }) => {
   if (!listing) {
@@ -48,60 +50,68 @@ const ListingCard = ({ listing, conversationId, onAgentResponse, onRequestPhotos
 
   return (
     <>
-      <div className="max-w-md mx-auto bg-white rounded-xl shadow-md overflow-hidden md:max-w-2xl my-4 p-6">
-        <h3 className="text-xl font-bold text-gray-900">{listing.title}</h3>
-        {listing.location && (
-          <div className="text-sm text-gray-600 mt-1">{listing.location}</div>
-        )}
-        <div className="mt-4">
-          <ChatImageBubble 
-            message={{
-              image_urls: listing.image_urls,
-              photos_requested: listing.photos_requested,
-              verified_with_photos: listing.verified_with_photos,
-              listing_id: listing.id,
-              message: ''
-            }} 
-            onRequestPhotos={onRequestPhotos}
-            variant="card"
-            showActions={false}
-          />
-        </div>
-
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2">
-          {hasImages ? (
-            <button
-              onClick={handleViewPhotos}
-              className="w-full bg-indigo-600 text-white py-2.5 px-2 rounded-xl hover:bg-indigo-700 transition-all duration-200 flex items-center justify-center gap-2 text-sm font-medium shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1"
-              aria-label={`View photos for listing ${listing.id}`}
-            >
-              View Photos ({listing.image_urls.length})
-            </button>
-          ) : (
-            <button
-              onClick={handleRequestPhotosClick}
-              className="w-full bg-orange-600 text-white py-2.5 px-2 rounded-xl hover:bg-orange-700 transition-all duration-200 flex items-center justify-center gap-2 text-sm font-medium shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-1"
-              aria-label={`Request photos for listing ${listing.id}`}
-            >
-              Request Photos
-            </button>
+      <Card className="max-w-md mx-auto md:max-w-2xl my-4">
+        <CardHeader>
+          <CardTitle>{listing.title}</CardTitle>
+          {listing.location && (
+            <p className="text-sm text-muted-foreground mt-1">{listing.location}</p>
           )}
-          <button
-            onClick={handleContactAgentClick}
-            className="w-full bg-green-600 text-white py-2.5 px-2 rounded-xl hover:bg-green-700 transition-all duration-200 flex items-center justify-center gap-2 text-sm font-medium shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-1"
-            aria-label={`Contact agent for listing ${listing.id}`}
-          >
-            Contact Agent
-          </button>
-          <button
-            onClick={handleViewDetails}
-            className="w-full bg-blue-600 text-white py-2.5 px-2 rounded-xl hover:bg-blue-700 transition-all duration-200 flex items-center justify-center gap-2 text-sm font-medium shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
-            aria-label={`View details for listing ${listing.id}`}
-          >
-            View Details
-          </button>
-        </div>
-      </div>
+        </CardHeader>
+        <CardContent>
+          <div className="mt-4">
+            <ChatImageBubble 
+              message={{
+                image_urls: listing.image_urls,
+                photos_requested: listing.photos_requested,
+                verified_with_photos: listing.verified_with_photos,
+                listing_id: listing.id,
+                message: ''
+              }} 
+              onRequestPhotos={onRequestPhotos}
+              variant="card"
+              showActions={false}
+            />
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2">
+            {hasImages ? (
+              <Button
+                onClick={handleViewPhotos}
+                variant="default"
+                className="w-full"
+                aria-label={`View photos for listing ${listing.id}`}
+              >
+                View Photos ({listing.image_urls.length})
+              </Button>
+            ) : (
+              <Button
+                onClick={handleRequestPhotosClick}
+                variant="secondary"
+                className="w-full"
+                aria-label={`Request photos for listing ${listing.id}`}
+              >
+                Request Photos
+              </Button>
+            )}
+            <Button
+              onClick={handleContactAgentClick}
+              variant="premium"
+              className="w-full"
+              aria-label={`Contact agent for listing ${listing.id}`}
+            >
+              Contact Agent
+            </Button>
+            <Button
+              onClick={handleViewDetails}
+              variant="outline"
+              className="w-full"
+              aria-label={`View details for listing ${listing.id}`}
+            >
+              View Details
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </>
   );
 };

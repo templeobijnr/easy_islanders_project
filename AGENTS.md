@@ -39,9 +39,10 @@
 **Django Patterns**
 - Use UUIDField for primary keys: `id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)`
 - Add indexes for frequently queried fields: `models.Index(fields=['user', 'is_active'])`
-- Use JSONField for flexible attributes/metadata with helpful help_text
+- Use JSONField for flexible attributes/metadata with helpful help_text (e.g., for category grouping in UserPreference)
 - Atomic operations: Use `@transaction.atomic` for critical writes
 - Permissions: Define in Meta class: `permissions = [("can_approve_broadcasts", "...")]`
+- Prefer metadata JSONField over extra model fields for non-unique, flexible data (see UserPreference.metadata for category storage)
 
 **Error Handling**
 - Return HTTP 400 for validation errors with descriptive messages

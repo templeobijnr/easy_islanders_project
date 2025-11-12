@@ -1,10 +1,11 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import User, BusinessProfile, UserPreferences
+from .models import User, BusinessProfile, UserPreference
 
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
+    """Admin interface for extended User model with business support"""
     fieldsets = BaseUserAdmin.fieldsets + (
         ('Business Info', {'fields': ('user_type', 'phone', 'is_verified')}),
     )
@@ -15,6 +16,7 @@ class UserAdmin(BaseUserAdmin):
 
 @admin.register(BusinessProfile)
 class BusinessProfileAdmin(admin.ModelAdmin):
+    """Admin interface for business user profiles"""
     list_display = ('business_name', 'user', 'is_verified_by_admin', 'created_at')
     list_filter = ('is_verified_by_admin', 'created_at')
     search_fields = ('business_name', 'user__username')
@@ -32,21 +34,27 @@ class BusinessProfileAdmin(admin.ModelAdmin):
         }),
     )
 
-@admin.register(UserPreferences)
-class UserPreferencesAdmin(admin.ModelAdmin):
-    list_display = ('user', 'language', 'currency', 'email_notifications', 'push_notifications')
-    list_filter = ('language', 'currency', 'email_notifications', 'push_notifications')
-    search_fields = ('user__username', 'user__email')
-    readonly_fields = ('created_at', 'updated_at')
+
+@admin.register(UserPreference)
+class UserPreferenceAdmin(admin.ModelAdmin):
+    """Admin interface for unified user preferences (UI settings + extracted preferences)"""
+    list_display = ('user', 'preference_type', 'confidence', 'source', 'created_at')
+    list_filter = ('preference_type', 'source', 'confidence', 'created_at')
+    search_fields = ('user__username', 'user__email', 'preference_type')
+    readonly_fields = ('id', 'created_at', 'updated_at')
     fieldsets = (
         ('User', {
-            'fields': ('user',)
+            'fields': ('id', 'user')
         }),
-        ('Preferences', {
-            'fields': ('language', 'currency', 'timezone')
+        ('Preference Details', {
+            'fields': ('preference_type', 'value', 'raw_value')
         }),
-        ('Notifications', {
-            'fields': ('email_notifications', 'push_notifications', 'marketing_notifications')
+        ('Confidence & Source', {
+            'fields': ('confidence', 'source', 'use_count', 'last_used_at')
+        }),
+        ('Metadata', {
+            'fields': ('metadata',),
+            'classes': ('collapse',)
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at'),

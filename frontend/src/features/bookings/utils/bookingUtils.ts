@@ -11,6 +11,9 @@ import type {
   BookingType,
 } from '../types';
 
+// Export types for consumer use
+export type { BookingStatus, CancellationPolicy, PaymentStatus, Booking, BookingType };
+
 // ============================================================================
 // Status Formatting & Colors
 // ============================================================================

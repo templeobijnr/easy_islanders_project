@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from '../../../components/ui/dialog';
 import { Calendar } from '../../../components/ui/calendar';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../../components/ui/tooltip';
 import { DateRange } from 'react-day-picker';
 import axios from 'axios';
 import { format } from 'date-fns';
@@ -47,7 +48,7 @@ export const ShortTermRecommendationCard: React.FC<ShortTermRecommendationCardPr
   const handleCheckAvailability = async () => {
     if (!dateRange || !dateRange.from || !dateRange.to) {
       alert('Please select check-in and check-out dates');
-      return;
+      return false;
     }
 
     try {
@@ -57,15 +58,18 @@ export const ShortTermRecommendationCard: React.FC<ShortTermRecommendationCardPr
         check_out: format(dateRange.to, 'yyyy-MM-dd'),
       });
 
-      setIsAvailable(response.data.available);
+      const available = response.data.available;
+      setIsAvailable(available);
       setAvailabilityChecked(true);
 
-      if (!response.data.available) {
+      if (!available) {
         alert('Selected dates are not available. Please choose different dates.');
       }
+      return available;
     } catch (err) {
       console.error('Availability check failed:', err);
       alert('Failed to check availability. Please try again.');
+      return false;
     }
   };
 
@@ -76,10 +80,11 @@ export const ShortTermRecommendationCard: React.FC<ShortTermRecommendationCardPr
       return;
     }
 
-    if (!availabilityChecked || !isAvailable) {
-      await handleCheckAvailability();
-      if (!isAvailable) return;
+    let available = isAvailable;
+    if (!availabilityChecked) {
+      available = await handleCheckAvailability();
     }
+    if (!available) return;
 
     setIsBooking(true);
     try {
@@ -108,7 +113,7 @@ export const ShortTermRecommendationCard: React.FC<ShortTermRecommendationCardPr
         whileHover={{ y: -4, scale: 1.02 }}
         transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
       >
-        <Card className="w-72 overflow-hidden hover:shadow-softmd transition-shadow">
+        <Card className="w-72 overflow-hidden hover:shadow-lg transition-all duration-300">
           {/* IMAGE */}
           <div
             className="relative cursor-pointer group"
@@ -140,7 +145,7 @@ export const ShortTermRecommendationCard: React.FC<ShortTermRecommendationCardPr
             </p>
 
             {dateRange?.from && dateRange?.to && (
-              <div className="mt-2 text-xs text-brand-600 dark:text-brand-400 flex items-center gap-1">
+              <div className="mt-2 text-xs text-primary flex items-center gap-1">
                 <CalendarIcon className="w-3 h-3" />
                 {format(dateRange.from, 'MMM d')} - {format(dateRange.to, 'MMM d, yyyy')}
               </div>
@@ -149,26 +154,35 @@ export const ShortTermRecommendationCard: React.FC<ShortTermRecommendationCardPr
 
           {/* BUTTONS */}
           <div className="flex flex-col gap-2 p-4 pt-0">
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setInfoOpen(true)}
-                className="flex-1"
-              >
-                <Info className="w-4 h-4 mr-1" />
-                Info
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setOpenDates(true)}
-                className="flex-1"
-              >
-                <CalendarIcon className="w-4 h-4 mr-1" />
-                Dates
-              </Button>
-            </div>
+            <TooltipProvider>
+              <div className="flex gap-2">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setInfoOpen(true)}
+                      className="flex-1"
+                    >
+                      <Info className="w-4 h-4 mr-1" />
+                      Info
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>View property details</p>
+                  </TooltipContent>
+                </Tooltip>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setOpenDates(true)}
+                  className="flex-1"
+                >
+                  <CalendarIcon className="w-4 h-4 mr-1" />
+                  Dates
+                </Button>
+              </div>
+            </TooltipProvider>
             <Button
               onClick={handleBookNow}
               disabled={isBooking}
@@ -284,7 +298,7 @@ export const ShortTermRecommendationCard: React.FC<ShortTermRecommendationCardPr
 
             <div>
               <h4 className="font-semibold mb-2">Price</h4>
-              <p className="text-lg font-bold text-brand-600">{item.price}</p>
+              <p className="text-lg font-bold text-primary">{item.price}</p>
             </div>
 
             {item.contactInfo && (
@@ -294,7 +308,7 @@ export const ShortTermRecommendationCard: React.FC<ShortTermRecommendationCardPr
                   {item.contactInfo.phone && (
                     <motion.a
                       href={`tel:${item.contactInfo.phone}`}
-                      className="flex items-center gap-1 text-sm text-brand-600 hover:text-brand-700"
+                      className="flex items-center gap-1 text-sm text-primary hover:text-primary/90"
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                     >
@@ -305,7 +319,7 @@ export const ShortTermRecommendationCard: React.FC<ShortTermRecommendationCardPr
                   {item.contactInfo.email && (
                     <motion.a
                       href={`mailto:${item.contactInfo.email}`}
-                      className="flex items-center gap-1 text-sm text-brand-600 hover:text-brand-700"
+                      className="flex items-center gap-1 text-sm text-primary hover:text-primary/90"
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                     >
@@ -318,7 +332,7 @@ export const ShortTermRecommendationCard: React.FC<ShortTermRecommendationCardPr
                       href={item.contactInfo.website}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-sm text-brand-600 hover:text-brand-700"
+                      className="flex items-center gap-1 text-sm text-primary hover:text-primary/90"
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                     >

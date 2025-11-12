@@ -1,6 +1,98 @@
 from rest_framework import serializers
-from .models import Booking, Listing, SellerProfile
+from .models import Listing, SellerProfile, Category, SubCategory, ListingImage
+from bookings.models import Booking
 from datetime import date
+
+
+# ============================================================================
+# CATEGORY & SUBCATEGORY SERIALIZERS
+# ============================================================================
+
+
+class SubCategorySerializer(serializers.ModelSerializer):
+    """Serializer for subcategories"""
+
+    class Meta:
+        model = SubCategory
+        fields = ['id', 'name', 'slug', 'description']
+
+
+class CategorySerializer(serializers.ModelSerializer):
+    """Serializer for categories with subcategories and schema"""
+
+    subcategories = SubCategorySerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Category
+        fields = [
+            'id', 'name', 'slug', 'icon', 'color', 'description',
+            'schema', 'is_bookable', 'is_active', 'subcategories',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+# ============================================================================
+# LISTING IMAGE SERIALIZER
+# ============================================================================
+
+
+class ListingImageSerializer(serializers.ModelSerializer):
+    """Serializer for listing images"""
+
+    class Meta:
+        model = ListingImage
+        fields = ['id', 'image', 'uploaded_at']
+        read_only_fields = ['id', 'uploaded_at']
+
+
+# ============================================================================
+# LISTING SERIALIZERS
+# ============================================================================
+
+
+class ListingDetailSerializer(serializers.ModelSerializer):
+    """Detailed listing serializer with full category info and images"""
+
+    category_name = serializers.CharField(source='category.name', read_only=True)
+    category_slug = serializers.CharField(source='category.slug', read_only=True)
+    category_is_bookable = serializers.BooleanField(source='category.is_bookable', read_only=True)
+    subcategory_name = serializers.CharField(source='subcategory.name', read_only=True, allow_null=True)
+    subcategory_slug = serializers.CharField(source='subcategory.slug', read_only=True, allow_null=True)
+    images = ListingImageSerializer(many=True, read_only=True)
+    owner_username = serializers.CharField(source='owner.username', read_only=True)
+
+    class Meta:
+        model = Listing
+        fields = [
+            'id', 'owner', 'owner_username', 'category', 'category_name', 'category_slug',
+            'category_is_bookable', 'subcategory', 'subcategory_name', 'subcategory_slug',
+            'title', 'description', 'price', 'currency', 'location', 'latitude', 'longitude',
+            'dynamic_fields', 'status', 'is_featured', 'views', 'images',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'owner', 'views', 'created_at', 'updated_at']
+
+    def validate(self, data):
+        """Validate dynamic_fields against category schema"""
+        category = data.get('category')
+        dynamic_fields = data.get('dynamic_fields', {})
+
+        if category and dynamic_fields:
+            schema = category.schema
+            if schema and 'fields' in schema:
+                # Basic validation: check that all required fields are present
+                required_fields = [
+                    f['name'] for f in schema['fields']
+                    if f.get('required') and 'required_if' not in f
+                ]
+                for field_name in required_fields:
+                    if field_name not in dynamic_fields:
+                        raise serializers.ValidationError(
+                            f"Required field '{field_name}' is missing."
+                        )
+
+        return data
 
 
 class BookingSerializer(serializers.ModelSerializer):
@@ -57,37 +149,45 @@ class BookingSerializer(serializers.ModelSerializer):
 
 
 class ListingSerializer(serializers.ModelSerializer):
-    """Basic listing serializer for API responses"""
+    """Basic listing serializer for API list responses"""
 
     category_name = serializers.CharField(source='category.name', read_only=True)
+    category_slug = serializers.CharField(source='category.slug', read_only=True)
+    subcategory_name = serializers.CharField(source='subcategory.name', read_only=True, allow_null=True)
+    owner_username = serializers.CharField(source='owner.username', read_only=True)
     image_urls = serializers.SerializerMethodField()
 
     class Meta:
         model = Listing
         fields = [
             'id',
+            'owner_username',
             'title',
             'description',
             'category',
             'category_name',
+            'category_slug',
+            'subcategory',
+            'subcategory_name',
             'price',
             'currency',
             'location',
             'status',
             'is_featured',
+            'views',
             'dynamic_fields',
             'image_urls',
             'created_at',
         ]
-        read_only_fields = ['id', 'created_at']
+        read_only_fields = ['id', 'owner_username', 'views', 'created_at']
 
     def get_image_urls(self, obj):
-        """Get all image URLs for the listing"""
+        """Get first image URL for listing preview"""
         request = self.context.get('request')
         images = obj.images.all()
 
         if request and images:
-            return [request.build_absolute_uri(image.image.url) for image in images]
+            return [request.build_absolute_uri(images[0].image.url)]
         return []
 
 

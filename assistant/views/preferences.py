@@ -106,9 +106,10 @@ def upsert_preference(request):
         )
         # Model has to_dict()
         data = getattr(obj, "to_dict", None)
+        category_from_metadata = (obj.metadata or {}).get("category", category) if obj.metadata else category
         return Response({"ok": True, "preference": obj.to_dict() if callable(data) else {
             "id": str(obj.id),
-            "category": obj.category,
+            "category": category_from_metadata,
             "preference_type": obj.preference_type,
             "value": obj.value,
             "confidence": obj.confidence,

@@ -69,7 +69,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [typing, setTyping] = useState(false);
   const [results, setResults] = useState<any[]>([]);  // ✅ Add setter for recommendations
   const [connectionStatus, setConnectionStatusState] = useState<ConnectionStatus>('disconnected');
-  const [threadId, setThreadId] = useState<string | null>(() => localStorage.getItem('threadId'));
+  const [threadId] = useState<string | null>(() => localStorage.getItem('threadId'));
   const [wsCorrelationId] = useState<string | null>(null);
   const [lastMemoryTrace, setLastMemoryTrace] = useState<any | null>(null);
   const [lastCorrelationId, setLastCorrelationId] = useState<string | null>(null);

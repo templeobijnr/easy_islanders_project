@@ -4,6 +4,15 @@
 
 We've integrated **shadcn/ui** components with **Framer Motion** animations to create a beautiful, modern, and premium user interface. All components are built with TypeScript, fully typed, and follow best practices.
 
+**✨ Latest Updates:**
+- ✅ Smooth page transitions with `PageTransition` component
+- ✅ Enhanced button press animations with framer-motion
+- ✅ Card hover glow effects
+- ✅ Skeleton loaders for async content
+- ✅ Enhanced modal and dropdown entrance animations
+- ✅ Consistent spacing and alignment utilities
+- ✅ Theme color and typography audit
+
 ## 📦 What's New
 
 ### 1. **shadcn/ui Components**
@@ -29,8 +38,23 @@ Pre-built animation variants for Framer Motion:
 ### 3. **Helper Components**
 Easy-to-use wrapper components:
 - `AnimatedWrapper` - Add animations with one line
+- `PageTransition` - Smooth page transitions for route changes
 - `StaggerContainer` & `StaggerItem` - Animate lists easily
 - `AnimatedCard` - Cards with hover effects
+
+### 4. **Skeleton Loaders**
+Loading state components for async content:
+- `Skeleton` - Base skeleton component
+- `CardSkeleton` - Skeleton for card layouts
+- `ListItemSkeleton` - Skeleton for list items
+- `TextSkeleton` - Skeleton for text content
+- `TableSkeleton` - Skeleton for table layouts
+
+### 5. **Spacing & Layout Utilities**
+Consistent spacing and alignment helpers:
+- `spacing` - Page, section, card, grid, and form spacing
+- `alignment` - Flex and text alignment utilities
+- `layout` - Container widths and grid layouts
 
 ## 🚀 Quick Start
 
@@ -166,6 +190,26 @@ import { AnimatedWrapper } from '@/components/ui/animated-wrapper';
 // glassCardIn, float, rotate, shimmer
 ```
 
+### Method 1.5: Using PageTransition
+
+For smooth page transitions when navigating between routes:
+
+```tsx
+import { PageTransition } from '@/components/ui/animated-wrapper';
+
+// In your route configuration
+<Route 
+  path="/dashboard" 
+  element={
+    <PageTransition>
+      <Dashboard />
+    </PageTransition>
+  } 
+/>
+```
+
+The `PageTransition` component automatically animates when the route changes, providing smooth fade and slide transitions.
+
 ### Method 2: Using Stagger Animations (for Lists)
 
 Perfect for animating lists of items:
@@ -211,6 +255,46 @@ import * as animations from '@/lib/animations';
 >
   Custom animated content
 </motion.div>
+```
+
+## 💀 Skeleton Loaders
+
+Use skeleton loaders to show loading states for async content:
+
+```tsx
+import { Skeleton, CardSkeleton, ListItemSkeleton, TextSkeleton } from '@/components/ui/skeleton';
+
+// Basic skeleton
+<Skeleton className="h-4 w-3/4" />
+
+// Card skeleton
+<CardSkeleton />
+
+// List item skeleton
+<ListItemSkeleton />
+
+// Text skeleton (3 lines by default)
+<TextSkeleton lines={4} />
+
+// Table skeleton
+<TableSkeleton rows={5} cols={4} />
+```
+
+**Example Usage:**
+```tsx
+{loading ? (
+  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+    {[1, 2, 3].map((i) => (
+      <CardSkeleton key={i} />
+    ))}
+  </div>
+) : (
+  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+    {items.map((item) => (
+      <Card key={item.id}>{item.content}</Card>
+    ))}
+  </div>
+)}
 ```
 
 ## 🎨 Theming
@@ -284,6 +368,32 @@ All components are mobile-first and responsive:
 <Button className="bg-red-500">Delete</Button>
 ```
 
+### 1.5. **Use Consistent Spacing**
+
+```tsx
+import { spacing, alignment, layout } from '@/lib/spacing';
+
+// Good - consistent page spacing
+<div className={spacing.pageContainer}>
+  <div className={spacing.section}>
+    <h1 className={spacing.headingMargin}>Title</h1>
+    <div className={layout.grid3}>
+      {items.map(item => <Card key={item.id} />)}
+    </div>
+  </div>
+</div>
+
+// Avoid - inconsistent spacing
+<div className="p-4">
+  <div className="mb-8">
+    <h1 className="mb-6">Title</h1>
+    <div className="grid grid-cols-3 gap-4">
+      {items.map(item => <Card key={item.id} />)}
+    </div>
+  </div>
+</div>
+```
+
 ### 2. **Wrap Tooltips with TooltipProvider**
 
 ```tsx
@@ -329,6 +439,53 @@ All components are mobile-first and responsive:
 </StaggerContainer>
 ```
 
+### 5. **Use Card Hover Effects**
+
+```tsx
+// Good - card with hover glow
+<Card hoverGlow>
+  <CardContent>Premium content</CardContent>
+</Card>
+
+// Good - card without hover (for static content)
+<Card disableHover>
+  <CardContent>Static content</CardContent>
+</Card>
+```
+
+### 6. **Show Loading States**
+
+```tsx
+// Good - skeleton loader while loading
+{loading ? (
+  <CardSkeleton />
+) : (
+  <Card>
+    <CardContent>{data.content}</CardContent>
+  </Card>
+)}
+
+// Avoid - blank screen or spinner only
+{loading && <Spinner />}
+{!loading && <Card>...</Card>}
+```
+
+### 7. **Wrap Pages with PageTransition**
+
+```tsx
+// Good - smooth page transitions
+<Routes>
+  <Route 
+    path="/dashboard" 
+    element={
+      <PageTransition>
+        <Dashboard />
+      </PageTransition>
+    } 
+  />
+</Routes>
+```
+
 ## 🔧 Configuration Files
 
 ### Key Files
@@ -336,9 +493,62 @@ All components are mobile-first and responsive:
 - `components.json` - shadcn/ui configuration
 - `src/lib/utils.ts` - cn() utility for className merging
 - `src/lib/animations.ts` - Framer Motion animation variants
+- `src/lib/spacing.ts` - Spacing, alignment, and layout utilities
 - `src/components/ui/*` - UI component library
 - `tailwind.config.js` - Extended with new colors and animations
 - `src/index.css` - CSS variables for theming
+
+## 🎨 Micro-Interactions
+
+### Button Press Animations
+
+All buttons now have smooth press animations using framer-motion:
+
+```tsx
+// Premium buttons have enhanced hover scale
+<Button variant="premium">Premium Button</Button>
+
+// All buttons have press animation (scale down on tap)
+<Button>Regular Button</Button>
+```
+
+### Card Hover Effects
+
+Cards have smooth hover effects with optional glow:
+
+```tsx
+// Standard hover (lift + shadow)
+<Card>
+  <CardContent>Hover me</CardContent>
+</Card>
+
+// Premium hover with brand glow
+<Card hoverGlow>
+  <CardContent>Premium hover</CardContent>
+</Card>
+```
+
+### Modal & Dropdown Animations
+
+Modals and dropdowns have enhanced entrance animations:
+
+```tsx
+// Dialog automatically animates in/out
+<Dialog>
+  <DialogTrigger>Open</DialogTrigger>
+  <DialogContent>
+    {/* Smooth fade + scale + slide animation */}
+  </DialogContent>
+</Dialog>
+
+// Dropdown menu with backdrop blur
+<DropdownMenu>
+  <DropdownMenuTrigger>Menu</DropdownMenuTrigger>
+  <DropdownMenuContent>
+    {/* Smooth entrance animation */}
+  </DropdownMenuContent>
+</DropdownMenu>
+```
 
 ## 📚 Examples
 
@@ -402,6 +612,11 @@ To view it:
 3. **TypeScript**: Full type safety with IntelliSense support
 4. **Customization**: Use `className` prop to extend any component
 5. **Composition**: Components are designed to work together seamlessly
+6. **Spacing**: Always use spacing utilities for consistency
+7. **Loading States**: Use skeleton loaders instead of spinners for better UX
+8. **Page Transitions**: Wrap all route components with `PageTransition` for smooth navigation
+9. **Theme Colors**: Use semantic color tokens (primary, destructive, etc.) instead of hardcoded colors
+10. **Typography**: Use text utility classes (text-heading-1, text-body, etc.) for consistent typography
 
 ## 🐛 Troubleshooting
 

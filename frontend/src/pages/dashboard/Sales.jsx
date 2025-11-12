@@ -14,13 +14,14 @@ import {
   Download,
   Eye,
   ArrowUpRight,
-  ArrowDownRight,
-  Users,
   Target,
   Award,
   Sparkles
 } from 'lucide-react';
-import config from '../../config';
+import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/card';
+import { Button } from '../../components/ui/button';
+import { Badge } from '../../components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 
 const Sales = () => {
   const [sales, setSales] = useState([]);
@@ -155,9 +156,9 @@ const Sales = () => {
 
   if (loading) {
     return (
-      <div className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 p-8">
-        <h1 className="text-2xl font-bold text-slate-900 mb-2">Sales</h1>
-        <p className="text-slate-600 mb-8">Track your sales and revenue</p>
+      <div className="bg-card backdrop-blur rounded-2xl border border-border p-8">
+        <h1 className="text-2xl font-bold text-foreground mb-2">Sales</h1>
+        <p className="text-muted-foreground mb-8">Track your sales and revenue</p>
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -169,9 +170,9 @@ const Sales = () => {
               transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
               className="inline-block"
             >
-              <ShoppingCart className="w-12 h-12 text-lime-600 mb-4" />
+              <ShoppingCart className="w-12 h-12 text-primary mb-4" />
             </motion.div>
-            <p className="text-slate-600 font-medium">Loading sales data...</p>
+            <p className="text-muted-foreground font-medium">Loading sales data...</p>
           </div>
         </motion.div>
       </div>
@@ -179,7 +180,7 @@ const Sales = () => {
   }
 
   return (
-    <div className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 p-8">
+    <div className="bg-background/90 backdrop-blur rounded-2xl border border-border p-8">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -187,31 +188,32 @@ const Sales = () => {
         className="flex items-center justify-between mb-8"
       >
         <div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">Sales Dashboard</h1>
-          <p className="text-slate-600">Track revenue, transactions, and performance</p>
+          <h1 className="text-3xl font-bold text-foreground mb-2">Sales Dashboard</h1>
+          <p className="text-muted-foreground">Track revenue, transactions, and performance</p>
         </div>
-        <button className="group flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-lime-600 to-lime-500 text-white rounded-xl hover:from-lime-700 hover:to-lime-600 transition-all duration-200 font-semibold shadow-lg shadow-lime-600/30 hover:shadow-xl hover:shadow-lime-600/40 hover:scale-105">
-          <Download className="w-5 h-5" />
-          <span>Export Report</span>
-        </button>
+        <Button variant="premium" className="group">
+          <Download className="w-5 h-5 mr-2" />
+          Export Report
+        </Button>
       </motion.div>
 
       {error && (
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="bg-red-50 border border-red-200 rounded-2xl p-6 flex items-center gap-4 mb-6 shadow-sm"
+          className="bg-destructive/10 border border-destructive/30 rounded-2xl p-6 flex items-center gap-4 mb-6 shadow-sm"
         >
-          <XCircle className="w-6 h-6 text-red-600 flex-shrink-0" />
+          <XCircle className="w-6 h-6 text-destructive flex-shrink-0" />
           <div className="flex-1">
-            <p className="text-red-700 font-medium">{error}</p>
+            <p className="text-destructive font-medium">{error}</p>
           </div>
-          <button
+          <Button
             onClick={fetchSales}
-            className="px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 font-semibold text-sm transition-colors"
+            variant="destructive"
+            className="px-4 py-2"
           >
             Retry
-          </button>
+          </Button>
         </motion.div>
       )}
 
@@ -222,109 +224,117 @@ const Sales = () => {
         animate="show"
         className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"
       >
-        <motion.div variants={item} className="group">
-          <div className="bg-gradient-to-br from-green-50 to-emerald-100 border border-green-200 rounded-2xl p-6 shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-green-200/20 rounded-full -mr-16 -mt-16"></div>
-            <div className="relative">
-              <div className="flex items-center justify-between mb-3">
-                <div className="p-3 bg-green-200 rounded-xl group-hover:scale-110 transition-transform duration-300">
-                  <DollarSign className="w-6 h-6 text-green-700" />
+        <motion.div variants={item}>
+          <Card className="group cursor-pointer hover:shadow-xl transition-all duration-300 relative overflow-hidden">
+            <CardContent className="p-6 relative">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-success/30 rounded-full -mr-16 -mt-16"></div>
+              <div className="relative">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-3 bg-success/30 rounded-xl group-hover:scale-110 transition-transform duration-300">
+                    <DollarSign className="w-6 h-6 text-success" />
+                  </div>
+                  <div className="flex items-center gap-1 text-success text-sm font-semibold">
+                    <ArrowUpRight className="w-4 h-4" />
+                    <span>+12.5%</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1 text-green-700 text-sm font-semibold">
-                  <ArrowUpRight className="w-4 h-4" />
-                  <span>+12.5%</span>
-                </div>
+                <motion.p
+                  className="text-3xl font-bold text-foreground mb-2"
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: "spring", delay: 0.2 }}
+                >
+                  €{stats.totalRevenue.toLocaleString()}
+                </motion.p>
+                <h3 className="text-sm font-semibold text-foreground mb-1">Total Revenue</h3>
+                <p className="text-xs text-success">From completed sales</p>
               </div>
-              <motion.p
-                className="text-3xl font-bold text-green-900 mb-2"
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ type: "spring", delay: 0.2 }}
-              >
-                €{stats.totalRevenue.toLocaleString()}
-              </motion.p>
-              <h3 className="text-sm font-semibold text-green-900 mb-1">Total Revenue</h3>
-              <p className="text-xs text-green-700">From completed sales</p>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         </motion.div>
 
-        <motion.div variants={item} className="group">
-          <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-2xl p-6 shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-200/20 rounded-full -mr-16 -mt-16"></div>
-            <div className="relative">
-              <div className="flex items-center justify-between mb-3">
-                <div className="p-3 bg-blue-200 rounded-xl group-hover:scale-110 transition-transform duration-300">
-                  <CheckCircle2 className="w-6 h-6 text-blue-700" />
+        <motion.div variants={item}>
+          <Card className="group cursor-pointer hover:shadow-xl transition-all duration-300 relative overflow-hidden">
+            <CardContent className="p-6 relative">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-primary/30 rounded-full -mr-16 -mt-16"></div>
+              <div className="relative">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-3 bg-primary/30 rounded-xl group-hover:scale-110 transition-transform duration-300">
+                    <CheckCircle2 className="w-6 h-6 text-primary" />
+                  </div>
+                  <div className="flex items-center gap-1 text-primary text-sm font-semibold">
+                    <Award className="w-4 h-4" />
+                  </div>
                 </div>
-                <div className="flex items-center gap-1 text-blue-700 text-sm font-semibold">
-                  <Award className="w-4 h-4" />
-                </div>
+                <motion.p
+                  className="text-3xl font-bold text-foreground mb-2"
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: "spring", delay: 0.3 }}
+                >
+                  {stats.completedSales}
+                </motion.p>
+                <h3 className="text-sm font-semibold text-foreground mb-1">Completed Sales</h3>
+                <p className="text-xs text-primary">Successfully closed</p>
               </div>
-              <motion.p
-                className="text-3xl font-bold text-blue-900 mb-2"
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ type: "spring", delay: 0.3 }}
-              >
-                {stats.completedSales}
-              </motion.p>
-              <h3 className="text-sm font-semibold text-blue-900 mb-1">Completed Sales</h3>
-              <p className="text-xs text-blue-700">Successfully closed</p>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         </motion.div>
 
-        <motion.div variants={item} className="group">
-          <div className="bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 rounded-2xl p-6 shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-amber-200/20 rounded-full -mr-16 -mt-16"></div>
-            <div className="relative">
-              <div className="flex items-center justify-between mb-3">
-                <div className="p-3 bg-amber-200 rounded-xl group-hover:scale-110 transition-transform duration-300">
-                  <Clock className="w-6 h-6 text-amber-700" />
+        <motion.div variants={item}>
+          <Card className="group cursor-pointer hover:shadow-xl transition-all duration-300 relative overflow-hidden">
+            <CardContent className="p-6 relative">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-warning/30 rounded-full -mr-16 -mt-16"></div>
+              <div className="relative">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-3 bg-warning/30 rounded-xl group-hover:scale-110 transition-transform duration-300">
+                    <Clock className="w-6 h-6 text-warning" />
+                  </div>
+                  <div className="flex items-center gap-1 text-warning text-sm font-semibold">
+                    <Target className="w-4 h-4" />
+                  </div>
                 </div>
-                <div className="flex items-center gap-1 text-amber-700 text-sm font-semibold">
-                  <Target className="w-4 h-4" />
-                </div>
+                <motion.p
+                  className="text-3xl font-bold text-foreground mb-2"
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: "spring", delay: 0.4 }}
+                >
+                  {stats.pendingSales}
+                </motion.p>
+                <h3 className="text-sm font-semibold text-foreground mb-1">Pending Sales</h3>
+                <p className="text-xs text-warning">Awaiting completion</p>
               </div>
-              <motion.p
-                className="text-3xl font-bold text-amber-900 mb-2"
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ type: "spring", delay: 0.4 }}
-              >
-                {stats.pendingSales}
-              </motion.p>
-              <h3 className="text-sm font-semibold text-amber-900 mb-1">Pending Sales</h3>
-              <p className="text-xs text-amber-700">Awaiting completion</p>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         </motion.div>
 
-        <motion.div variants={item} className="group">
-          <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-2xl p-6 shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-purple-200/20 rounded-full -mr-16 -mt-16"></div>
-            <div className="relative">
-              <div className="flex items-center justify-between mb-3">
-                <div className="p-3 bg-purple-200 rounded-xl group-hover:scale-110 transition-transform duration-300">
-                  <TrendingUp className="w-6 h-6 text-purple-700" />
+        <motion.div variants={item}>
+          <Card className="group cursor-pointer hover:shadow-xl transition-all duration-300 relative overflow-hidden">
+            <CardContent className="p-6 relative">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/30 rounded-full -mr-16 -mt-16"></div>
+              <div className="relative">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-3 bg-purple-500/30 rounded-xl group-hover:scale-110 transition-transform duration-300">
+                    <TrendingUp className="w-6 h-6 text-purple-700" />
+                  </div>
+                  <div className="flex items-center gap-1 text-purple-700 text-sm font-semibold">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
                 </div>
-                <div className="flex items-center gap-1 text-purple-700 text-sm font-semibold">
-                  <Sparkles className="w-4 h-4" />
-                </div>
+                <motion.p
+                  className="text-3xl font-bold text-foreground mb-2"
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: "spring", delay: 0.5 }}
+                >
+                  €{stats.avgSaleValue.toFixed(0)}
+                </motion.p>
+                <h3 className="text-sm font-semibold text-foreground mb-1">Avg. Sale Value</h3>
+                <p className="text-xs text-purple-700">Per transaction</p>
               </div>
-              <motion.p
-                className="text-3xl font-bold text-purple-900 mb-2"
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ type: "spring", delay: 0.5 }}
-              >
-                €{stats.avgSaleValue.toFixed(0)}
-              </motion.p>
-              <h3 className="text-sm font-semibold text-purple-900 mb-1">Avg. Sale Value</h3>
-              <p className="text-xs text-purple-700">Per transaction</p>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         </motion.div>
       </motion.div>
 
@@ -333,33 +343,34 @@ const Sales = () => {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
-        className="bg-white border border-slate-200 rounded-2xl p-6 mb-6 shadow-sm"
       >
+        <Card className="shadow-sm">
+          <CardContent className="p-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Search */}
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">Search</label>
+            <label className="block text-sm font-medium text-foreground mb-2">Search</label>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
               <input
                 type="text"
                 placeholder="Search by title, buyer, category..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-xl text-slate-700 bg-white hover:border-lime-400 focus:outline-none focus:ring-2 focus:ring-lime-600 focus:border-transparent transition-all"
+                className="w-full pl-10 pr-4 py-2.5 border border-input rounded-xl text-foreground bg-background hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
               />
             </div>
           </div>
 
           {/* Status Filter */}
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">Status</label>
+            <label className="block text-sm font-medium text-foreground mb-2">Status</label>
             <div className="relative">
-              <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+              <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
               <select
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
-                className="w-full pl-10 px-4 py-2.5 border border-slate-300 rounded-xl text-slate-700 bg-white hover:border-lime-400 focus:outline-none focus:ring-2 focus:ring-lime-600 focus:border-transparent transition-all appearance-none"
+                className="w-full pl-10 px-4 py-2.5 border border-input rounded-xl text-foreground bg-background hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all appearance-none"
               >
                 <option value="all">All Sales</option>
                 <option value="completed">Completed</option>
@@ -371,13 +382,13 @@ const Sales = () => {
 
           {/* Time Range */}
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">Time Range</label>
+            <label className="block text-sm font-medium text-foreground mb-2">Time Range</label>
             <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+              <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
               <select
                 value={timeRange}
                 onChange={(e) => setTimeRange(e.target.value)}
-                className="w-full pl-10 px-4 py-2.5 border border-slate-300 rounded-xl text-slate-700 bg-white hover:border-lime-400 focus:outline-none focus:ring-2 focus:ring-lime-600 focus:border-transparent transition-all appearance-none"
+                className="w-full pl-10 px-4 py-2.5 border border-input rounded-xl text-foreground bg-background hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all appearance-none"
               >
                 <option value="all">All Time</option>
                 <option value="today">Today</option>
@@ -387,6 +398,8 @@ const Sales = () => {
             </div>
           </div>
         </div>
+      </CardContent>
+      </Card>
       </motion.div>
 
       {/* Sales Table */}
@@ -394,29 +407,30 @@ const Sales = () => {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
-        className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
       >
-        <div className="p-6 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-bold text-slate-800">Recent Transactions</h3>
-            <span className="text-sm text-slate-600">{filteredSales.length} sales</span>
-          </div>
-        </div>
+        <Card className="shadow-sm overflow-hidden">
+          <CardHeader className="bg-muted">
+            <CardTitle className="flex items-center justify-between">
+              Recent Transactions
+              <span className="text-sm text-muted-foreground font-normal">{filteredSales.length} sales</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
 
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-slate-50 border-b border-slate-200">
+            <thead className="bg-muted border-b border-border">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">Item</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">Buyer</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">Amount</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">Commission</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">Date</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-4 text-right text-xs font-bold text-slate-700 uppercase tracking-wider">Actions</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider">Item</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider">Buyer</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider">Amount</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider">Commission</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider">Date</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider">Status</th>
+                <th className="px-6 py-4 text-right text-xs font-bold text-muted-foreground uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200">
+            <tbody className="divide-y divide-border">
               <AnimatePresence>
                 {filteredSales.map((sale, index) => (
                   <motion.tr
@@ -425,65 +439,50 @@ const Sales = () => {
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: 20 }}
                     transition={{ delay: index * 0.05 }}
-                    className="hover:bg-slate-50 transition-colors group"
+                    className="hover:bg-muted/50 transition-colors group"
                   >
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="p-2 bg-gradient-to-br from-lime-50 to-lime-100 rounded-lg group-hover:scale-110 transition-transform">
-                          <Package className="w-4 h-4 text-lime-700" />
+                        <div className="p-2 bg-gradient-to-br from-primary/10 to-primary/20 rounded-lg group-hover:scale-110 transition-transform">
+                          <Package className="w-4 h-4 text-primary" />
                         </div>
                         <div>
-                          <p className="text-sm font-semibold text-slate-900">{sale.title}</p>
-                          <p className="text-xs text-slate-600">{sale.category}</p>
+                          <p className="text-sm font-semibold text-foreground">{sale.title}</p>
+                          <p className="text-xs text-muted-foreground">{sale.category}</p>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                        <div className="w-8 h-8 bg-gradient-to-br from-primary to-purple-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
                           {sale.buyer.avatar}
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-slate-900">{sale.buyer.name}</p>
-                          <p className="text-xs text-slate-600">{sale.buyer.email}</p>
+                          <p className="text-sm font-medium text-foreground">{sale.buyer.name}</p>
+                          <p className="text-xs text-muted-foreground">{sale.buyer.email}</p>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <p className="text-sm font-bold text-slate-900">€{sale.amount.toLocaleString()}</p>
-                      <p className="text-xs text-slate-600">{sale.paymentMethod}</p>
+                      <p className="text-sm font-bold text-foreground">€{sale.amount.toLocaleString()}</p>
+                      <p className="text-xs text-muted-foreground">{sale.paymentMethod}</p>
                     </td>
                     <td className="px-6 py-4">
-                      <p className="text-sm font-semibold text-lime-600">€{sale.commission}</p>
+                      <p className="text-sm font-semibold text-primary">€{sale.commission}</p>
                     </td>
                     <td className="px-6 py-4">
-                      <p className="text-sm text-slate-900">{new Date(sale.date).toLocaleDateString()}</p>
-                      <p className="text-xs text-slate-600">{new Date(sale.date).toLocaleTimeString()}</p>
+                      <p className="text-sm text-foreground">{new Date(sale.date).toLocaleDateString()}</p>
+                      <p className="text-xs text-muted-foreground">{new Date(sale.date).toLocaleTimeString()}</p>
                     </td>
                     <td className="px-6 py-4">
-                      <span
-                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${
-                          sale.status === 'completed'
-                            ? 'bg-green-100 text-green-700 border border-green-200'
-                            : sale.status === 'pending'
-                            ? 'bg-amber-100 text-amber-700 border border-amber-200'
-                            : 'bg-red-100 text-red-700 border border-red-200'
-                        }`}
-                      >
-                        {sale.status === 'completed' && <CheckCircle2 className="w-3 h-3" />}
-                        {sale.status === 'pending' && <Clock className="w-3 h-3" />}
-                        {sale.status === 'cancelled' && <XCircle className="w-3 h-3" />}
-                        <span className="capitalize">{sale.status}</span>
-                      </span>
+                      {sale.status === 'completed' && <Badge variant="success" className="gap-1.5"><CheckCircle2 className="w-3 h-3" />completed</Badge>}
+                      {sale.status === 'pending' && <Badge variant="warning" className="gap-1.5"><Clock className="w-3 h-3" />pending</Badge>}
+                      {sale.status === 'cancelled' && <Badge variant="destructive" className="gap-1.5"><XCircle className="w-3 h-3" />cancelled</Badge>}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button
-                        onClick={() => setSelectedSale(sale)}
-                        className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-                        title="View Details"
-                      >
-                        <Eye className="w-4 h-4 text-slate-600" />
-                      </button>
+                      <Button variant="ghost" size="icon" onClick={() => setSelectedSale(sale)} title="View Details">
+                        <Eye className="w-4 h-4" />
+                      </Button>
                     </td>
                   </motion.tr>
                 ))}
@@ -493,86 +492,64 @@ const Sales = () => {
 
           {filteredSales.length === 0 && (
             <div className="py-16 text-center">
-              <ShoppingCart className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-slate-800 mb-2">No sales found</h3>
-              <p className="text-slate-600">Try adjusting your filters or search query</p>
+              <ShoppingCart className="w-16 h-16 text-muted mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-foreground mb-2">No sales found</h3>
+              <p className="text-muted-foreground">Try adjusting your filters or search query</p>
             </div>
           )}
         </div>
+      </CardContent>
+      </Card>
       </motion.div>
 
       {/* Sale Details Modal */}
-      <AnimatePresence>
-        {selectedSale && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-            onClick={() => setSelectedSale(null)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
-            >
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-slate-900">Sale Details</h2>
-                <button
-                  onClick={() => setSelectedSale(null)}
-                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-                >
-                  <XCircle className="w-6 h-6 text-slate-600" />
-                </button>
-              </div>
+      <Dialog open={!!selectedSale} onOpenChange={() => setSelectedSale(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Sale Details</DialogTitle>
+          </DialogHeader>
 
-              <div className="space-y-6">
-                <div className="p-4 bg-gradient-to-r from-lime-50 to-lime-100 rounded-xl border border-lime-200">
-                  <h3 className="text-xl font-bold text-slate-900 mb-2">{selectedSale.title}</h3>
-                  <div className="flex items-center gap-4 text-sm">
-                    <span className={`px-3 py-1 rounded-full font-semibold ${
-                      selectedSale.status === 'completed' ? 'bg-green-100 text-green-700' :
-                      selectedSale.status === 'pending' ? 'bg-amber-100 text-amber-700' :
-                      'bg-red-100 text-red-700'
-                    }`}>
-                      {selectedSale.status}
-                    </span>
-                    <span className="text-slate-600">{selectedSale.category}</span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-6">
-                  <div>
-                    <label className="text-sm font-medium text-slate-600 block mb-1">Buyer</label>
-                    <p className="text-slate-900 font-semibold">{selectedSale.buyer.name}</p>
-                    <p className="text-sm text-slate-600">{selectedSale.buyer.email}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-slate-600 block mb-1">Payment Method</label>
-                    <p className="text-slate-900 font-semibold">{selectedSale.paymentMethod}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-slate-600 block mb-1">Sale Amount</label>
-                    <p className="text-2xl font-bold text-slate-900">€{selectedSale.amount.toLocaleString()}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-slate-600 block mb-1">Your Commission</label>
-                    <p className="text-2xl font-bold text-lime-600">€{selectedSale.commission}</p>
-                  </div>
-                  <div className="col-span-2">
-                    <label className="text-sm font-medium text-slate-600 block mb-1">Transaction Date</label>
-                    <p className="text-slate-900 font-semibold">
-                      {new Date(selectedSale.date).toLocaleString()}
-                    </p>
-                  </div>
+          {selectedSale && (
+            <div className="space-y-6">
+              <div className="p-4 bg-gradient-to-r from-primary/10 to-primary/20 rounded-xl border border-primary/30">
+                <h3 className="text-xl font-bold text-foreground mb-2">{selectedSale.title}</h3>
+                <div className="flex items-center gap-4 text-sm">
+                  {selectedSale.status === 'completed' && <Badge variant="success">{selectedSale.status}</Badge>}
+                  {selectedSale.status === 'pending' && <Badge variant="warning">{selectedSale.status}</Badge>}
+                  {selectedSale.status === 'cancelled' && <Badge variant="destructive">{selectedSale.status}</Badge>}
+                  <span className="text-muted-foreground">{selectedSale.category}</span>
                 </div>
               </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground block mb-1">Buyer</label>
+                  <p className="text-foreground font-semibold">{selectedSale.buyer.name}</p>
+                  <p className="text-sm text-muted-foreground">{selectedSale.buyer.email}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground block mb-1">Payment Method</label>
+                  <p className="text-foreground font-semibold">{selectedSale.paymentMethod}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground block mb-1">Sale Amount</label>
+                  <p className="text-2xl font-bold text-foreground">€{selectedSale.amount.toLocaleString()}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground block mb-1">Your Commission</label>
+                  <p className="text-2xl font-bold text-primary">€{selectedSale.commission}</p>
+                </div>
+                <div className="col-span-2">
+                  <label className="text-sm font-medium text-muted-foreground block mb-1">Transaction Date</label>
+                  <p className="text-foreground font-semibold">
+                    {new Date(selectedSale.date).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

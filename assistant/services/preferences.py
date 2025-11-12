@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional
 from django.db import transaction
 from django.utils import timezone
 
-from assistant.models import UserPreference
+from users.models import UserPreference
 from assistant.memory.pii import redact_pii
 
 logger = logging.getLogger(__name__)
@@ -58,7 +58,7 @@ class PreferenceService:
         value: Dict[str, Any],
         confidence: float = 1.0,
         source: str = "explicit",
-        embedding: Optional[List[float]] = None,
+        embedding: Optional[List[float]] = None,  # Deprecated: not used
         metadata: Optional[Dict[str, Any]] = None,
     ) -> UserPreference:
         # PII-redact values' free text where applicable
@@ -79,18 +79,21 @@ class PreferenceService:
             pass
 
         norm_value = PreferenceService.normalize(preference_type, value)
-        normalized_embedding = _sanitize_embedding(embedding)
+        
+        # Store category in metadata
+        pref_metadata = metadata or {}
+        if category:
+            pref_metadata = dict(pref_metadata)
+            pref_metadata["category"] = category
 
         obj, created = UserPreference.objects.select_for_update().get_or_create(
             user_id=user_id,
-            category=category,
             preference_type=preference_type,
             defaults={
                 "value": norm_value,
                 "confidence": confidence,
                 "source": source,
-                "embedding": normalized_embedding,
-                "metadata": metadata or {},
+                "metadata": pref_metadata,
             },
         )
         if not created:
@@ -98,12 +101,12 @@ class PreferenceService:
             obj.value = norm_value
             obj.confidence = max(obj.confidence or 0.0, confidence or 0.0)
             obj.source = source or obj.source
-            if normalized_embedding is not None:
-                obj.embedding = normalized_embedding
+            md = dict(obj.metadata or {})
+            if category:
+                md["category"] = category
             if metadata:
-                md = dict(obj.metadata or {})
                 md.update(metadata)
-                obj.metadata = md
+            obj.metadata = md
             obj.save()
         return obj
 
@@ -118,7 +121,8 @@ class PreferenceService:
         qs = UserPreference.objects.filter(user_id=user_id, confidence__gte=min_confidence)
         grouped: Dict[str, List[Dict[str, Any]]] = {}
         for p in qs:
-            bucket = grouped.setdefault(p.category, [])
+            category = p.metadata.get("category", "general") if p.metadata else "general"
+            bucket = grouped.setdefault(category, [])
             bucket.append(
                 {
                     "type": p.preference_type,

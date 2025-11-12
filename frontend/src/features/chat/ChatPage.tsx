@@ -9,6 +9,7 @@ import FeaturedPane from '../featured/FeaturedPane';
 import { useUi } from '../../shared/context/UiContext';
 import { useChat } from '../../shared/context/ChatContext';
 import { useChatSocket } from 'shared/hooks/useChatSocket';
+import { AnimatedWrapper } from '../../components/ui/animated-wrapper';
 import type { ChatMessage } from './types';
 
 const ChatPage: React.FC = () => {
@@ -102,44 +103,48 @@ const ChatPage: React.FC = () => {
   }));
 
   return (
-    <div className="space-y-4">
+    <AnimatedWrapper animation="fadeInUp" className="space-y-4">
       {/* CHAT SECTION - Top of main column */}
-      <section className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 overflow-hidden flex flex-col">
-        {/* Connection Status Badge */}
-        <div className="absolute top-4 right-4 z-10">
-          <ConnectionStatus status={connectionStatus} />
-        </div>
+      <AnimatedWrapper animation="fadeInUp" delay={0.1}>
+        <section className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 overflow-hidden flex flex-col">
+          {/* Connection Status Badge */}
+          <div className="absolute top-4 right-4 z-10">
+            <ConnectionStatus status={connectionStatus} />
+          </div>
 
-        <ChatHeader />
-        <div className="flex-1 overflow-y-auto px-4 max-h-[58vh]">
-          <ChatThread messages={chatMessages} />
+          <ChatHeader />
+          <div className="flex-1 overflow-y-auto px-4 max-h-[58vh]">
+            <ChatThread messages={chatMessages} />
 
-          {/* Typing Indicator */}
-          {typing && (
-            <div className="py-2">
-              <TypingDots />
-            </div>
-          )}
+            {/* Typing Indicator */}
+            {typing && (
+              <div className="py-2">
+                <TypingDots />
+              </div>
+            )}
 
-          {(() => {
-            console.log('[ChatPage] Carousel render condition:', {
-              activeJob,
-              hasActiveJob: !!activeJob,
-              resultsLength: messages.length, // Check if we should show carousel
-              willRenderCarousel: true // Always try to render, let carousel decide
-            });
-            // Always render carousel - it will handle empty state internally
-            return <InlineRecsCarousel />;
-          })()}
-        </div>
-        <Composer />
-      </section>
+            {(() => {
+              console.log('[ChatPage] Carousel render condition:', {
+                activeJob,
+                hasActiveJob: !!activeJob,
+                resultsLength: messages.length, // Check if we should show carousel
+                willRenderCarousel: true // Always try to render, let carousel decide
+              });
+              // Always render carousel - it will handle empty state internally
+              return <InlineRecsCarousel />;
+            })()}
+          </div>
+          <Composer />
+        </section>
+      </AnimatedWrapper>
 
       {/* FEATURED/EXPLORE SECTION - Below chat in same column */}
-      <section className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 overflow-hidden">
-        <FeaturedPane />
-      </section>
-    </div>
+      <AnimatedWrapper animation="fadeInUp" delay={0.2}>
+        <section className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 overflow-hidden">
+          <FeaturedPane />
+        </section>
+      </AnimatedWrapper>
+    </AnimatedWrapper>
   );
 };
 

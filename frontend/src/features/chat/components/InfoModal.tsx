@@ -1,5 +1,6 @@
 import React from 'react';
 import { X, Bed, Bath, Home, MapPin, DollarSign } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../components/ui/dialog';
 import type { RecItem } from './RecommendationCard';
 
 interface InfoModalProps {
@@ -13,30 +14,14 @@ const InfoModal: React.FC<InfoModalProps> = ({ item, onClose }) => {
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
-      onClick={onClose}
-      onKeyDown={handleKeyDown}
-      tabIndex={0}
-    >
-      <div
-        className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-slate-200 p-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-900">{item.title}</h2>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-slate-100 rounded-full transition"
-            aria-label="Close"
-          >
-            <X className="h-5 w-5 text-slate-600" />
-          </button>
-        </div>
+    <Dialog open={true} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{item.title}</DialogTitle>
+        </DialogHeader>
 
         {/* Content */}
-        <div className="p-6 space-y-6">
+        <div className="space-y-6">
           {/* Image */}
           {item.imageUrl && (
             <div className="w-full h-64 bg-slate-100 rounded-xl overflow-hidden">
@@ -173,16 +158,16 @@ const InfoModal: React.FC<InfoModalProps> = ({ item, onClose }) => {
         </div>
 
         {/* Footer Actions */}
-        <div className="sticky bottom-0 bg-white border-t border-slate-200 p-4">
+        <div className="flex justify-end">
           <button
             onClick={onClose}
-            className="w-full px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition font-medium"
+            className="px-4 py-2 bg-muted text-foreground rounded-lg hover:bg-muted/80 transition font-medium"
           >
             Close
           </button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 

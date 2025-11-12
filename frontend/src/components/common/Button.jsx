@@ -1,6 +1,19 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 
+/**
+ * @deprecated This component is deprecated. Use @/components/ui/button instead.
+ * 
+ * Migration guide:
+ * - Replace variant="primary" with variant="default" or variant="premium"
+ * - Replace variant="secondary" with variant="secondary" or variant="outline"
+ * - Replace variant="danger" with variant="destructive"
+ * - Use semantic theme colors instead of hardcoded colors
+ * 
+ * Example:
+ * Old: <Button variant="primary">Click me</Button>
+ * New: <Button variant="premium">Click me</Button>
+ */
 const Button = ({
   children,
   variant = 'primary',
@@ -11,6 +24,10 @@ const Button = ({
   className = '',
   ...props
 }) => {
+  React.useEffect(() => {
+    console.warn('Button from components/common/Button.jsx is deprecated. Please use @/components/ui/button instead.');
+  }, []);
+
   const baseClasses = 'inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed';
 
   const variants = {

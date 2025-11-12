@@ -4,19 +4,18 @@ import {
   MessageSquare,
   Search,
   Send,
-  Archive,
-  Trash2,
   Star,
-  MoreVertical,
-  X,
   Paperclip,
   Smile,
   Phone,
   Video,
   Info,
-  CheckCheck,
-  Check
+  CheckCheck
 } from 'lucide-react';
+import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/card';
+import { Button } from '../../components/ui/button';
+import { Badge } from '../../components/ui/badge';
+import { Input } from '../../components/ui/input';
 
 const Messages = () => {
   const [messages, setMessages] = useState([]);
@@ -165,40 +164,43 @@ const Messages = () => {
 
   if (loading) {
     return (
-      <div className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 p-8">
-        <h1 className="text-2xl font-bold text-slate-900 mb-2">Messages</h1>
-        <p className="text-slate-600 mb-8">Manage customer conversations</p>
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="flex items-center justify-center py-24"
-        >
-          <div className="text-center">
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-              className="inline-block"
-            >
-              <MessageSquare className="w-12 h-12 text-lime-600 mb-4" />
-            </motion.div>
-            <p className="text-slate-600 font-medium">Loading messages...</p>
-          </div>
-        </motion.div>
-      </div>
+      <Card className="backdrop-blur">
+        <CardContent className="p-8">
+          <h1 className="text-2xl font-bold text-foreground mb-2">Messages</h1>
+          <p className="text-muted-foreground mb-8">Manage customer conversations</p>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="flex items-center justify-center py-24"
+          >
+            <div className="text-center">
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                className="inline-block"
+              >
+                <MessageSquare className="w-12 h-12 text-primary mb-4" />
+              </motion.div>
+              <p className="text-muted-foreground font-medium">Loading messages...</p>
+            </div>
+          </motion.div>
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <div className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 p-8">
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mb-8"
-      >
-        <h1 className="text-3xl font-bold text-slate-900 mb-2">Messages</h1>
-        <p className="text-slate-600">Connect with buyers and manage conversations</p>
-      </motion.div>
+    <Card className="backdrop-blur">
+      <CardContent className="p-8">
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-8"
+        >
+          <h1 className="text-3xl font-bold text-foreground mb-2">Messages</h1>
+          <p className="text-muted-foreground">Connect with buyers and manage conversations</p>
+        </motion.div>
 
       {/* Stats */}
       <motion.div
@@ -207,59 +209,65 @@ const Messages = () => {
         transition={{ delay: 0.1 }}
         className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8"
       >
-        <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 p-6 rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer">
-          <div className="flex items-center justify-between mb-2">
-            <div className="p-3 bg-blue-200 rounded-xl">
-              <MessageSquare className="w-5 h-5 text-blue-700" />
+        <Card className="group cursor-pointer hover:shadow-lg transition-all duration-300">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-2">
+              <div className="p-3 bg-primary/30 rounded-xl">
+                <MessageSquare className="w-5 h-5 text-primary" />
+              </div>
+              <motion.span
+                className="text-3xl font-bold text-foreground"
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", delay: 0.2 }}
+              >
+                {messages.length}
+              </motion.span>
             </div>
-            <motion.span
-              className="text-3xl font-bold text-blue-900"
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ type: "spring", delay: 0.2 }}
-            >
-              {messages.length}
-            </motion.span>
-          </div>
-          <h3 className="text-sm font-semibold text-blue-900">Total Conversations</h3>
-          <p className="text-xs text-blue-700 mt-1">Active chats</p>
-        </div>
+            <h3 className="text-sm font-semibold text-foreground">Total Conversations</h3>
+            <p className="text-xs text-primary mt-1">Active chats</p>
+          </CardContent>
+        </Card>
 
-        <div className="bg-gradient-to-br from-lime-50 to-lime-100 border border-lime-200 p-6 rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer">
-          <div className="flex items-center justify-between mb-2">
-            <div className="p-3 bg-lime-200 rounded-xl">
-              <CheckCheck className="w-5 h-5 text-lime-700" />
+        <Card className="group cursor-pointer hover:shadow-lg transition-all duration-300">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-2">
+              <div className="p-3 bg-primary/30 rounded-xl">
+                <CheckCheck className="w-5 h-5 text-primary" />
+              </div>
+              <motion.span
+                className="text-3xl font-bold text-foreground"
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", delay: 0.3 }}
+              >
+                {unreadCount}
+              </motion.span>
             </div>
-            <motion.span
-              className="text-3xl font-bold text-lime-900"
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ type: "spring", delay: 0.3 }}
-            >
-              {unreadCount}
-            </motion.span>
-          </div>
-          <h3 className="text-sm font-semibold text-lime-900">Unread</h3>
-          <p className="text-xs text-lime-700 mt-1">Needs response</p>
-        </div>
+            <h3 className="text-sm font-semibold text-foreground">Unread</h3>
+            <p className="text-xs text-primary mt-1">Needs response</p>
+          </CardContent>
+        </Card>
 
-        <div className="bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 p-6 rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer">
-          <div className="flex items-center justify-between mb-2">
-            <div className="p-3 bg-amber-200 rounded-xl">
-              <Star className="w-5 h-5 text-amber-700" />
+        <Card className="group cursor-pointer hover:shadow-lg transition-all duration-300">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-2">
+              <div className="p-3 bg-warning/30 rounded-xl">
+                <Star className="w-5 h-5 text-warning" />
+              </div>
+              <motion.span
+                className="text-3xl font-bold text-foreground"
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", delay: 0.4 }}
+              >
+                {starredCount}
+              </motion.span>
             </div>
-            <motion.span
-              className="text-3xl font-bold text-amber-900"
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ type: "spring", delay: 0.4 }}
-            >
-              {starredCount}
-            </motion.span>
-          </div>
-          <h3 className="text-sm font-semibold text-amber-900">Starred</h3>
-          <p className="text-xs text-amber-700 mt-1">Important chats</p>
-        </div>
+            <h3 className="text-sm font-semibold text-foreground">Starred</h3>
+            <p className="text-xs text-warning mt-1">Important chats</p>
+          </CardContent>
+        </Card>
       </motion.div>
 
       {/* Chat Interface */}
@@ -270,53 +278,47 @@ const Messages = () => {
         className="grid grid-cols-1 lg:grid-cols-3 gap-6"
       >
         {/* Conversations List */}
-        <div className="lg:col-span-1 bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+        <Card className="lg:col-span-1 shadow-sm overflow-hidden">
           {/* Search & Filter */}
-          <div className="p-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
+          <CardHeader className="bg-muted p-4">
             <div className="relative mb-4">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
-              <input
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+              <Input
                 type="text"
                 placeholder="Search conversations..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-lime-600 focus:border-transparent transition-all"
+                className="w-full pl-10 pr-4 py-2.5"
               />
             </div>
 
             <div className="flex gap-2">
-              <button
+              <Button
+                variant={filter === 'all' ? 'default' : 'ghost'}
+                size="sm"
                 onClick={() => setFilter('all')}
-                className={`flex-1 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                  filter === 'all'
-                    ? 'bg-lime-600 text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
+                className="flex-1"
               >
                 All
-              </button>
-              <button
+              </Button>
+              <Button
+                variant={filter === 'unread' ? 'default' : 'ghost'}
+                size="sm"
                 onClick={() => setFilter('unread')}
-                className={`flex-1 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                  filter === 'unread'
-                    ? 'bg-lime-600 text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
+                className="flex-1"
               >
                 Unread
-              </button>
-              <button
+              </Button>
+              <Button
+                variant={filter === 'starred' ? 'default' : 'ghost'}
+                size="sm"
                 onClick={() => setFilter('starred')}
-                className={`flex-1 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                  filter === 'starred'
-                    ? 'bg-lime-600 text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
+                className="flex-1"
               >
                 Starred
-              </button>
+              </Button>
             </div>
-          </div>
+          </CardHeader>
 
           {/* Conversations */}
           <div className="overflow-y-auto max-h-[600px]">
@@ -330,105 +332,107 @@ const Messages = () => {
                       setSelectedConversation(message);
                       markAsRead(message.id);
                     }}
-                    className={`p-4 border-b border-slate-200 cursor-pointer transition-all ${
+                    className={`p-4 border-b border-border cursor-pointer transition-all ${
                       selectedConversation?.id === message.id
-                        ? 'bg-lime-50 border-l-4 border-l-lime-600'
-                        : 'hover:bg-slate-50'
-                    } ${message.unread ? 'bg-blue-50/30' : ''}`}
+                        ? 'bg-primary/10 border-l-4 border-l-primary'
+                        : 'hover:bg-muted/50'
+                    } ${message.unread ? 'bg-primary/5' : ''}`}
                   >
                     <div className="flex items-start gap-3">
                       <div className="relative flex-shrink-0">
-                        <div className="w-12 h-12 bg-gradient-to-br from-lime-500 to-emerald-500 text-white rounded-full flex items-center justify-center font-bold text-sm">
+                        <div className="w-12 h-12 bg-gradient-to-br from-primary to-cyan-500 text-white rounded-full flex items-center justify-center font-bold text-sm">
                           {message.sender.avatar}
                         </div>
                         {message.sender.online && (
-                          <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
+                          <div className="absolute bottom-0 right-0 w-3 h-3 bg-success border-2 border-white rounded-full"></div>
                         )}
                       </div>
 
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2 mb-1">
-                          <h4 className="font-semibold text-slate-900 truncate">{message.sender.name}</h4>
-                          <span className="text-xs text-slate-500 flex-shrink-0">
+                          <h4 className="font-semibold text-foreground truncate">{message.sender.name}</h4>
+                          <span className="text-xs text-muted-foreground flex-shrink-0">
                             {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-600 mb-1 truncate">{message.listing}</p>
-                        <p className="text-sm text-slate-700 truncate">{message.lastMessage}</p>
+                        <p className="text-xs text-muted-foreground mb-1 truncate">{message.listing}</p>
+                        <p className="text-sm text-foreground truncate">{message.lastMessage}</p>
                       </div>
 
                       <div className="flex flex-col items-center gap-2 flex-shrink-0">
                         {message.unread && (
-                          <div className="w-2 h-2 bg-lime-600 rounded-full"></div>
+                          <div className="w-2 h-2 bg-primary rounded-full"></div>
                         )}
-                        <button
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           onClick={(e) => {
                             e.stopPropagation();
                             toggleStar(message.id);
                           }}
-                          className="p-1 hover:bg-slate-200 rounded transition-colors"
+                          className="p-1"
                         >
                           <Star
                             className={`w-4 h-4 ${
-                              message.starred ? 'fill-amber-400 text-amber-400' : 'text-slate-400'
+                              message.starred ? 'fill-warning text-warning' : 'text-muted-foreground'
                             }`}
                           />
-                        </button>
+                        </Button>
                       </div>
                     </div>
                   </motion.div>
                 ))
               ) : (
                 <div className="py-16 text-center">
-                  <MessageSquare className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-slate-800 mb-2">No conversations</h3>
-                  <p className="text-slate-600">No messages found matching your filters</p>
+                  <MessageSquare className="w-16 h-16 text-muted mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-foreground mb-2">No conversations</h3>
+                  <p className="text-muted-foreground">No messages found matching your filters</p>
                 </div>
               )}
             </motion.div>
-          </div>
-        </div>
+            </div>
+            </Card>
 
-        {/* Chat Window */}
-        <div className="lg:col-span-2 bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm flex flex-col">
+            {/* Chat Window */}
+            <Card className="lg:col-span-2 shadow-sm flex flex-col">
           {selectedConversation ? (
             <>
               {/* Chat Header */}
-              <div className="p-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="relative">
-                      <div className="w-12 h-12 bg-gradient-to-br from-lime-500 to-emerald-500 text-white rounded-full flex items-center justify-center font-bold">
-                        {selectedConversation.sender.avatar}
+              <CardHeader className="bg-muted p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="relative">
+                        <div className="w-12 h-12 bg-gradient-to-br from-primary to-cyan-500 text-white rounded-full flex items-center justify-center font-bold">
+                          {selectedConversation.sender.avatar}
+                        </div>
+                        {selectedConversation.sender.online && (
+                          <div className="absolute bottom-0 right-0 w-3 h-3 bg-success border-2 border-white rounded-full"></div>
+                        )}
                       </div>
-                      {selectedConversation.sender.online && (
-                        <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
-                      )}
+                      <div>
+                        <h3 className="font-bold text-foreground">{selectedConversation.sender.name}</h3>
+                        <p className="text-sm text-muted-foreground">
+                          {selectedConversation.sender.online ? '● Online' : 'Offline'}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-bold text-slate-900">{selectedConversation.sender.name}</h3>
-                      <p className="text-sm text-slate-600">
-                        {selectedConversation.sender.online ? '● Online' : 'Offline'}
-                      </p>
-                    </div>
-                  </div>
 
-                  <div className="flex items-center gap-2">
-                    <button className="p-2 hover:bg-slate-100 rounded-lg transition-colors" title="Call">
-                      <Phone className="w-5 h-5 text-slate-600" />
-                    </button>
-                    <button className="p-2 hover:bg-slate-100 rounded-lg transition-colors" title="Video Call">
-                      <Video className="w-5 h-5 text-slate-600" />
-                    </button>
-                    <button className="p-2 hover:bg-slate-100 rounded-lg transition-colors" title="Info">
-                      <Info className="w-5 h-5 text-slate-600" />
-                    </button>
-                  </div>
-                </div>
-              </div>
+                    <div className="flex items-center gap-2">
+                      <Button variant="ghost" size="icon" title="Call">
+                        <Phone className="w-5 h-5" />
+                      </Button>
+                      <Button variant="ghost" size="icon" title="Video Call">
+                        <Video className="w-5 h-5" />
+                      </Button>
+                      <Button variant="ghost" size="icon" title="Info">
+                        <Info className="w-5 h-5" />
+                      </Button>
+                    </div>
+                    </div>
+                    </CardHeader>
 
               {/* Messages */}
-              <div className="flex-1 p-6 overflow-y-auto bg-slate-50 min-h-[400px] max-h-[500px]">
+              <CardContent className="flex-1 p-6 overflow-y-auto bg-muted min-h-[400px] max-h-[500px]">
                 <div className="space-y-4">
                   <AnimatePresence>
                     {selectedConversation.messages.map((msg, index) => (
@@ -442,13 +446,13 @@ const Messages = () => {
                         <div
                           className={`max-w-[70%] rounded-2xl px-4 py-3 ${
                             msg.sender === 'me'
-                              ? 'bg-gradient-to-r from-lime-600 to-lime-500 text-white'
-                              : 'bg-white border border-slate-200 text-slate-900'
+                              ? 'bg-gradient-to-r from-primary to-primary/90 text-white'
+                              : 'bg-background border border-border text-foreground'
                           }`}
                         >
                           <p className="text-sm">{msg.text}</p>
                           <div className={`flex items-center gap-1 mt-1 text-xs ${
-                            msg.sender === 'me' ? 'text-lime-100 justify-end' : 'text-slate-500'
+                            msg.sender === 'me' ? 'text-primary-foreground/80 justify-end' : 'text-muted-foreground'
                           }`}>
                             <span>{msg.time}</span>
                             {msg.sender === 'me' && <CheckCheck className="w-3 h-3" />}
@@ -458,47 +462,49 @@ const Messages = () => {
                     ))}
                   </AnimatePresence>
                 </div>
-              </div>
+              </CardContent>
 
               {/* Message Input */}
-              <div className="p-4 border-t border-slate-200 bg-white">
+              <CardContent className="p-4 border-t border-border bg-background">
                 <div className="flex items-center gap-3">
-                  <button className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
-                    <Paperclip className="w-5 h-5 text-slate-600" />
-                  </button>
-                  <button className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
-                    <Smile className="w-5 h-5 text-slate-600" />
-                  </button>
-                  <input
+                  <Button variant="ghost" size="icon">
+                    <Paperclip className="w-5 h-5" />
+                  </Button>
+                  <Button variant="ghost" size="icon">
+                    <Smile className="w-5 h-5" />
+                  </Button>
+                  <Input
                     type="text"
                     value={messageInput}
                     onChange={(e) => setMessageInput(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
                     placeholder="Type a message..."
-                    className="flex-1 px-4 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-lime-600 focus:border-transparent transition-all"
+                    className="flex-1"
                   />
-                  <button
+                  <Button
                     onClick={handleSendMessage}
                     disabled={!messageInput.trim()}
-                    className="p-2.5 bg-gradient-to-r from-lime-600 to-lime-500 text-white rounded-xl hover:from-lime-700 hover:to-lime-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-lime-600/30 hover:shadow-xl hover:shadow-lime-600/40"
+                    variant="premium"
+                    size="icon"
                   >
                     <Send className="w-5 h-5" />
-                  </button>
+                  </Button>
                 </div>
-              </div>
+              </CardContent>
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center p-8">
+            <CardContent className="flex-1 flex items-center justify-center p-8">
               <div className="text-center">
-                <MessageSquare className="w-20 h-20 text-slate-300 mx-auto mb-4" />
-                <h3 className="text-xl font-bold text-slate-800 mb-2">Select a conversation</h3>
-                <p className="text-slate-600">Choose a conversation from the list to start messaging</p>
+                <MessageSquare className="w-20 h-20 text-muted mx-auto mb-4" />
+                <h3 className="text-xl font-bold text-foreground mb-2">Select a conversation</h3>
+                <p className="text-muted-foreground">Choose a conversation from the list to start messaging</p>
               </div>
-            </div>
-          )}
-        </div>
-      </motion.div>
-    </div>
+              </CardContent>
+              )}
+            </Card>
+          </motion.div>
+        </CardContent>
+      </Card>
   );
 };
 

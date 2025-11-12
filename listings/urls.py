@@ -12,6 +12,8 @@ from .views import (
     my_listings,
     categories_list,
     subcategories_list,
+    CategoryViewSet,
+    ListingViewSet,
 )
 
 app_name = 'listings'
@@ -19,6 +21,8 @@ app_name = 'listings'
 # Router for ViewSets
 router = DefaultRouter()
 router.register(r'sellers', SellerProfileViewSet, basename='seller')
+router.register(r'categories', CategoryViewSet, basename='category')
+router.register(r'listings', ListingViewSet, basename='listing')
 
 urlpatterns = [
     # Short-term booking endpoints
@@ -41,7 +45,7 @@ urlpatterns = [
     # My Listings endpoint (seller's listings)
     path('listings/my/', my_listings, name='my-listings'),
 
-    # Categories and subcategories endpoints
+    # Categories and subcategories endpoints (legacy)
     path('categories/', categories_list, name='categories-list'),
     path('categories/<slug:category_slug>/subcategories/', subcategories_list, name='subcategories-list'),
 

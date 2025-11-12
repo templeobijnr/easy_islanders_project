@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion, Variants } from 'framer-motion';
-import * as animations from '@/lib/animations';
+import { useLocation } from 'react-router-dom';
+import * as animations from '../../lib/animations';
 
 interface AnimatedWrapperProps {
   children: React.ReactNode;
@@ -54,6 +55,34 @@ export const AnimatedWrapper: React.FC<AnimatedWrapperProps> = ({
     >
       {children}
     </MotionComponent>
+  );
+};
+
+/**
+ * Page transition wrapper for smooth route changes
+ * 
+ * Usage:
+ * <PageTransition>
+ *   <YourPageContent />
+ * </PageTransition>
+ */
+export const PageTransition: React.FC<{
+  children: React.ReactNode;
+  className?: string;
+}> = ({ children, className = '' }) => {
+  const location = useLocation();
+
+  return (
+    <motion.div
+      key={location.pathname}
+      variants={animations.pageTransition}
+      initial="initial"
+      animate="animate"
+      exit="exit"
+      className={className}
+    >
+      {children}
+    </motion.div>
   );
 };
 

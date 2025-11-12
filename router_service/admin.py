@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import IntentExemplar, AgentRegistry, DomainCentroid, RouterEvent
+from .models import IntentExemplar, AgentRegistry, DomainCentroid, RouterEvent, CalibrationParams
 
 
 @admin.register(IntentExemplar)
@@ -27,4 +27,27 @@ class RouterEventAdmin(admin.ModelAdmin):
     list_display = ("event_id", "created_at", "domain_pred", "domain_conf", "action", "latency_ms")
     search_fields = ("thread_id", "utterance", "domain_pred", "in_domain_intent")
     readonly_fields = ("event_id", "created_at")
+    date_hierarchy = "created_at"
+
+
+@admin.register(CalibrationParams)
+class CalibrationParamsAdmin(admin.ModelAdmin):
+    list_display = ("domain", "method", "version", "ece", "support_n", "evaluated_on")
+    list_filter = ("method", "version", "evaluated_on")
+    search_fields = ("domain",)
+    readonly_fields = ("evaluated_on",)
+    
+    fieldsets = (
+        ("Calibration", {
+            "fields": ("domain", "method", "version")
+        }),
+        ("Parameters", {
+            "fields": ("params", "ece", "support_n"),
+            "classes": ("collapse",)
+        }),
+        ("Metadata", {
+            "fields": ("evaluated_on",),
+            "classes": ("collapse",)
+        })
+    )
 

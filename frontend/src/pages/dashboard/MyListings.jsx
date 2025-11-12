@@ -6,27 +6,27 @@ import {
   AlertCircle,
   Package,
   CheckCircle2,
-  FileText,
-  TrendingUp,
   Search,
   Eye,
   Edit3,
   Trash2,
   Copy,
-  MoreVertical,
   X,
   ImageIcon,
   MapPin,
   Calendar,
-  DollarSign
+  DollarSign,
+  FileText,
+  TrendingUp
 } from 'lucide-react';
-import { CATEGORY_DESIGN, getAllCategories } from '../../lib/categoryDesign';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../components/ui/tabs';
+import { getAllCategories } from '../../lib/categoryDesign';
+import { Tabs, TabsList, TabsTrigger } from '../../components/ui/tabs';
 import { Badge } from '../../components/ui/badge';
+import { Card, CardContent } from '../../components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import EditListingModal from '../../components/modals/EditListingModal';
 import DeleteConfirmModal from '../../components/modals/DeleteConfirmModal';
 import PublishActionModal from '../../components/modals/PublishActionModal';
-import ListingActionMenu from '../../components/listings/ListingActionMenu';
 import axios from 'axios';
 import config from '../../config';
 
@@ -38,7 +38,6 @@ const MyListings = () => {
   const [categoryFilter, setCategoryFilter] = useState('all'); // all, or category slug
   const [sortBy, setSortBy] = useState('newest');
   const [searchQuery, setSearchQuery] = useState('');
-  const [viewMode, setViewMode] = useState('grid'); // grid or table
 
   // Modal states
   const [editingListing, setEditingListing] = useState(null);
@@ -174,7 +173,7 @@ const MyListings = () => {
   };
 
   return (
-    <div className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 p-8">
+    <div className="bg-background/90 backdrop-blur rounded-2xl border border-border p-8">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -182,12 +181,12 @@ const MyListings = () => {
         className="flex items-center justify-between mb-8"
       >
         <div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">My Listings</h1>
-          <p className="text-slate-600">Manage your marketplace offerings</p>
+          <h1 className="text-3xl font-bold text-foreground mb-2">My Listings</h1>
+          <p className="text-muted-foreground">Manage your marketplace offerings</p>
         </div>
         <Link
           to="/create-listing"
-          className="group flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-lime-600 to-lime-500 text-white rounded-xl hover:from-lime-700 hover:to-lime-600 transition-all duration-200 font-semibold shadow-lg shadow-lime-600/30 hover:shadow-xl hover:shadow-lime-600/40 hover:scale-105"
+          className="group flex items-center gap-2 px-6 py-3"
         >
           <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
           <span>Create New Listing</span>
@@ -223,84 +222,92 @@ const MyListings = () => {
           animate="show"
           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"
         >
-          <motion.div variants={item} className="group">
-            <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-2xl p-6 shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer">
-              <div className="flex items-center justify-between mb-3">
-                <div className="p-3 bg-blue-200 rounded-xl group-hover:scale-110 transition-transform duration-300">
-                  <Package className="w-6 h-6 text-blue-700" />
+          <motion.div variants={item}>
+            <Card className="group cursor-pointer hover:shadow-xl transition-all duration-300">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-3 bg-primary/30 rounded-xl group-hover:scale-110 transition-transform duration-300">
+                    <Package className="w-6 h-6 text-primary" />
+                  </div>
+                  <motion.p
+                    className="text-4xl font-bold text-primary"
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", delay: 0.2 }}
+                  >
+                    {stats.total}
+                  </motion.p>
                 </div>
-                <motion.p
-                  className="text-4xl font-bold text-blue-700"
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ type: "spring", delay: 0.2 }}
-                >
-                  {stats.total}
-                </motion.p>
-              </div>
-              <h3 className="text-sm font-semibold text-blue-900 mb-1">Total Listings</h3>
-              <p className="text-xs text-blue-700">All your marketplace items</p>
-            </div>
+                <h3 className="text-sm font-semibold text-foreground mb-1">Total Listings</h3>
+                <p className="text-xs text-primary">All your marketplace items</p>
+              </CardContent>
+            </Card>
           </motion.div>
 
-          <motion.div variants={item} className="group">
-            <div className="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-2xl p-6 shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer">
-              <div className="flex items-center justify-between mb-3">
-                <div className="p-3 bg-green-200 rounded-xl group-hover:scale-110 transition-transform duration-300">
-                  <CheckCircle2 className="w-6 h-6 text-green-700" />
+          <motion.div variants={item}>
+            <Card className="group cursor-pointer hover:shadow-xl transition-all duration-300">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-3 bg-success/30 rounded-xl group-hover:scale-110 transition-transform duration-300">
+                    <CheckCircle2 className="w-6 h-6 text-success" />
+                  </div>
+                  <motion.p
+                    className="text-4xl font-bold text-success"
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", delay: 0.3 }}
+                  >
+                    {stats.published}
+                  </motion.p>
                 </div>
-                <motion.p
-                  className="text-4xl font-bold text-green-700"
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ type: "spring", delay: 0.3 }}
-                >
-                  {stats.published}
-                </motion.p>
-              </div>
-              <h3 className="text-sm font-semibold text-green-900 mb-1">Published</h3>
-              <p className="text-xs text-green-700">Live on marketplace</p>
-            </div>
+                <h3 className="text-sm font-semibold text-foreground mb-1">Published</h3>
+                <p className="text-xs text-success">Live on marketplace</p>
+              </CardContent>
+            </Card>
           </motion.div>
 
-          <motion.div variants={item} className="group">
-            <div className="bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 rounded-2xl p-6 shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer">
-              <div className="flex items-center justify-between mb-3">
-                <div className="p-3 bg-amber-200 rounded-xl group-hover:scale-110 transition-transform duration-300">
-                  <FileText className="w-6 h-6 text-amber-700" />
+          <motion.div variants={item}>
+            <Card className="group cursor-pointer hover:shadow-xl transition-all duration-300">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-3 bg-warning/30 rounded-xl group-hover:scale-110 transition-transform duration-300">
+                    <FileText className="w-6 h-6 text-warning" />
+                  </div>
+                  <motion.p
+                    className="text-4xl font-bold text-warning"
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", delay: 0.4 }}
+                  >
+                    {stats.draft}
+                  </motion.p>
                 </div>
-                <motion.p
-                  className="text-4xl font-bold text-amber-700"
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ type: "spring", delay: 0.4 }}
-                >
-                  {stats.draft}
-                </motion.p>
-              </div>
-              <h3 className="text-sm font-semibold text-amber-900 mb-1">Drafts</h3>
-              <p className="text-xs text-amber-700">Pending completion</p>
-            </div>
+                <h3 className="text-sm font-semibold text-foreground mb-1">Drafts</h3>
+                <p className="text-xs text-warning">Pending completion</p>
+              </CardContent>
+            </Card>
           </motion.div>
 
-          <motion.div variants={item} className="group">
-            <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-2xl p-6 shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer">
-              <div className="flex items-center justify-between mb-3">
-                <div className="p-3 bg-purple-200 rounded-xl group-hover:scale-110 transition-transform duration-300">
-                  <TrendingUp className="w-6 h-6 text-purple-700" />
+          <motion.div variants={item}>
+            <Card className="group cursor-pointer hover:shadow-xl transition-all duration-300">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-3 bg-purple-500/30 rounded-xl group-hover:scale-110 transition-transform duration-300">
+                    <TrendingUp className="w-6 h-6 text-purple-700" />
+                  </div>
+                  <motion.p
+                    className="text-4xl font-bold text-purple-700"
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", delay: 0.5 }}
+                  >
+                    {stats.views}
+                  </motion.p>
                 </div>
-                <motion.p
-                  className="text-4xl font-bold text-purple-700"
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ type: "spring", delay: 0.5 }}
-                >
-                  {stats.views}
-                </motion.p>
-              </div>
-              <h3 className="text-sm font-semibold text-purple-900 mb-1">Total Views</h3>
-              <p className="text-xs text-purple-700">Across all listings</p>
-            </div>
+                <h3 className="text-sm font-semibold text-foreground mb-1">Total Views</h3>
+                <p className="text-xs text-purple-700">Across all listings</p>
+              </CardContent>
+            </Card>
           </motion.div>
         </motion.div>
 
@@ -357,31 +364,31 @@ const MyListings = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="bg-white border border-slate-200 rounded-2xl p-6 mb-6 shadow-sm"
+          className="bg-background border border-border rounded-2xl p-6 mb-6 shadow-sm"
         >
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {/* Search */}
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-slate-700 mb-2">Search</label>
+              <label className="block text-sm font-medium text-foreground mb-2">Search</label>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <input
                   type="text"
                   placeholder="Search by title, category, location..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-xl text-slate-700 bg-white hover:border-lime-400 focus:outline-none focus:ring-2 focus:ring-lime-600 focus:border-transparent transition-all"
+                  className="w-full pl-10 pr-4 py-2.5 border border-input rounded-xl text-foreground bg-background hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
                 />
               </div>
             </div>
 
             {/* Status Filter */}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Status</label>
+              <label className="block text-sm font-medium text-foreground mb-2">Status</label>
               <select
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
-                className="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-slate-700 bg-white hover:border-lime-400 focus:outline-none focus:ring-2 focus:ring-lime-600 focus:border-transparent transition-all"
+                className="w-full px-4 py-2.5 border border-input rounded-xl text-foreground bg-background hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
               >
                 <option value="all">All</option>
                 <option value="published">Published</option>
@@ -391,11 +398,11 @@ const MyListings = () => {
 
             {/* Sort */}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Sort By</label>
+              <label className="block text-sm font-medium text-foreground mb-2">Sort By</label>
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-slate-700 bg-white hover:border-lime-400 focus:outline-none focus:ring-2 focus:ring-lime-600 focus:border-transparent transition-all"
+                className="w-full px-4 py-2.5 border border-input rounded-xl text-foreground bg-background hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
               >
                 <option value="newest">Newest First</option>
                 <option value="oldest">Oldest First</option>
@@ -439,8 +446,7 @@ const MyListings = () => {
               <p className="text-red-700 font-medium">{error}</p>
             </div>
             <button
-              onClick={fetchListings}
-              className="px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 font-semibold text-sm transition-colors"
+              className="px-4 py-2 font-semibold text-sm transition-colors"
             >
               Retry
             </button>
@@ -472,7 +478,7 @@ const MyListings = () => {
             {!searchQuery && filter === 'all' && (
               <Link
                 to="/create-listing"
-                className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-lime-600 to-lime-500 text-white rounded-xl hover:from-lime-700 hover:to-lime-600 transition-all duration-200 font-semibold shadow-lg shadow-lime-600/30 hover:shadow-xl hover:shadow-lime-600/40 hover:scale-105"
+                className="inline-flex items-center gap-2 px-8 py-4"
               >
                 <Plus className="w-5 h-5" />
                 Create Your First Listing
@@ -494,115 +500,107 @@ const MyListings = () => {
                 key={listing.id}
                 variants={item}
                 whileHover={{ y: -8, scale: 1.02 }}
-                className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 group"
               >
-                {/* Listing Image */}
-                <div className="relative h-48 bg-gradient-to-br from-slate-100 to-slate-200 overflow-hidden">
-                  {listing.images && listing.images.length > 0 ? (
-                    <img
-                      src={listing.images[0]}
-                      alt={listing.title}
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <ImageIcon className="w-16 h-16 text-slate-300" />
-                    </div>
-                  )}
-
-                  {/* Status Badge */}
-                  <div className="absolute top-3 left-3">
-                    <span
-                      className={`
-                        px-3 py-1.5 rounded-full text-xs font-bold backdrop-blur-sm border
-                        ${
-                          listing.status === 'published'
-                            ? 'bg-green-100/90 text-green-700 border-green-200'
-                            : 'bg-amber-100/90 text-amber-700 border-amber-200'
-                        }
-                      `}
-                    >
-                      {listing.status === 'published' ? '● Published' : '○ Draft'}
-                    </span>
-                  </div>
-
-                  {/* Quick Actions */}
-                  <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setPreviewListing(listing)}
-                        className="p-2 bg-white/90 backdrop-blur-sm rounded-lg hover:bg-white shadow-lg transition-colors"
-                        title="Quick View"
-                      >
-                        <Eye className="w-4 h-4 text-slate-700" />
-                      </button>
-                      <button
-                        onClick={() => setEditingListing(listing)}
-                        className="p-2 bg-white/90 backdrop-blur-sm rounded-lg hover:bg-white shadow-lg transition-colors"
-                        title="Edit"
-                      >
-                        <Edit3 className="w-4 h-4 text-slate-700" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Listing Details */}
-                <div className="p-5">
-                  <div className="mb-4">
-                    <h3 className="text-lg font-bold text-slate-900 mb-1 line-clamp-1 group-hover:text-lime-600 transition-colors">
-                      {listing.title}
-                    </h3>
-                    <p className="text-sm text-slate-600 line-clamp-2">
-                      {listing.description || 'No description provided'}
-                    </p>
-                  </div>
-
-                  <div className="space-y-2 mb-4">
-                    {listing.category && (
-                      <div className="flex items-center gap-2 text-xs text-slate-600">
-                        <Package className="w-3.5 h-3.5" />
-                        <span>{listing.category.name}</span>
+                <Card className="overflow-hidden hover:shadow-xl transition-all duration-300 group">
+                  {/* Listing Image */}
+                  <div className="relative h-48 bg-gradient-to-br from-slate-100 to-slate-200 overflow-hidden">
+                    {listing.images && listing.images.length > 0 ? (
+                      <img
+                        src={listing.images[0]}
+                        alt={listing.title}
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <ImageIcon className="w-16 h-16 text-slate-300" />
                       </div>
                     )}
-                    {listing.location && (
-                      <div className="flex items-center gap-2 text-xs text-slate-600">
-                        <MapPin className="w-3.5 h-3.5" />
-                        <span>{listing.location}</span>
+
+                    {/* Status Badge */}
+                    <div className="absolute top-3 left-3">
+                      <Badge variant={listing.status === 'published' ? 'success' : 'warning'} className="backdrop-blur-sm">
+                        {listing.status === 'published' ? '● Published' : '○ Draft'}
+                      </Badge>
+                    </div>
+
+                    {/* Quick Actions */}
+                    <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setPreviewListing(listing)}
+                          className="p-2 bg-white/90 backdrop-blur-sm rounded-lg hover:bg-white shadow-lg transition-colors"
+                          title="Quick View"
+                        >
+                          <Eye className="w-4 h-4 text-slate-700" />
+                        </button>
+                        <button
+                          onClick={() => setEditingListing(listing)}
+                          className="p-2 bg-white/90 backdrop-blur-sm rounded-lg hover:bg-white shadow-lg transition-colors"
+                          title="Edit"
+                        >
+                          <Edit3 className="w-4 h-4 text-slate-700" />
+                        </button>
                       </div>
-                    )}
-                    <div className="flex items-center gap-2 text-xs text-slate-600">
-                      <Calendar className="w-3.5 h-3.5" />
-                      <span>{new Date(listing.created_at).toLocaleDateString()}</span>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between pt-4 border-t border-slate-200">
-                    <div className="flex items-center gap-2">
-                      <DollarSign className="w-5 h-5 text-lime-600" />
-                      <span className="text-2xl font-bold text-slate-900">
-                        €{listing.price?.toFixed(2) || '0.00'}
-                      </span>
+                  {/* Listing Details */}
+                  <CardContent className="p-5">
+                    <div className="mb-4">
+                      <h3 className="text-lg font-bold text-foreground mb-1 line-clamp-1 group-hover:text-primary transition-colors">
+                        {listing.title}
+                      </h3>
+                      <p className="text-sm text-muted-foreground line-clamp-2">
+                        {listing.description || 'No description provided'}
+                      </p>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleDuplicate(listing)}
-                        className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-                        title="Duplicate"
-                      >
-                        <Copy className="w-4 h-4 text-slate-600" />
-                      </button>
-                      <button
-                        onClick={() => setDeletingListing(listing)}
-                        className="p-2 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Delete"
-                      >
-                        <Trash2 className="w-4 h-4 text-red-600" />
-                      </button>
+                    <div className="space-y-2 mb-4">
+                      {listing.category && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Package className="w-3.5 h-3.5" />
+                          <span>{listing.category.name}</span>
+                        </div>
+                      )}
+                      {listing.location && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <MapPin className="w-3.5 h-3.5" />
+                          <span>{listing.location}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Calendar className="w-3.5 h-3.5" />
+                        <span>{new Date(listing.created_at).toLocaleDateString()}</span>
+                      </div>
                     </div>
-                  </div>
-                </div>
+
+                    <div className="flex items-center justify-between pt-4 border-t border-slate-200">
+                      <div className="flex items-center gap-2">
+                        <DollarSign className="w-5 h-5 text-primary" />
+                        <span className="text-2xl font-bold text-foreground">
+                          €{listing.price?.toFixed(2) || '0.00'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleDuplicate(listing)}
+                          className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                          title="Duplicate"
+                        >
+                          <Copy className="w-4 h-4 text-slate-600" />
+                        </button>
+                        <button
+                          onClick={() => setDeletingListing(listing)}
+                          className="p-2 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4 text-destructive" />
+                        </button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               </motion.div>
             ))}
           </motion.div>
@@ -610,61 +608,38 @@ const MyListings = () => {
       </div>
 
       {/* Preview Modal */}
-      <AnimatePresence>
-        {previewListing && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-            onClick={() => setPreviewListing(null)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
-            >
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-slate-900">Listing Preview</h2>
-                <button
-                  onClick={() => setPreviewListing(null)}
-                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-                >
-                  <X className="w-6 h-6 text-slate-600" />
-                </button>
-              </div>
+      <Dialog open={!!previewListing} onOpenChange={() => setPreviewListing(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Listing Preview</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-xl font-bold text-foreground mb-2">{previewListing?.title}</h3>
+              <p className="text-muted-foreground">{previewListing?.description}</p>
+            </div>
 
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-xl font-bold text-slate-900 mb-2">{previewListing.title}</h3>
-                  <p className="text-slate-600">{previewListing.description}</p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-slate-600">Category</label>
-                    <p className="text-slate-900 font-semibold">{previewListing.category?.name || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-slate-600">Price</label>
-                    <p className="text-slate-900 font-semibold">€{previewListing.price?.toFixed(2)}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-slate-600">Location</label>
-                    <p className="text-slate-900 font-semibold">{previewListing.location || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-slate-600">Status</label>
-                    <p className="text-slate-900 font-semibold capitalize">{previewListing.status}</p>
-                  </div>
-                </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Category</label>
+                <p className="text-foreground font-semibold">{previewListing?.category?.name || 'N/A'}</p>
               </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Price</label>
+                <p className="text-foreground font-semibold">€{previewListing?.price?.toFixed(2)}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Location</label>
+                <p className="text-foreground font-semibold">{previewListing?.location || 'N/A'}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Status</label>
+                <p className="text-foreground font-semibold capitalize">{previewListing?.status}</p>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Modals */}
       <EditListingModal

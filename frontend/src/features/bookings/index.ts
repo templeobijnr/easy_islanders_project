@@ -6,8 +6,18 @@
 // Main Page
 export { default as BookingsPage } from './BookingsPage';
 
-// Components
-export * from './components';
+// Components (exclude types to avoid conflicts)
+export {
+  StatusBadge,
+  PaymentBadge,
+  BookingTypeIcon,
+  BookingTypeSelector,
+  BookingWizard,
+  BookingCard,
+  BookingList,
+  BookingDetail,
+} from './components';
+export * from './components/forms';
 
 // API
 export { bookingApi } from './api/bookingsApi';

@@ -4,9 +4,11 @@ import { User, Mail, Phone, Save, Loader2, Check, AlertCircle } from 'lucide-rea
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
 import config from '../config';
+import { Button } from '../components/ui/button';
+import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 
 const Profile = () => {
-  const { user, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [profileData, setProfileData] = useState(null);
@@ -85,11 +87,11 @@ const Profile = () => {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-[calc(100vh-80px)] bg-gray-50 flex items-center justify-center p-6">
-        <div className="max-w-md w-full bg-white rounded-3xl p-8 text-center shadow-lg border border-slate-200">
-          <AlertCircle className="w-16 h-16 text-lime-600 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-ink-700 mb-2">Authentication Required</h1>
-          <p className="text-ink-500">Please log in to view your profile.</p>
+      <div className="min-h-[calc(100vh-80px)] bg-muted flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-card rounded-3xl p-8 text-center shadow-lg border border-border">
+          <AlertCircle className="w-16 h-16 text-primary mx-auto mb-4" />
+          <h1 className="text-2xl font-bold text-foreground mb-2">Authentication Required</h1>
+          <p className="text-muted-foreground">Please log in to view your profile.</p>
         </div>
       </div>
     );
@@ -97,14 +99,14 @@ const Profile = () => {
 
   if (loading) {
     return (
-      <div className="min-h-[calc(100vh-80px)] bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-lime-600 animate-spin" />
+      <div className="min-h-[calc(100vh-80px)] bg-muted flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-[calc(100vh-80px)] bg-gray-50 py-8">
+    <div className="min-h-[calc(100vh-80px)] bg-muted py-8">
       <div className="max-w-4xl mx-auto px-4 md:px-6">
         {/* Header */}
         <motion.div
@@ -112,8 +114,8 @@ const Profile = () => {
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
-          <h1 className="text-3xl font-bold text-ink-700">Profile</h1>
-          <p className="text-ink-500 mt-1">Manage your account information</p>
+          <h1 className="text-3xl font-bold text-foreground">Profile</h1>
+          <p className="text-muted-foreground mt-1">Manage your account information</p>
         </motion.div>
 
         {/* Success/Error Message */}
@@ -141,34 +143,38 @@ const Profile = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 mb-6"
+          className="mb-6"
         >
-          <div className="flex items-center gap-6">
-            {/* Avatar */}
-            <div className="w-24 h-24 rounded-2xl bg-lime-600 flex items-center justify-center text-white text-3xl font-bold shadow-lg">
-              {getInitials(profileData?.username)}
-            </div>
-
-            {/* User Info */}
-            <div className="flex-1">
-              <h2 className="text-2xl font-bold text-ink-700">{profileData?.username}</h2>
-              <p className="text-ink-500 flex items-center gap-2 mt-1">
-                <Mail className="w-4 h-4" />
-                {profileData?.email}
-              </p>
-              {profileData?.user_type && (
-                <div className="mt-2">
-                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
-                    profileData.user_type === 'business'
-                      ? 'bg-purple-100 text-purple-700'
-                      : 'bg-lime-100 text-lime-700'
-                  }`}>
-                    {profileData.user_type === 'business' ? '💼 Business' : '👤 Consumer'}
-                  </span>
+          <Card>
+            <CardContent className="p-8">
+              <div className="flex items-center gap-6">
+                {/* Avatar */}
+                <div className="w-24 h-24 rounded-2xl bg-primary flex items-center justify-center text-white text-3xl font-bold shadow-lg">
+                  {getInitials(profileData?.username)}
                 </div>
-              )}
-            </div>
-          </div>
+
+                {/* User Info */}
+                <div className="flex-1">
+                  <h2 className="text-2xl font-bold text-foreground">{profileData?.username}</h2>
+                  <p className="text-muted-foreground flex items-center gap-2 mt-1">
+                    <Mail className="w-4 h-4" />
+                    {profileData?.email}
+                  </p>
+                  {profileData?.user_type && (
+                    <div className="mt-2">
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
+                        profileData.user_type === 'business'
+                          ? 'bg-purple-100 text-purple-700'
+                          : 'bg-primary/10 text-primary'
+                      }`}>
+                        {profileData.user_type === 'business' ? '💼 Business' : '👤 Consumer'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </motion.div>
 
         {/* Edit Profile Form */}
@@ -176,77 +182,80 @@ const Profile = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8"
         >
-          <h3 className="text-xl font-bold text-ink-700 mb-6">Personal Information</h3>
+          <Card>
+            <CardHeader>
+              <CardTitle>Personal Information</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
+                {/* Username */}
+                <div>
+                  <label className="block text-sm font-semibold text-foreground mb-2">
+                    <User className="w-4 h-4 inline mr-1" />
+                    Username
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.username}
+                    onChange={(e) => handleInputChange('username', e.target.value)}
+                    className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                    placeholder="Enter your username"
+                  />
+                </div>
 
-          <div className="space-y-6">
-            {/* Username */}
-            <div>
-              <label className="block text-sm font-semibold text-ink-700 mb-2">
-                <User className="w-4 h-4 inline mr-1" />
-                Username
-              </label>
-              <input
-                type="text"
-                value={formData.username}
-                onChange={(e) => handleInputChange('username', e.target.value)}
-                className="w-full bg-gray-50 border border-slate-200 rounded-xl px-4 py-3 text-ink-700 focus:outline-none focus:ring-2 focus:ring-lime-600 focus:border-transparent transition-all"
-                placeholder="Enter your username"
-              />
-            </div>
+                {/* Email */}
+                <div>
+                  <label className="block text-sm font-semibold text-foreground mb-2">
+                    <Mail className="w-4 h-4 inline mr-1" />
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => handleInputChange('email', e.target.value)}
+                    className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                    placeholder="Enter your email"
+                  />
+                </div>
 
-            {/* Email */}
-            <div>
-              <label className="block text-sm font-semibold text-ink-700 mb-2">
-                <Mail className="w-4 h-4 inline mr-1" />
-                Email Address
-              </label>
-              <input
-                type="email"
-                value={formData.email}
-                onChange={(e) => handleInputChange('email', e.target.value)}
-                className="w-full bg-gray-50 border border-slate-200 rounded-xl px-4 py-3 text-ink-700 focus:outline-none focus:ring-2 focus:ring-lime-600 focus:border-transparent transition-all"
-                placeholder="Enter your email"
-              />
-            </div>
+                {/* Phone */}
+                <div>
+                  <label className="block text-sm font-semibold text-foreground mb-2">
+                    <Phone className="w-4 h-4 inline mr-1" />
+                    Phone Number
+                  </label>
+                  <input
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(e) => handleInputChange('phone', e.target.value)}
+                    className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                    placeholder="Enter your phone number"
+                  />
+                </div>
 
-            {/* Phone */}
-            <div>
-              <label className="block text-sm font-semibold text-ink-700 mb-2">
-                <Phone className="w-4 h-4 inline mr-1" />
-                Phone Number
-              </label>
-              <input
-                type="tel"
-                value={formData.phone}
-                onChange={(e) => handleInputChange('phone', e.target.value)}
-                className="w-full bg-gray-50 border border-slate-200 rounded-xl px-4 py-3 text-ink-700 focus:outline-none focus:ring-2 focus:ring-lime-600 focus:border-transparent transition-all"
-                placeholder="Enter your phone number"
-              />
-            </div>
-
-            {/* Save Button */}
-            <motion.button
-              onClick={handleSave}
-              disabled={saving}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="w-full bg-lime-600 text-white py-3 px-6 rounded-xl hover:bg-lime-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-semibold transition-colors shadow-sm"
-            >
-              {saving ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="w-5 h-5" />
-                  Save Changes
-                </>
-              )}
-            </motion.button>
-          </div>
+                {/* Save Button */}
+                <Button
+                  onClick={handleSave}
+                  disabled={saving}
+                  variant="premium"
+                  className="w-full"
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-5 h-5 mr-2" />
+                      Save Changes
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </motion.div>
 
         {/* Business Profile (if applicable) */}
@@ -255,27 +264,33 @@ const Profile = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 mt-6"
+            className="mt-6"
           >
-            <h3 className="text-xl font-bold text-ink-700 mb-4">Business Information</h3>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between py-3 border-b border-slate-200">
-                <span className="text-ink-500 text-sm">Business Name</span>
-                <span className="text-ink-700 font-semibold">
-                  {profileData.business_profile.business_name || 'Not set'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between py-3">
-                <span className="text-ink-500 text-sm">Verification Status</span>
-                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                  profileData.business_profile.is_verified_by_admin
-                    ? 'bg-green-100 text-green-700'
-                    : 'bg-yellow-100 text-yellow-700'
-                }`}>
-                  {profileData.business_profile.is_verified_by_admin ? '✓ Verified' : '⏳ Pending'}
-                </span>
-              </div>
-            </div>
+            <Card>
+              <CardHeader>
+                <CardTitle>Business Information</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between py-3 border-b border-border">
+                    <span className="text-muted-foreground text-sm">Business Name</span>
+                    <span className="text-foreground font-semibold">
+                      {profileData.business_profile.business_name || 'Not set'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between py-3">
+                    <span className="text-muted-foreground text-sm">Verification Status</span>
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                      profileData.business_profile.is_verified_by_admin
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-yellow-100 text-yellow-700'
+                    }`}>
+                      {profileData.business_profile.is_verified_by_admin ? '✓ Verified' : '⏳ Pending'}
+                    </span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </motion.div>
         )}
       </div>

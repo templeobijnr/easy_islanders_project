@@ -1927,7 +1927,8 @@ def extract_preferences_async(self, user_id: int, thread_id: str, message_id: st
                 confidence=pref.get("confidence", 0.6),
                 source=pref.get("source", "inferred"),
             )
-            inc_prefs_saved(obj.category, obj.preference_type, obj.source)
+            category = pref.get("category", obj.metadata.get("category", "unknown"))
+            inc_prefs_saved(category, obj.preference_type, obj.source)
             saved += 1
 
         inc_prefs_extract_request(method if extracted else "skipped")

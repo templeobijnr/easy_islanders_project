@@ -34,6 +34,8 @@ class Category(models.Model):
 
     is_bookable = models.BooleanField(default=False, help_text="Whether this category supports booking (e.g. Rentals, Events, Services)")
     is_active = models.BooleanField(default=True)
+    is_featured_category = models.BooleanField(default=False, help_text="Featured on homepage")
+    display_order = models.PositiveIntegerField(default=0, help_text="Order for display")
 
     icon = models.CharField(max_length=100, blank=True, help_text="Frontend icon name (Lucide or custom icon reference)")
     color = models.CharField(max_length=50, default="#6CC24A", help_text="Category theme color")
@@ -42,7 +44,9 @@ class Category(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ["name"]
+        ordering = ["display_order", "name"]
+        verbose_name = "Category"
+        verbose_name_plural = "Categories"
 
     def __str__(self):
         return self.name
@@ -51,15 +55,18 @@ class Category(models.Model):
 class SubCategory(models.Model):
     """Optional subcategories (Apartment, SUV, Laptop, etc.)"""
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    id = models.AutoField(primary_key=True)
     category = models.ForeignKey(Category, related_name="subcategories", on_delete=models.CASCADE)
     name = models.CharField(max_length=255)
     slug = models.SlugField()
     description = models.TextField(blank=True)
+    display_order = models.PositiveIntegerField(default=0)
 
     class Meta:
         unique_together = ("category", "slug")
         ordering = ["name"]
+        verbose_name = "Sub Category"
+        verbose_name_plural = "Sub Categories"
 
     def __str__(self):
         return f"{self.category.name} → {self.name}"
@@ -101,11 +108,14 @@ class Listing(models.Model):
     """
     Core listing model — one table to rule all categories.
     Dynamic fields are stored as JSON (category-specific).
+    
+    Ownership model: All listings have an owner (User). Optional seller_profile
+    for business sellers. The constraint ensures seller_profile.user == owner.
     """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    seller = models.ForeignKey(SellerProfile, on_delete=models.CASCADE, related_name="listings", null=True, blank=True)
-    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="listings")
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="listings",
+                              help_text="Always required. User who created/owns this listing")
 
     category = models.ForeignKey(Category, on_delete=models.PROTECT, related_name="listings", null=True, blank=True)
     subcategory = models.ForeignKey(SubCategory, on_delete=models.PROTECT, related_name="listings", null=True, blank=True)
@@ -136,40 +146,27 @@ class Listing(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=['owner', '-created_at']),
+            models.Index(fields=['category', 'status']),
+            models.Index(fields=['category', 'location', 'status']),
+            models.Index(fields=['status', 'is_featured', '-created_at']),
+            models.Index(fields=['price']),
+        ]
+
+
 
     def __str__(self):
-        return f"{self.title} ({self.category.name})"
+        return f"{self.title} ({self.category.name if self.category else 'Unknown'})"
 
 
 # --------------------------------------------------------------------
 # BOOKING MODEL (shared for bookable listings)
 # --------------------------------------------------------------------
 
-class Booking(models.Model):
-    """
-    Handles bookings for listings that are marked as bookable.
-    """
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    listing = models.ForeignKey(Listing, on_delete=models.CASCADE, related_name="bookings")
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="bookings")
-
-    start_date = models.DateTimeField(null=True, blank=True)
-    end_date = models.DateTimeField(null=True, blank=True)
-    total_price = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(0)], null=True, blank=True)
-    status = models.CharField(max_length=20, choices=[
-        ("pending", "Pending"),
-        ("confirmed", "Confirmed"),
-        ("cancelled", "Cancelled"),
-    ], default="pending")
-
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        ordering = ["-created_at"]
-
-    def __str__(self):
-        return f"{self.user} → {self.listing.title}"
+# DEPRECATED: Booking moved to bookings.models.Booking
+# This was consolidated to use the unified booking model from the bookings app.
+# See DJANGO_DIAGNOSTIC_REPORT.md for details on the consolidation.
 
 
 # --------------------------------------------------------------------
@@ -182,6 +179,10 @@ class ListingImage(models.Model):
     listing = models.ForeignKey(Listing, on_delete=models.CASCADE, related_name="images")
     image = models.ImageField(upload_to="listing_images/")
     uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Listing Image"
+        verbose_name_plural = "Listing Images"
 
     def __str__(self):
         return f"Image for {self.listing.title}"

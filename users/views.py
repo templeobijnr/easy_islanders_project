@@ -6,7 +6,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model
 from django.db import models
-from .models import BusinessProfile, UserPreferences
+from .models import BusinessProfile, UserPreference
 import requests
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
@@ -387,33 +387,31 @@ class FacebookAuthView(APIView):
 
 
 class UserPreferencesView(APIView):
-    """Get and update user preferences"""
+    """Get and update user preferences (UI settings and extracted preferences)"""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         """Get user preferences"""
         user = request.user
-
-        # Get or create preferences
-        preferences, created = UserPreferences.objects.get_or_create(
-            user=user,
-            defaults={
-                'language': 'en',
-                'currency': 'EUR',
-                'timezone': 'UTC',
-                'email_notifications': True,
-                'push_notifications': True,
-                'marketing_notifications': False,
-            }
-        )
-
+        
+        # Get UI preference defaults
+        ui_preferences = {}
+        for pref_type in ['ui_language', 'ui_currency', 'ui_timezone', 'ui_email_notifications', 
+                          'ui_push_notifications', 'ui_marketing_notifications']:
+            pref = UserPreference.objects.filter(user=user, preference_type=pref_type).first()
+            if pref:
+                ui_preferences[pref_type] = pref.value
+        
+        # Get extracted preferences
+        extracted_preferences = {}
+        for pref_type in ['extracted_real_estate', 'extracted_services', 'extracted_lifestyle', 'extracted_general']:
+            prefs = UserPreference.objects.filter(user=user, preference_type=pref_type).values('id', 'value', 'confidence')
+            if prefs.exists():
+                extracted_preferences[pref_type] = list(prefs)
+        
         return Response({
-            'language': preferences.language,
-            'currency': preferences.currency,
-            'timezone': preferences.timezone,
-            'email_notifications': preferences.email_notifications,
-            'push_notifications': preferences.push_notifications,
-            'marketing_notifications': preferences.marketing_notifications,
+            'ui_settings': ui_preferences,
+            'extracted_preferences': extracted_preferences,
         }, status=status.HTTP_200_OK)
 
     def put(self, request):
@@ -421,25 +419,20 @@ class UserPreferencesView(APIView):
         user = request.user
         data = request.data
 
-        # Get or create preferences
-        preferences, created = UserPreferences.objects.get_or_create(user=user)
-
-        # Update preferences
-        if 'language' in data:
-            preferences.language = data['language']
-        if 'currency' in data:
-            preferences.currency = data['currency']
-        if 'timezone' in data:
-            preferences.timezone = data['timezone']
-        if 'email_notifications' in data:
-            preferences.email_notifications = data['email_notifications']
-        if 'push_notifications' in data:
-            preferences.push_notifications = data['push_notifications']
-        if 'marketing_notifications' in data:
-            preferences.marketing_notifications = data['marketing_notifications']
-
         try:
-            preferences.save()
+            # Update UI settings
+            ui_settings = data.get('ui_settings', {})
+            for pref_type, value in ui_settings.items():
+                if pref_type.startswith('ui_'):
+                    UserPreference.objects.update_or_create(
+                        user=user,
+                        preference_type=pref_type,
+                        defaults={
+                            'value': value,
+                            'source': 'explicit',
+                        }
+                    )
+            
             return Response(
                 {'message': 'Preferences updated successfully'},
                 status=status.HTTP_200_OK

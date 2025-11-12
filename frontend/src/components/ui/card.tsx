@@ -1,19 +1,49 @@
 import * as React from "react"
+import { motion } from "framer-motion"
 import { cn } from "../../lib/utils"
 
-const Card = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn(
-      "rounded-2xl border bg-card text-card-foreground shadow-soft hover:shadow-softmd transition-all duration-300",
-      className
-    )}
-    {...props}
-  />
-))
+interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
+  hoverGlow?: boolean
+  disableHover?: boolean
+}
+
+const Card = React.forwardRef<HTMLDivElement, CardProps>(
+  ({ className, hoverGlow = false, disableHover = false, ...props }, ref) => {
+    if (disableHover) {
+      return (
+        <div
+          ref={ref}
+          className={cn(
+            "rounded-2xl border bg-card text-card-foreground shadow-sm transition-all duration-300",
+            className
+          )}
+          {...props}
+        />
+      )
+    }
+
+    return (
+      <motion.div
+        ref={ref}
+        className={cn(
+          "rounded-2xl border bg-card text-card-foreground shadow-sm",
+          hoverGlow && "shadow-premium",
+          className
+        )}
+        whileHover={{
+          scale: 1.02,
+          y: -4,
+          boxShadow: hoverGlow
+            ? "0 20px 60px -12px rgba(108, 194, 74, 0.3)"
+            : "0 10px 30px -6px rgba(15, 23, 42, 0.15)",
+          transition: { duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }
+        }}
+        transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+        {...(props as any)}
+      />
+    )
+  }
+)
 Card.displayName = "Card"
 
 const CardHeader = React.forwardRef<

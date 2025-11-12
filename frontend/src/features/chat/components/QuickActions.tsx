@@ -31,7 +31,7 @@ const QuickActions = ({ actions }: QuickActionsProps) => {
       {actions.map((action) => (
         <Button
           key={action.id}
-          variant={selectedJob === action.id ? "primary" : "secondary"}
+          variant={selectedJob === action.id ? "default" : "secondary"}
           size="sm"
           onClick={() => {
             setSelectedJob(action.id);

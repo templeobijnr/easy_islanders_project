@@ -3,19 +3,19 @@
  * Hub for navigating to 13 domain-specific dashboard sections
  */
 import {
-  Building2,
-  MapPin,
-  Users,
+  Building,
+  MapPinned,
+  Users2,
   TrendingUp,
-  MessageSquare,
-  Calendar,
+  MessagesSquare,
+  CalendarDays,
   Wrench,
   UserCheck,
-  Tag,
+  Sparkles,
   Share2,
   Briefcase,
-  Home,
-  BarChart3,
+  HomeIcon,
+  BarChart4,
 } from 'lucide-react';
 import { SectionNavigationCard } from './components/SectionNavigationCard';
 import { useRealEstateOverview } from '../hooks/useRealEstateDashboard';
@@ -26,7 +26,7 @@ export const RealEstateOverviewPage = () => {
 
   const sections = [
     {
-      icon: Building2,
+      icon: Building,
       title: 'Portfolio',
       description: 'View and manage your property portfolio',
       to: '/dashboard/home/real-estate/portfolio',
@@ -36,13 +36,13 @@ export const RealEstateOverviewPage = () => {
       ] : undefined,
     },
     {
-      icon: MapPin,
+      icon: MapPinned,
       title: 'Location Analytics',
       description: 'Performance insights by area and location',
       to: '/dashboard/home/real-estate/location',
     },
     {
-      icon: Home,
+      icon: HomeIcon,
       title: 'Occupancy',
       description: 'Track occupancy rates and vacancy trends',
       to: '/dashboard/home/real-estate/occupancy',
@@ -60,7 +60,7 @@ export const RealEstateOverviewPage = () => {
       ] : undefined,
     },
     {
-      icon: BarChart3,
+      icon: BarChart4,
       title: 'Sales Pipeline',
       description: 'Track leads, viewings, and deals in progress',
       to: '/dashboard/home/real-estate/sales-pipeline',
@@ -69,7 +69,7 @@ export const RealEstateOverviewPage = () => {
       ] : undefined,
     },
     {
-      icon: MessageSquare,
+      icon: MessagesSquare,
       title: 'Requests & Inquiries',
       description: 'Manage customer requests and communications',
       to: '/dashboard/home/real-estate/requests',
@@ -78,7 +78,7 @@ export const RealEstateOverviewPage = () => {
       ] : undefined,
     },
     {
-      icon: Calendar,
+      icon: CalendarDays,
       title: 'Calendar',
       description: 'View bookings, viewings, and scheduled events',
       to: '/dashboard/home/real-estate/calendar',
@@ -90,13 +90,13 @@ export const RealEstateOverviewPage = () => {
       to: '/dashboard/home/real-estate/maintenance',
     },
     {
-      icon: UserCheck,
+      icon: Users2,
       title: 'Owners & Tenants',
       description: 'Manage property owners and tenant relationships',
       to: '/dashboard/home/real-estate/owners-and-tenants',
     },
     {
-      icon: Tag,
+      icon: Sparkles,
       title: 'Pricing & Promotions',
       description: 'Smart pricing suggestions and discount campaigns',
       to: '/dashboard/home/real-estate/pricing-and-promotions',
@@ -116,10 +116,12 @@ export const RealEstateOverviewPage = () => {
   ];
 
   return (
-    <div className="p-6">
+    <div className="p-6 lg:p-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold">Real Estate Dashboard</h1>
-        <p className="text-muted-foreground mt-2">
+        <h1 className="text-4xl font-bold font-['Space_Grotesk'] bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-transparent">
+          Real Estate Dashboard
+        </h1>
+        <p className="text-muted-foreground mt-2 text-lg">
           Manage your property portfolio and business operations
         </p>
       </div>

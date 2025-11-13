@@ -5,16 +5,14 @@ import { useRealEstateChannelsAndDistribution } from '../hooks/useRealEstateDash
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export const ChannelsAndDistributionPage = () => {
-  const { data, isLoading, error } = useRealEstateChannelsAndDistribution();
+  const { data } = useRealEstateChannelsAndDistribution();
 
-  if (isLoading) return <div className="p-6">Loading channels data...</div>;
-  if (error) return <div className="p-6 text-red-500">Error loading channels data</div>;
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold">Channels & Distribution</h1>
-        <p className="text-muted-foreground mt-2">Performance across listing platforms</p>
+    <div className="p-6 lg:p-8">
+      <div className="mb-8">
+        <h1 className="text-4xl font-bold font-['Space_Grotesk'] bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-transparent">Channels & Distribution</h1>
+        <p className="text-muted-foreground mt-2 text-lg">Performance across listing platforms</p>
       </div>
 
       <Card className="mb-6">

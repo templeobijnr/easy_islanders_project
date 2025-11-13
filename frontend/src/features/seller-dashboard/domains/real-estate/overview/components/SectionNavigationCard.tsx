@@ -29,27 +29,35 @@ export const SectionNavigationCard = ({
 
   return (
     <Card
-      className="cursor-pointer hover:shadow-md transition-shadow"
+      className="cursor-pointer hover:shadow-xl hover:scale-[1.02] transition-all duration-300 border-slate-200 hover:border-primary/30 bg-gradient-to-br from-white to-slate-50/50 group"
       onClick={() => navigate(to)}
     >
-      <CardHeader>
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-primary/10">
-            <Icon className="h-6 w-6 text-primary" />
+      <CardHeader className="pb-4">
+        <div className="flex items-start gap-4">
+          <div className="p-3 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 group-hover:from-primary/20 group-hover:to-primary/10 transition-all">
+            <Icon className="h-7 w-7 text-primary" strokeWidth={1.5} />
           </div>
-          <div className="flex-1">
-            <CardTitle className="text-lg">{title}</CardTitle>
+          <div className="flex-1 pt-1">
+            <CardTitle className="text-xl font-['Space_Grotesk'] group-hover:text-primary transition-colors">
+              {title}
+            </CardTitle>
+            <CardDescription className="mt-1.5 text-sm leading-relaxed">
+              {description}
+            </CardDescription>
           </div>
         </div>
-        <CardDescription className="mt-2">{description}</CardDescription>
       </CardHeader>
       {stats && stats.length > 0 && (
-        <CardContent>
-          <div className="grid grid-cols-2 gap-4">
+        <CardContent className="pt-0">
+          <div className="grid grid-cols-2 gap-4 p-4 rounded-lg bg-slate-50/50 border border-slate-100">
             {stats.map((stat, index) => (
               <div key={index} className="flex flex-col">
-                <span className="text-2xl font-bold">{stat.value}</span>
-                <span className="text-sm text-muted-foreground">{stat.label}</span>
+                <span className="text-2xl font-bold font-['Space_Grotesk'] bg-gradient-to-br from-slate-900 to-slate-600 bg-clip-text text-transparent">
+                  {stat.value}
+                </span>
+                <span className="text-xs text-muted-foreground font-medium mt-0.5">
+                  {stat.label}
+                </span>
               </div>
             ))}
           </div>

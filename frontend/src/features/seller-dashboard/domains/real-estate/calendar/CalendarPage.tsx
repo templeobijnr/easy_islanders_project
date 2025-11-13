@@ -15,16 +15,14 @@ export const CalendarPage = () => {
     end: nextMonth.toISOString().split('T')[0],
   });
 
-  const { data, isLoading, error } = useRealEstateCalendar(dateRange.start, dateRange.end);
+  const { data } = useRealEstateCalendar(dateRange.start, dateRange.end);
 
-  if (isLoading) return <div className="p-6">Loading calendar data...</div>;
-  if (error) return <div className="p-6 text-red-500">Error loading calendar data</div>;
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold">Calendar</h1>
-        <p className="text-muted-foreground mt-2">View bookings and scheduled events</p>
+    <div className="p-6 lg:p-8">
+      <div className="mb-8">
+        <h1 className="text-4xl font-bold font-['Space_Grotesk'] bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-transparent">Calendar</h1>
+        <p className="text-muted-foreground mt-2 text-lg">View bookings and scheduled events</p>
       </div>
 
       <Card>

@@ -5,16 +5,15 @@ import { useRealEstateLocation } from '../hooks/useRealEstateDashboard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export const LocationPage = () => {
-  const { data, isLoading, error } = useRealEstateLocation();
-
-  if (isLoading) return <div className="p-6">Loading location data...</div>;
-  if (error) return <div className="p-6 text-red-500">Error loading location data</div>;
+  const { data } = useRealEstateLocation();
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold">Location Analytics</h1>
-        <p className="text-muted-foreground mt-2">Performance insights by area</p>
+    <div className="p-6 lg:p-8">
+      <div className="mb-8">
+        <h1 className="text-4xl font-bold font-['Space_Grotesk'] bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-transparent">
+          Location Analytics
+        </h1>
+        <p className="text-muted-foreground mt-2 text-lg">Performance insights by area</p>
       </div>
 
       <Card>

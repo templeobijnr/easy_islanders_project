@@ -5,16 +5,14 @@ import { useRealEstateSalesPipeline } from '../hooks/useRealEstateDashboard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export const SalesPipelinePage = () => {
-  const { data, isLoading, error } = useRealEstateSalesPipeline();
+  const { data } = useRealEstateSalesPipeline();
 
-  if (isLoading) return <div className="p-6">Loading sales pipeline data...</div>;
-  if (error) return <div className="p-6 text-red-500">Error loading sales pipeline data</div>;
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold">Sales Pipeline</h1>
-        <p className="text-muted-foreground mt-2">Track leads, viewings, and deals</p>
+    <div className="p-6 lg:p-8">
+      <div className="mb-8">
+        <h1 className="text-4xl font-bold font-['Space_Grotesk'] bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-transparent">Sales Pipeline</h1>
+        <p className="text-muted-foreground mt-2 text-lg">Track leads, viewings, and deals</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">

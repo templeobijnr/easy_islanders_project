@@ -8,7 +8,7 @@ import { PortfolioPage } from '../../../../features/seller-dashboard/domains/rea
  * Route: /dashboard/home/real-estate/portfolio
  */
 const RealEstatePortfolioRoute: React.FC = () => (
-  <DomainProvider domainId="real_estate" initialSection="portfolio">
+  <DomainProvider domainId="real_estate">
     <DashboardLayout>
       <PortfolioPage />
     </DashboardLayout>

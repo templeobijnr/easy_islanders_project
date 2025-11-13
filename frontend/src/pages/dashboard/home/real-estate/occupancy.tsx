@@ -8,7 +8,7 @@ import { OccupancyPage } from '../../../../features/seller-dashboard/domains/rea
  * Route: /dashboard/home/real-estate/occupancy
  */
 const RealEstateOccupancyRoute: React.FC = () => (
-  <DomainProvider domainId="real_estate" initialSection="occupancy">
+  <DomainProvider domainId="real_estate">
     <DashboardLayout>
       <OccupancyPage />
     </DashboardLayout>

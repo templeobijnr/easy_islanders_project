@@ -8,7 +8,7 @@ import { ChannelsAndDistributionPage } from '../../../../features/seller-dashboa
  * Route: /dashboard/home/real-estate/channels-and-distribution
  */
 const RealEstateChannelsAndDistributionRoute: React.FC = () => (
-  <DomainProvider domainId="real_estate" initialSection="channels-and-distribution">
+  <DomainProvider domainId="real_estate">
     <DashboardLayout>
       <ChannelsAndDistributionPage />
     </DashboardLayout>

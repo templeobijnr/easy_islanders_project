@@ -43,8 +43,13 @@ export const PortfolioPage = () => {
             <div className="text-sm space-y-1">
               {data?.unit_mix && Object.entries(data.unit_mix).map(([type, count]) => (
                 <div key={type} className="flex justify-between">
+<<<<<<< Updated upstream
                   <span className="capitalize text-slate-600">{type}:</span>
                   <span className="font-semibold">{count}</span>
+=======
+                  <span className="capitalize">{type}:</span>
+                  <span className="font-semibold">{String(count)}</span>
+>>>>>>> Stashed changes
                 </div>
               ))}
               {(!data?.unit_mix || Object.keys(data.unit_mix).length === 0) && (

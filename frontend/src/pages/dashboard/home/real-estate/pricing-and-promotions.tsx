@@ -8,7 +8,7 @@ import { PricingAndPromotionsPage } from '../../../../features/seller-dashboard/
  * Route: /dashboard/home/real-estate/pricing-and-promotions
  */
 const RealEstatePricingAndPromotionsRoute: React.FC = () => (
-  <DomainProvider domainId="real_estate" initialSection="pricing-and-promotions">
+  <DomainProvider domainId="real_estate">
     <DashboardLayout>
       <PricingAndPromotionsPage />
     </DashboardLayout>

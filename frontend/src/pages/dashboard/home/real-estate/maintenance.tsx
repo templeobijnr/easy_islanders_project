@@ -8,7 +8,7 @@ import { MaintenancePage } from '../../../../features/seller-dashboard/domains/r
  * Route: /dashboard/home/real-estate/maintenance
  */
 const RealEstateMaintenanceRoute: React.FC = () => (
-  <DomainProvider domainId="real_estate" initialSection="maintenance">
+  <DomainProvider domainId="real_estate">
     <DashboardLayout>
       <MaintenancePage />
     </DashboardLayout>

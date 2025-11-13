@@ -8,7 +8,7 @@ import { SalesPipelinePage } from '../../../../features/seller-dashboard/domains
  * Route: /dashboard/home/real-estate/sales-pipeline
  */
 const RealEstateSalesPipelineRoute: React.FC = () => (
-  <DomainProvider domainId="real_estate" initialSection="sales-pipeline">
+  <DomainProvider domainId="real_estate">
     <DashboardLayout>
       <SalesPipelinePage />
     </DashboardLayout>

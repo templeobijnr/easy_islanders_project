@@ -8,7 +8,7 @@ import { OwnersAndTenantsPage } from '../../../../features/seller-dashboard/doma
  * Route: /dashboard/home/real-estate/owners-and-tenants
  */
 const RealEstateOwnersAndTenantsRoute: React.FC = () => (
-  <DomainProvider domainId="real_estate" initialSection="owners-and-tenants">
+  <DomainProvider domainId="real_estate">
     <DashboardLayout>
       <OwnersAndTenantsPage />
     </DashboardLayout>

@@ -8,7 +8,7 @@ import { RequestsPage } from '../../../../features/seller-dashboard/domains/real
  * Route: /dashboard/home/real-estate/requests
  */
 const RealEstateRequestsRoute: React.FC = () => (
-  <DomainProvider domainId="real_estate" initialSection="requests">
+  <DomainProvider domainId="real_estate">
     <DashboardLayout>
       <RequestsPage />
     </DashboardLayout>

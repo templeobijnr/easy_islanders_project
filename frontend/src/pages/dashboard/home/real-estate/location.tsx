@@ -8,7 +8,7 @@ import { LocationPage } from '../../../../features/seller-dashboard/domains/real
  * Route: /dashboard/home/real-estate/location
  */
 const RealEstateLocationRoute: React.FC = () => (
-  <DomainProvider domainId="real_estate" initialSection="location">
+  <DomainProvider domainId="real_estate">
     <DashboardLayout>
       <LocationPage />
     </DashboardLayout>

@@ -8,7 +8,7 @@ import { realEstateDashboardApi } from '../api/realEstateDashboardApi';
  * Hook to fetch overview dashboard data
  */
 export const useRealEstateOverview = () =>
-  useQuery({
+  useQuery<any>({
     queryKey: ['real-estate', 'overview'],
     queryFn: async () => {
       const response = await realEstateDashboardApi.getOverview();
@@ -20,7 +20,7 @@ export const useRealEstateOverview = () =>
  * Hook to fetch portfolio data
  */
 export const useRealEstatePortfolio = () =>
-  useQuery({
+  useQuery<any>({
     queryKey: ['real-estate', 'portfolio'],
     queryFn: async () => {
       const response = await realEstateDashboardApi.getPortfolio();
@@ -32,7 +32,7 @@ export const useRealEstatePortfolio = () =>
  * Hook to fetch location performance data
  */
 export const useRealEstateLocation = () =>
-  useQuery({
+  useQuery<any>({
     queryKey: ['real-estate', 'location'],
     queryFn: async () => {
       const response = await realEstateDashboardApi.getLocation();
@@ -44,7 +44,7 @@ export const useRealEstateLocation = () =>
  * Hook to fetch occupancy data
  */
 export const useRealEstateOccupancy = () =>
-  useQuery({
+  useQuery<any>({
     queryKey: ['real-estate', 'occupancy'],
     queryFn: async () => {
       const response = await realEstateDashboardApi.getOccupancy();
@@ -56,7 +56,7 @@ export const useRealEstateOccupancy = () =>
  * Hook to fetch earnings data
  */
 export const useRealEstateEarnings = () =>
-  useQuery({
+  useQuery<any>({
     queryKey: ['real-estate', 'earnings'],
     queryFn: async () => {
       const response = await realEstateDashboardApi.getEarnings();
@@ -68,7 +68,7 @@ export const useRealEstateEarnings = () =>
  * Hook to fetch sales pipeline data
  */
 export const useRealEstateSalesPipeline = () =>
-  useQuery({
+  useQuery<any>({
     queryKey: ['real-estate', 'sales-pipeline'],
     queryFn: async () => {
       const response = await realEstateDashboardApi.getSalesPipeline();
@@ -80,7 +80,7 @@ export const useRealEstateSalesPipeline = () =>
  * Hook to fetch requests data
  */
 export const useRealEstateRequests = () =>
-  useQuery({
+  useQuery<any>({
     queryKey: ['real-estate', 'requests'],
     queryFn: async () => {
       const response = await realEstateDashboardApi.getRequests();
@@ -94,7 +94,7 @@ export const useRealEstateRequests = () =>
  * @param end - End date (YYYY-MM-DD)
  */
 export const useRealEstateCalendar = (start: string, end: string) =>
-  useQuery({
+  useQuery<any>({
     queryKey: ['real-estate', 'calendar', start, end],
     queryFn: async () => {
       const response = await realEstateDashboardApi.getCalendar({ start, end });
@@ -107,7 +107,7 @@ export const useRealEstateCalendar = (start: string, end: string) =>
  * Hook to fetch maintenance data
  */
 export const useRealEstateMaintenance = () =>
-  useQuery({
+  useQuery<any>({
     queryKey: ['real-estate', 'maintenance'],
     queryFn: async () => {
       const response = await realEstateDashboardApi.getMaintenance();
@@ -119,7 +119,7 @@ export const useRealEstateMaintenance = () =>
  * Hook to fetch owners and tenants data
  */
 export const useRealEstateOwnersAndTenants = () =>
-  useQuery({
+  useQuery<any>({
     queryKey: ['real-estate', 'owners-and-tenants'],
     queryFn: async () => {
       const response = await realEstateDashboardApi.getOwnersAndTenants();
@@ -131,7 +131,7 @@ export const useRealEstateOwnersAndTenants = () =>
  * Hook to fetch pricing and promotions data
  */
 export const useRealEstatePricingAndPromotions = () =>
-  useQuery({
+  useQuery<any>({
     queryKey: ['real-estate', 'pricing-and-promotions'],
     queryFn: async () => {
       const response = await realEstateDashboardApi.getPricingAndPromotions();
@@ -143,7 +143,7 @@ export const useRealEstatePricingAndPromotions = () =>
  * Hook to fetch channels and distribution data
  */
 export const useRealEstateChannelsAndDistribution = () =>
-  useQuery({
+  useQuery<any>({
     queryKey: ['real-estate', 'channels-and-distribution'],
     queryFn: async () => {
       const response = await realEstateDashboardApi.getChannelsAndDistribution();
@@ -155,7 +155,7 @@ export const useRealEstateChannelsAndDistribution = () =>
  * Hook to fetch projects data
  */
 export const useRealEstateProjects = () =>
-  useQuery({
+  useQuery<any>({
     queryKey: ['real-estate', 'projects'],
     queryFn: async () => {
       const response = await realEstateDashboardApi.getProjects();

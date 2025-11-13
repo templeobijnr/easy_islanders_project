@@ -8,7 +8,7 @@ import { CalendarPage } from '../../../../features/seller-dashboard/domains/real
  * Route: /dashboard/home/real-estate/calendar
  */
 const RealEstateCalendarRoute: React.FC = () => (
-  <DomainProvider domainId="real_estate" initialSection="calendar">
+  <DomainProvider domainId="real_estate">
     <DashboardLayout>
       <CalendarPage />
     </DashboardLayout>

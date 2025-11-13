@@ -8,7 +8,7 @@ import { EarningsPage } from '../../../../features/seller-dashboard/domains/real
  * Route: /dashboard/home/real-estate/earnings
  */
 const RealEstateEarningsRoute: React.FC = () => (
-  <DomainProvider domainId="real_estate" initialSection="earnings">
+  <DomainProvider domainId="real_estate">
     <DashboardLayout>
       <EarningsPage />
     </DashboardLayout>

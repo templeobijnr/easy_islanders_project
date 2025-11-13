@@ -18,15 +18,15 @@ interface LargeCardGridProps {
 const LargeCardGrid: React.FC<LargeCardGridProps> = ({ items }) => {
 
   return (
-    <motion.div
-      variants={listStagger}
-      initial="hidden"
-      animate="visible"
-      className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"
-    >
-      {items.map((it) => (
-        <motion.div key={it.id} variants={cardHover} whileHover="hover">
-          <Card className="p-0 overflow-hidden">
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      <motion.div
+        variants={listStagger}
+        initial="hidden"
+        animate="visible"
+      >
+        {items.map((it) => (
+          <motion.div key={it.id} variants={cardHover} whileHover="hover">
+            <Card className="p-0 overflow-hidden">
             <div className="h-36 bg-slate-100 flex items-center justify-center text-slate-400">
               image
             </div>
@@ -37,10 +37,11 @@ const LargeCardGrid: React.FC<LargeCardGridProps> = ({ items }) => {
                 {it.badge}
               </div>
             </div>
-          </Card>
-        </motion.div>
-      ))}
-    </motion.div>
+            </Card>
+          </motion.div>
+        ))}
+      </motion.div>
+    </div>
   );
 };
 

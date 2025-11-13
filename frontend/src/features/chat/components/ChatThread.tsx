@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence } from 'framer-motion';
+import { MotionDiv } from '../../../components/ui/motion-wrapper';
 import type { ChatMessage } from "../types";
 import { BubbleAgent } from "../../../shared/components";
 import TypingDots from "./TypingDots";
@@ -48,14 +49,14 @@ export function ChatThread({ messages }: { messages: ChatMessage[] }) {
       aria-live="polite"
       aria-relevant="additions"
     >
-      <motion.div
+      <MotionDiv
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ staggerChildren: 0.04 }}
       >
         <AnimatePresence>
           {convertedMessages.map((m) => (
-            <motion.div
+            <MotionDiv
               key={m.id}
               initial={{ y: 6, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
@@ -84,19 +85,19 @@ export function ChatThread({ messages }: { messages: ChatMessage[] }) {
                   </div>
                 </div>
               )}
-            </motion.div>
+            </MotionDiv>
           ))}
         </AnimatePresence>
         {isTyping && (
-          <motion.div
+          <MotionDiv
             initial={{ y: 6, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             className="flex justify-start"
           >
             <TypingDots />
-          </motion.div>
+          </MotionDiv>
         )}
-      </motion.div>
+      </MotionDiv>
       <div className="h-2" />
     </div>
   );

@@ -1,35 +1,62 @@
 import React, { useState, useEffect } from 'react';
 import { useUnreadCount } from '../hooks/useMessages';
-// import { useAuth } from '../contexts/AuthContext'; // Unused
-import { Send } from 'lucide-react';
+// import { useAuth } from '../shared/context/AuthContext'; // Unused
+import { Send, Loader2 } from 'lucide-react';
+import { Button } from '../components/ui/button';
+import { PageTransition, StaggerContainer, StaggerItem, AnimatedWrapper } from '../components/ui/animated-wrapper';
+import { Skeleton } from '../components/ui/skeleton';
+import { Input } from '../components/ui/input';
+import { spacing } from '../lib/spacing';
 import api, { http } from '../api';
 import config from '../config';
 
 const MessageView = ({ threadId, fetchUnreadCount }) => {
+  const [loadingMessages, setLoadingMessages] = useState(false);
+
+  useEffect(() => {
+    if (threadId) {
+      setLoadingMessages(true);
+      // Simulate message loading (replace with actual API call)
+      setTimeout(() => setLoadingMessages(false), 1000);
+    }
+  }, [threadId]);
+
   if (!threadId) {
     return (
-      <div className="flex flex-col items-center justify-center text-center p-8 h-full">
-        <h2 className="text-xl font-semibold text-gray-700">Select a conversation</h2>
-        <p className="text-gray-500 mt-2">Choose from your existing conversations to start chatting.</p>
-      </div>
+      <AnimatedWrapper animation="scaleIn">
+        <div className="flex flex-col items-center justify-center text-center p-8 h-full">
+          <h2 className="text-xl font-semibold text-foreground">Select a conversation</h2>
+          <p className="text-muted-foreground mt-2">Choose from your existing conversations to start chatting.</p>
+        </div>
+      </AnimatedWrapper>
     );
   }
   // Placeholder for detailed thread view; existing chat flow handles message send.
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        <div className="text-gray-500 text-sm">Thread: {threadId}</div>
+      <div className={`flex-1 overflow-y-auto ${spacing.listItemPadding} ${spacing.listGap}`}>
+        {loadingMessages ? (
+          Array(3).fill(0).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)
+        ) : (
+          <AnimatedWrapper animation="fadeInUp" duration={0.2}>
+            <div className="text-muted-foreground text-sm">Thread: {threadId}</div>
+          </AnimatedWrapper>
+        )}
       </div>
-      <div className="p-4 border-t bg-white">
+      <div className={`${spacing.listItemPadding} border-t bg-background`}>
         <div className="relative">
-          <input 
+          <Input
             type="text"
             placeholder="Type a message..."
-            className="w-full pl-4 pr-12 py-3 border rounded-full bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full pl-4 pr-12 py-3 border rounded-full bg-muted focus:scale-105 transition-transform"
           />
-          <button className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-blue-500 text-white hover:bg-blue-600">
+          <Button
+            variant="premium"
+            size="icon"
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full"
+          >
             <Send size={20} />
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -91,57 +118,65 @@ const Messages = () => {
   }, []);
 
   return (
-    <div className="flex h-full bg-gray-50">
-      {/* Thread List */}
-      <div className="w-1/3 border-r border-gray-200 flex flex-col">
-        <div className="p-4 border-b">
-          <h1 className="text-2xl font-bold">Messages</h1>
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          {loading && threads.length === 0 && (
-            <div className="p-4 text-gray-500">Loading conversations...</div>
-          )}
-          {error && (
-            <div className="p-4 text-red-500">{error}</div>
-          )}
-          {threads.map(thread => (
-            <div 
-              key={thread.thread_id} 
-              className={`p-4 border-b hover:bg-gray-100 cursor-pointer flex items-center ${activeThreadId === thread.thread_id ? 'bg-blue-50' : ''}`}
-              onClick={() => setActiveThreadId(thread.thread_id)}
-            >
-              <div className="w-12 h-12 rounded-full bg-gray-300 mr-4"></div>
-              <div className="flex-1">
-                <div className="flex justify-between">
-                  <p className="font-semibold">{thread.participants?.[0]?.name || 'Conversation'}</p>
-                  <p className="text-sm text-gray-500">{new Date(thread.updated_at).toLocaleString()}</p>
-                </div>
-                <p className="text-sm text-gray-600 truncate">{thread.last_message?.content || ''}</p>
+    <PageTransition>
+      <div className="flex h-full bg-background">
+        {/* Thread List */}
+        <div className="w-1/3 border-r border-border flex flex-col">
+          <div className={spacing.listItemPadding + " border-b"}>
+            <h1 className="text-2xl font-bold">Messages</h1>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {loading && threads.length === 0 && (
+              <div className={spacing.listItemPadding}>
+                {Array(5).fill(0).map((_, i) => <Skeleton key={i} className="h-16 w-full mb-2" />)}
               </div>
-              {thread.unread_count > 0 && (
-                <div className="ml-4 w-6 h-6 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
-                  {thread.unread_count > 9 ? '9+' : thread.unread_count}
-                </div>
-              )}
-            </div>
-          ))}
-          {hasNext && (
-            <button 
-              onClick={() => loadThreads(page + 1)}
-              className="w-full py-3 text-sm font-semibold text-blue-600 hover:bg-blue-50"
-              disabled={loading}
-            >
-              {loading ? 'Loading...' : 'Load More'}
-            </button>
-          )}
+            )}
+            {error && (
+              <div className={`${spacing.listItemPadding} text-destructive`}>{error}</div>
+            )}
+            <StaggerContainer>
+              {threads.map(thread => (
+                <StaggerItem key={thread.thread_id}>
+                  <div
+                    className={`${spacing.listItemPadding} border-b hover:bg-accent cursor-pointer flex items-center ${activeThreadId === thread.thread_id ? 'bg-primary/10' : ''}`}
+                    onClick={() => setActiveThreadId(thread.thread_id)}
+                  >
+                    <div className="w-12 h-12 rounded-full bg-muted mr-4"></div>
+                    <div className="flex-1">
+                      <div className="flex justify-between">
+                        <p className="font-semibold">{thread.participants?.[0]?.name || 'Conversation'}</p>
+                        <p className="text-sm text-muted-foreground">{new Date(thread.updated_at).toLocaleString()}</p>
+                      </div>
+                      <p className="text-sm text-muted-foreground truncate">{thread.last_message?.content || ''}</p>
+                    </div>
+                    {thread.unread_count > 0 && (
+                      <div className="ml-4 w-6 h-6 bg-destructive text-white text-xs font-bold rounded-full flex items-center justify-center">
+                        {thread.unread_count > 9 ? '9+' : thread.unread_count}
+                      </div>
+                    )}
+                  </div>
+                </StaggerItem>
+              ))}
+            </StaggerContainer>
+            {hasNext && (
+              <Button
+                onClick={() => loadThreads(page + 1)}
+                disabled={loading}
+                variant="ghost"
+                className="w-full"
+              >
+                {loading ? <><Loader2 className="animate-spin mr-2" />Loading...</> : 'Load More'}
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Message View */}
+        <div className="w-2/3 flex flex-col">
+          <MessageView threadId={activeThreadId} fetchUnreadCount={fetchUnreadCount} />
         </div>
       </div>
-
-      {/* Message View */}
-      <div className="w-2/3 flex flex-col">
-        <MessageView threadId={activeThreadId} fetchUnreadCount={fetchUnreadCount} />
-      </div>
-    </div>
+    </PageTransition>
   );
 };
 

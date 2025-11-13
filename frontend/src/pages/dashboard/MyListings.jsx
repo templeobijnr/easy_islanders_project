@@ -1,25 +1,57 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, AlertCircle } from 'lucide-react';
-import DashboardHeader from '../../components/dashboard/DashboardHeader';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Plus,
+  AlertCircle,
+  Package,
+  CheckCircle2,
+  Search,
+  Eye,
+  Edit3,
+  Trash2,
+  Copy,
+  X,
+  ImageIcon,
+  MapPin,
+  Calendar,
+  DollarSign,
+  FileText,
+  TrendingUp
+} from 'lucide-react';
+import { getAllCategories } from '../../lib/categoryDesign';
+import { Tabs, TabsList, TabsTrigger } from '../../components/ui/tabs';
+import { Badge } from '../../components/ui/badge';
+import { Card, CardContent } from '../../components/ui/card';
+import { Skeleton } from '../../components/ui/skeleton';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import EditListingModal from '../../components/modals/EditListingModal';
 import DeleteConfirmModal from '../../components/modals/DeleteConfirmModal';
 import PublishActionModal from '../../components/modals/PublishActionModal';
-import ListingActionMenu from '../../components/listings/ListingActionMenu';
 import axios from 'axios';
 import config from '../../config';
+import { spacing, layout } from '../../lib/spacing';
+import { AnimatedWrapper, StaggerContainer, StaggerItem } from '../../components/ui/animated-wrapper';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
+
+const CardSkeleton = ({ className }) => (
+  <div className={`animate-pulse rounded-lg bg-gray-200 ${className || 'h-48'}`} />
+);
 
 const MyListings = () => {
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState('all'); // all, published, draft
+  const [categoryFilter, setCategoryFilter] = useState('all'); // all, or category slug
   const [sortBy, setSortBy] = useState('newest');
-  
+  const [searchQuery, setSearchQuery] = useState('');
+
   // Modal states
   const [editingListing, setEditingListing] = useState(null);
   const [deletingListing, setDeletingListing] = useState(null);
   const [publishingListing, setPublishingListing] = useState(null);
+  const [previewListing, setPreviewListing] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
 
   useEffect(() => {
@@ -48,11 +80,25 @@ const MyListings = () => {
     }
   };
 
-  // Filter listings
+  // Filter and search listings
   const filteredListings = listings.filter((listing) => {
-    if (filter === 'published') return listing.status === 'published';
-    if (filter === 'draft') return listing.status === 'draft';
-    return true;
+    const matchesFilter =
+      filter === 'all' ||
+      (filter === 'published' && listing.status === 'published') ||
+      (filter === 'draft' && listing.status === 'draft');
+
+    const matchesCategory =
+      categoryFilter === 'all' ||
+      listing.category?.slug === categoryFilter ||
+      listing.category?.name?.toLowerCase().replace(/\s+/g, '-') === categoryFilter;
+
+    const matchesSearch =
+      !searchQuery ||
+      listing.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      listing.category?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      listing.location?.toLowerCase().includes(searchQuery.toLowerCase());
+
+    return matchesFilter && matchesCategory && matchesSearch;
   });
 
   // Sort listings
@@ -61,6 +107,7 @@ const MyListings = () => {
     if (sortBy === 'oldest') return new Date(a.created_at) - new Date(b.created_at);
     if (sortBy === 'price-low') return a.price - b.price;
     if (sortBy === 'price-high') return b.price - a.price;
+    if (sortBy === 'title') return a.title.localeCompare(b.title);
     return 0;
   });
 
@@ -69,6 +116,7 @@ const MyListings = () => {
     total: listings.length,
     published: listings.filter((l) => l.status === 'published').length,
     draft: listings.filter((l) => l.status === 'draft').length,
+    views: listings.reduce((sum, l) => sum + (l.views || 0), 0),
   };
 
   // Modal handlers
@@ -117,69 +165,238 @@ const MyListings = () => {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const createListingButton = (
-    <Link
-      to="/create-listing"
-      className="
-        flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg
-        hover:bg-brand-dark transition-all duration-200 font-semibold text-sm
-      "
-    >
-      <Plus className="w-5 h-5" />
-      <span>Create New</span>
-    </Link>
-  );
+  const container = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1
+      }
+    }
+  };
+
+  const item = {
+    hidden: { opacity: 0, y: 20 },
+    show: { opacity: 1, y: 0 }
+  };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className={`bg-white/90 backdrop-blur rounded-2xl border border-slate-200 ${spacing.cardPadding}`}>
       {/* Header */}
-      <DashboardHeader
-        title="My Listings"
-        subtitle={`You have ${stats.total} listings`}
-        action={createListingButton}
-      />
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className={`flex items-center justify-between ${spacing.sectionSmall}`}
+      >
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900 mb-2">My Listings</h1>
+          <p className="text-slate-600">Manage your marketplace offerings</p>
+        </div>
+        <Link
+          to="/create-listing"
+          className="group flex items-center gap-2 px-6 py-3"
+        >
+          <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
+          <span>Create New Listing</span>
+        </Link>
+      </motion.div>
 
       {/* Toast Notification */}
-      {toastMessage && (
-        <div className="m-6 mb-0 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-3">
-          <p className="text-green-700 font-medium">{toastMessage}</p>
-        </div>
-      )}
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -50, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -50, scale: 0.95 }}
+            className="mb-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl flex items-center gap-3 shadow-sm"
+          >
+            <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
+            <p className="text-green-700 font-medium flex-1">{toastMessage}</p>
+            <button
+              onClick={() => setToastMessage(null)}
+              className="p-1 hover:bg-green-100 rounded-lg transition-colors"
+            >
+              <X className="w-4 h-4 text-green-600" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div>
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <div className="bg-white border border-gray-200 rounded-lg p-6">
-            <p className="text-gray-600 text-sm font-medium">Total Listings</p>
-            <p className="text-4xl font-bold text-gray-800 mt-2">{stats.total}</p>
-          </div>
-          <div className="bg-white border border-gray-200 rounded-lg p-6">
-            <p className="text-gray-600 text-sm font-medium">Published</p>
-            <p className="text-4xl font-bold text-green-600 mt-2">{stats.published}</p>
-          </div>
-          <div className="bg-white border border-gray-200 rounded-lg p-6">
-            <p className="text-gray-600 text-sm font-medium">Drafts</p>
-            <p className="text-4xl font-bold text-gray-400 mt-2">{stats.draft}</p>
-          </div>
-        </div>
+        <motion.div
+          variants={container}
+          initial="hidden"
+          animate="show"
+          className={`${layout.grid4} ${spacing.sectionSmall}`}
+        >
+          <motion.div variants={item}>
+            <Card className="group cursor-pointer hover:shadow-xl transition-all duration-300">
+              <CardContent className={spacing.cardPadding}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-3 bg-primary/30 rounded-xl group-hover:scale-110 transition-transform duration-300">
+                    <Package className="w-6 h-6 text-primary" />
+                  </div>
+                  <motion.p
+                    className="text-4xl font-bold text-primary"
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", delay: 0.2 }}
+                  >
+                    {stats.total}
+                  </motion.p>
+                </div>
+                <h3 className="text-sm font-semibold text-foreground mb-1">Total Listings</h3>
+                <p className="text-xs text-primary">All your marketplace items</p>
+              </CardContent>
+            </Card>
+          </motion.div>
 
-        {/* Filters */}
-        <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6">
-          <div className="flex flex-col md:flex-row gap-4">
+          <motion.div variants={item}>
+            <Card className="group cursor-pointer hover:shadow-xl transition-all duration-300">
+              <CardContent className={spacing.cardPadding}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-3 bg-success/30 rounded-xl group-hover:scale-110 transition-transform duration-300">
+                    <CheckCircle2 className="w-6 h-6 text-success" />
+                  </div>
+                  <motion.p
+                    className="text-4xl font-bold text-success"
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", delay: 0.3 }}
+                  >
+                    {stats.published}
+                  </motion.p>
+                </div>
+                <h3 className="text-sm font-semibold text-foreground mb-1">Published</h3>
+                <p className="text-xs text-success">Live on marketplace</p>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          <motion.div variants={item}>
+            <Card className="group cursor-pointer hover:shadow-xl transition-all duration-300">
+              <CardContent className={spacing.cardPadding}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-3 bg-warning/30 rounded-xl group-hover:scale-110 transition-transform duration-300">
+                    <FileText className="w-6 h-6 text-warning" />
+                  </div>
+                  <motion.p
+                    className="text-4xl font-bold text-warning"
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", delay: 0.4 }}
+                  >
+                    {stats.draft}
+                  </motion.p>
+                </div>
+                <h3 className="text-sm font-semibold text-foreground mb-1">Drafts</h3>
+                <p className="text-xs text-warning">Pending completion</p>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          <motion.div variants={item}>
+            <Card className="group cursor-pointer hover:shadow-xl transition-all duration-300">
+              <CardContent className={spacing.cardPadding}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-3 bg-accent/30 rounded-xl group-hover:scale-110 transition-transform duration-300">
+                    <TrendingUp className="w-6 h-6 text-accent" />
+                  </div>
+                  <motion.p
+                    className="text-4xl font-bold text-accent"
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", delay: 0.5 }}
+                  >
+                    {stats.views}
+                  </motion.p>
+                </div>
+                <h3 className="text-sm font-semibold text-foreground mb-1">Total Views</h3>
+                <p className="text-xs text-accent">Across all listings</p>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </motion.div>
+
+        {/* Category Filter Tabs */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className={spacing.sectionSmall}
+        >
+          <Tabs value={categoryFilter} onValueChange={setCategoryFilter} className="w-full">
+            <TabsList className="w-full justify-start overflow-x-auto bg-slate-100 p-1.5 rounded-xl">
+              <TabsTrigger value="all" className="flex items-center gap-2 px-4">
+                <Package className="w-4 h-4" />
+                <span>All Categories</span>
+                <Badge variant="secondary" className="ml-1 bg-slate-200 text-slate-700">
+                  {listings.length}
+                </Badge>
+              </TabsTrigger>
+
+              {getAllCategories().map((category) => {
+                const Icon = category.icon;
+                const categoryListings = listings.filter(
+                  (l) => l.category?.slug === category.slug ||
+                         l.category?.name?.toLowerCase().replace(/\s+/g, '-') === category.slug
+                );
+                const count = categoryListings.length;
+
+                if (count === 0) return null;
+
+                return (
+                  <TabsTrigger
+                    key={category.slug}
+                    value={category.slug}
+                    className="flex items-center gap-2 px-4"
+                  >
+                    <Icon className="w-4 h-4" />
+                    <span>{category.name}</span>
+                    <Badge
+                      variant="secondary"
+                      className={`ml-1 ${category.badgeBg} ${category.badgeText}`}
+                    >
+                      {count}
+                    </Badge>
+                  </TabsTrigger>
+                );
+              })}
+            </TabsList>
+          </Tabs>
+        </motion.div>
+
+        {/* Filters & Search */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className={`bg-background border border-border rounded-2xl ${spacing.cardPadding} ${spacing.sectionSmall} shadow-sm`}
+        >
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {/* Search */}
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-foreground mb-2">Search</label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Search by title, category, location..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 border border-input rounded-xl text-foreground bg-background hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                />
+              </div>
+            </div>
+
             {/* Status Filter */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Status
-              </label>
+              <label className="block text-sm font-medium text-foreground mb-2">Status</label>
               <select
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
-                className="
-                  px-3 py-2 border border-gray-300 rounded-lg
-                  text-gray-700 bg-white hover:border-gray-400
-                  focus:outline-none focus:ring-2 focus:ring-brand
-                "
+                className="w-full px-4 py-2.5 border border-input rounded-xl text-foreground bg-background hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
               >
                 <option value="all">All</option>
                 <option value="published">Published</option>
@@ -189,137 +406,248 @@ const MyListings = () => {
 
             {/* Sort */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Sort By
-              </label>
+              <label className="block text-sm font-medium text-foreground mb-2">Sort By</label>
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="
-                  px-3 py-2 border border-gray-300 rounded-lg
-                  text-gray-700 bg-white hover:border-gray-400
-                  focus:outline-none focus:ring-2 focus:ring-brand
-                "
+                className="w-full px-4 py-2.5 border border-input rounded-xl text-foreground bg-background hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
               >
                 <option value="newest">Newest First</option>
                 <option value="oldest">Oldest First</option>
                 <option value="price-low">Price: Low to High</option>
                 <option value="price-high">Price: High to Low</option>
+                <option value="title">Title: A to Z</option>
               </select>
             </div>
           </div>
-        </div>
+        </motion.div>
 
         {/* Loading State */}
         {loading && (
-          <div className="text-center py-12">
-            <p className="text-gray-600">Loading listings...</p>
+          <div className={layout.grid3}>
+            {Array(6).fill(0).map((_, i) => (
+              <CardSkeleton key={i} />
+            ))}
           </div>
         )}
 
         {/* Error State */}
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3 mb-6">
-            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
-            <p className="text-red-700">{error}</p>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className={`bg-red-50 border border-red-200 rounded-2xl ${spacing.cardPadding} flex items-center gap-4 mb-6 shadow-sm`}
+          >
+            <AlertCircle className="w-6 h-6 text-red-600 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-red-700 font-medium">{error}</p>
+            </div>
             <button
-              onClick={fetchListings}
-              className="ml-auto text-red-700 hover:text-red-800 font-semibold text-sm underline"
+              className="px-4 py-2 font-semibold text-sm transition-colors"
             >
               Retry
             </button>
-          </div>
+          </motion.div>
         )}
 
         {/* Empty State */}
         {!loading && sortedListings.length === 0 && (
-          <div className="bg-white border border-gray-200 rounded-lg p-12 text-center">
-            <p className="text-gray-600 text-lg">No listings yet</p>
-            <p className="text-gray-500 mt-2">Create your first listing to get started</p>
-            <Link
-              to="/create-listing"
-              className="
-                inline-flex items-center gap-2 mt-6 px-6 py-3 bg-brand text-white
-                rounded-lg hover:bg-brand-dark transition-all duration-200 font-semibold
-              "
+          <AnimatedWrapper
+            animation="scaleIn"
+            className="bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200 rounded-2xl p-16 text-center shadow-inner"
+          >
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: "spring", delay: 0.1 }}
             >
-              <Plus className="w-5 h-5" />
-              Create Listing
-            </Link>
-          </div>
+              <Package className="w-20 h-20 text-slate-300 mx-auto mb-6" />
+            </motion.div>
+            <h3 className="text-2xl font-bold text-slate-800 mb-3">
+              {searchQuery || filter !== 'all' ? 'No matching listings' : 'No listings yet'}
+            </h3>
+            <p className="text-slate-600 mb-8 max-w-md mx-auto">
+              {searchQuery || filter !== 'all'
+                ? 'Try adjusting your filters or search query'
+                : 'Create your first listing to start selling on the marketplace'}
+            </p>
+            {!searchQuery && filter === 'all' && (
+              <Link
+                to="/create-listing"
+                className="inline-flex items-center gap-2 px-8 py-4"
+              >
+                <Plus className="w-5 h-5" />
+                Create Your First Listing
+              </Link>
+            )}
+          </AnimatedWrapper>
         )}
 
-        {/* Listings Table */}
+        {/* Listings Grid */}
         {!loading && sortedListings.length > 0 && (
-          <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                    Title
-                  </th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                    Category
-                  </th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                    Price
-                  </th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                    Created
-                  </th>
-                  <th className="px-6 py-3 text-right text-sm font-semibold text-gray-700">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedListings.map((listing) => (
-                  <tr key={listing.id} className="border-b border-gray-200 hover:bg-gray-50">
-                    <td className="px-6 py-4 text-sm font-medium text-gray-800">
-                      {listing.title}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {listing.category?.name || 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-800 font-medium">
-                      €{listing.price?.toFixed(2) || '0.00'}
-                    </td>
-                    <td className="px-6 py-4 text-sm">
-                      <span
-                        className={`
-                          px-3 py-1 rounded-full text-xs font-semibold
-                          ${
-                            listing.status === 'published'
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-gray-100 text-gray-700'
-                          }
-                        `}
-                      >
-                        {listing.status === 'published' ? 'Published' : 'Draft'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {new Date(listing.created_at).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <ListingActionMenu
-                        listing={listing}
-                        onEdit={() => setEditingListing(listing)}
-                        onDelete={() => setDeletingListing(listing)}
-                        onPublish={() => setPublishingListing(listing)}
-                        onDuplicate={() => handleDuplicate(listing)}
+          <StaggerContainer className={layout.grid3}>
+            {sortedListings.map((listing, index) => (
+              <StaggerItem>
+                <motion.div
+                  key={listing.id}
+                  whileHover={{ y: -8, scale: 1.02 }}
+                >
+                <Card className="overflow-hidden hover:shadow-xl transition-all duration-300 group">
+                  {/* Listing Image */}
+                  <div className="relative h-48 bg-gradient-to-br from-slate-100 to-slate-200 overflow-hidden">
+                    {listing.images && listing.images.length > 0 ? (
+                      <img
+                        src={listing.images[0]}
+                        alt={listing.title}
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                       />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    ) : (
+                      <Skeleton className="w-full h-full flex items-center justify-center">
+                        <ImageIcon className="w-16 h-16 text-slate-300" />
+                      </Skeleton>
+                    )}
+
+                    {/* Status Badge */}
+                    <div className="absolute top-3 left-3">
+                      <Badge variant={listing.status === 'published' ? 'success' : 'warning'} className="backdrop-blur-sm">
+                        {listing.status === 'published' ? '● Published' : '○ Draft'}
+                      </Badge>
+                    </div>
+
+                    {/* Quick Actions */}
+                    <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                      <div className="flex gap-2">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={() => setPreviewListing(listing)}
+                              className="p-2 bg-white/90 backdrop-blur-sm rounded-lg hover:bg-white shadow-lg transition-colors"
+                            >
+                              <Eye className="w-4 h-4 text-slate-700" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>Quick View</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={() => setEditingListing(listing)}
+                              className="p-2 bg-white/90 backdrop-blur-sm rounded-lg hover:bg-white shadow-lg transition-colors"
+                            >
+                              <Edit3 className="w-4 h-4 text-slate-700" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>Edit</TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Listing Details */}
+                  <CardContent className={spacing.cardPadding}>
+                    <div className="mb-4">
+                      <h3 className="text-lg font-bold text-foreground mb-1 line-clamp-1 group-hover:text-primary transition-colors">
+                        {listing.title}
+                      </h3>
+                      <p className="text-sm text-muted-foreground line-clamp-2">
+                        {listing.description || 'No description provided'}
+                      </p>
+                    </div>
+
+                    <div className="space-y-2 mb-4">
+                      {listing.category && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Package className="w-3.5 h-3.5" />
+                          <span>{listing.category.name}</span>
+                        </div>
+                      )}
+                      {listing.location && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <MapPin className="w-3.5 h-3.5" />
+                          <span>{listing.location}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Calendar className="w-3.5 h-3.5" />
+                        <span>{new Date(listing.created_at).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-4 border-t border-slate-200">
+                      <div className="flex items-center gap-2">
+                        <DollarSign className="w-5 h-5 text-primary" />
+                        <span className="text-2xl font-bold text-foreground">
+                          €{listing.price?.toFixed(2) || '0.00'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={() => handleDuplicate(listing)}
+                              className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                            >
+                              <Copy className="w-4 h-4 text-slate-600" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>Duplicate</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={() => setDeletingListing(listing)}
+                              className="p-2 hover:bg-red-50 rounded-lg transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4 text-destructive" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>Delete</TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                </motion.div>
+              </StaggerItem>
+            ))}
+          </StaggerContainer>
         )}
       </div>
+
+      {/* Preview Modal */}
+      <Dialog open={!!previewListing} onOpenChange={() => setPreviewListing(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Listing Preview</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-xl font-bold text-foreground mb-2">{previewListing?.title}</h3>
+              <p className="text-muted-foreground">{previewListing?.description}</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Category</label>
+                <p className="text-foreground font-semibold">{previewListing?.category?.name || 'N/A'}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Price</label>
+                <p className="text-foreground font-semibold">€{previewListing?.price?.toFixed(2)}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Location</label>
+                <p className="text-foreground font-semibold">{previewListing?.location || 'N/A'}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Status</label>
+                <p className="text-foreground font-semibold capitalize">{previewListing?.status}</p>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Modals */}
       <EditListingModal

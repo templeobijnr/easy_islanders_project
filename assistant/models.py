@@ -377,40 +377,9 @@ class ContactIndex(models.Model):
         return f"ContactIndex for Listing {self.listing.id}"
 
 
-class Booking(models.Model):
-    """Bookings for listings"""
-    STATUS_CHOICES = [
-        ('pending', 'Pending'),
-        ('confirmed', 'Confirmed'),
-        ('completed', 'Completed'),
-        ('cancelled', 'Cancelled'),
-    ]
-    
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    listing = models.ForeignKey('listings.Listing', on_delete=models.CASCADE, related_name='bookings')
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='bookings', null=True, blank=True)
-    preferred_date = models.DateTimeField()
-    preferred_time = models.TimeField()
-    message = models.TextField(blank=True, help_text='Additional message for the agent')
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
-    contact_phone = models.CharField(max_length=20, blank=True)
-    contact_email = models.EmailField(blank=True)
-    agent_response = models.TextField(blank=True)
-    agent_available_times = models.JSONField(default=list, help_text='Available time slots from agent')
-    agent_notes = models.TextField(blank=True, help_text='Additional notes from agent')
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    confirmed_at = models.DateTimeField(blank=True, null=True)
-    
-    class Meta:
-        ordering = ['-created_at']
-        indexes = [
-            models.Index(fields=['listing', '-created_at']),
-            models.Index(fields=['user', 'status']),
-        ]
-    
-    def __str__(self):
-        return f"Booking for {self.listing.title} - {self.status}"
+# DEPRECATED: Booking moved to bookings.models.Booking
+# This was consolidated to use the unified booking model from the bookings app.
+# See DJANGO_DIAGNOSTIC_REPORT.md for details on the consolidation.
 
 
 class UserProfile(models.Model):
@@ -603,12 +572,18 @@ class ApproveBroadcast(models.Model):
         constraints = [
             # Exactly one of demand_lead or request_fk must be set
             models.CheckConstraint(
-                name='approve_one_fk_set',
+                name='approve_exactly_one_fk',
                 check=(
                     (models.Q(demand_lead__isnull=False, request_fk__isnull=True)) |
                     (models.Q(demand_lead__isnull=True, request_fk__isnull=False))
                 )
-            )
+            ),
+            models.CheckConstraint(
+                name='approve_not_both_null',
+                check=~(
+                    models.Q(demand_lead__isnull=True, request_fk__isnull=True)
+                )
+            ),
         ]
     
     def __str__(self):
@@ -679,122 +654,9 @@ class FailedTask(models.Model):
 # SPRINT 6: User Preference Models
 # ============================================================================
 
-class UserPreference(models.Model):
-    """
-    Structured user preferences extracted from conversations.
-
-    Schema version: 1
-    Features:
-    - Canonical value normalization (locations, features, currency)
-    - Time-based confidence decay
-    - Contradiction detection
-    - Precedence rules: current > explicit > strong inferred > weak inferred
-    """
-
-    SCHEMA_VERSION = 1
-
-    CATEGORY_CHOICES = [
-        ('real_estate', 'Real Estate'),
-        ('services', 'Services'),
-        ('lifestyle', 'Lifestyle'),
-        ('general', 'General'),
-    ]
-
-    SOURCE_CHOICES = [
-        ('explicit', 'Explicitly Stated'),
-        ('inferred', 'Inferred from Context'),
-        ('behavior', 'Learned from Behavior'),
-    ]
-
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='preferences')
-
-    # Categorization
-    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, db_index=True)
-    preference_type = models.CharField(max_length=50, db_index=True)
-
-    # Value storage
-    value = models.JSONField(help_text="Normalized structured value")
-    raw_value = models.TextField(blank=True, help_text="Original utterance (PII-redacted)")
-
-    # Confidence & tracking
-    confidence = models.FloatField(default=1.0)
-    source = models.CharField(max_length=50, choices=SOURCE_CHOICES)
-
-    # Timestamps
-    extracted_at = models.DateTimeField(auto_now_add=True)
-    last_used_at = models.DateTimeField(null=True, blank=True)
-    last_decayed_at = models.DateTimeField(default=timezone.now)
-    use_count = models.IntegerField(default=0)
-
-    # Vector embedding for semantic search
-    embedding = VectorField(dimensions=1536, null=True, blank=True)
-
-    # Versioning
-    schema_version = models.IntegerField(default=SCHEMA_VERSION)
-    metadata = models.JSONField(default=dict, blank=True)
-
-    class Meta:
-        db_table = 'user_preferences'
-        unique_together = [['user', 'category', 'preference_type']]
-        indexes = [
-            models.Index(fields=['user', 'category'], name="user_pref_user_cat_idx"),
-            models.Index(fields=['-confidence', '-last_used_at'], name="user_pref_conf_last_used_idx"),
-        ]
-        ordering = ['-confidence', '-last_used_at']
-
-    def __str__(self):
-        return f"{self.user.username} - {self.category}/{self.preference_type}"
-
-    @property
-    def is_stale(self):
-        """Check if preference is stale (30+ days since last use)."""
-        if not self.last_used_at:
-            return False
-        from datetime import timedelta
-        return (timezone.now() - self.last_used_at).days > 30
-
-    def calculate_decay(self) -> float:
-        """
-        Calculate confidence decay based on time since last use.
-
-        Decay schedule:
-        - 0-7 days: no decay
-        - 7-30 days: -0.01 per day
-        - 30-90 days: -0.02 per day
-        - 90+ days: -0.05 per day
-
-        Returns:
-            Decay amount to subtract from confidence
-        """
-        if not self.last_used_at:
-            return 0.0
-
-        days = (timezone.now() - self.last_used_at).days
-
-        if days <= 7:
-            return 0.0
-        elif days <= 30:
-            return (days - 7) * 0.01
-        elif days <= 90:
-            return 0.23 + (days - 30) * 0.02
-        else:
-            return 1.43 + (days - 90) * 0.05
-
-    def to_dict(self):
-        """Serialize to dict for API responses."""
-        return {
-            'id': str(self.id),
-            'category': self.category,
-            'preference_type': self.preference_type,
-            'value': self.value,
-            'confidence': round(self.confidence, 2),
-            'source': self.source,
-            'extracted_at': self.extracted_at.isoformat(),
-            'last_used_at': self.last_used_at.isoformat() if self.last_used_at else None,
-            'use_count': self.use_count,
-            'is_stale': self.is_stale,
-        }
+# DEPRECATED: UserPreference moved to users.models.UserPreference
+# This was consolidated to create a unified preference model.
+# See DJANGO_DIAGNOSTIC_REPORT.md for details on the consolidation.
 
 
 class PreferenceExtractionEvent(models.Model):

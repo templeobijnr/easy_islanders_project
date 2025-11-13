@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Search, Settings } from 'lucide-react';
 import UserMenu from './UserMenu';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../shared/context/AuthContext';
 import CommandPalette from './CommandPalette';
 import SettingsModal from './SettingsModal';
 

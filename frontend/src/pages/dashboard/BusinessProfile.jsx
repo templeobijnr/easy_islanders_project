@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Loader2, AlertCircle, CheckCircle } from 'lucide-react';
-import DashboardHeader from '../../components/dashboard/DashboardHeader';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../shared/context/AuthContext';
 import axios from 'axios';
 import config from '../../config';
 
@@ -20,7 +19,7 @@ const BusinessProfile = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      
+
       // Get profile from user context first
       if (user?.business_profile) {
         setProfile(user.business_profile);
@@ -47,20 +46,25 @@ const BusinessProfile = () => {
 
   if (loading) {
     return (
-      <div className="flex flex-col h-full">
-        <DashboardHeader title="Business Profile" />
-        <div className="flex-1 flex items-center justify-center">
-          <Loader2 className="w-8 h-8 animate-spin text-brand" />
+      <div className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 p-8">
+        <h1 className="text-2xl font-bold text-slate-900 mb-2">Business Profile</h1>
+        <p className="text-slate-600 mb-8">Manage your business information</p>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-lime-600" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <DashboardHeader title="Business Profile" subtitle="Manage your business information" />
+    <div className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 p-8">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-slate-900 mb-2">Business Profile</h1>
+        <p className="text-slate-600">Manage your business information</p>
+      </div>
 
-      <div className="flex-1 overflow-y-auto p-6">
+      <div>
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3 mb-6">
             <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
@@ -108,7 +112,7 @@ const BusinessProfile = () => {
                 <label className="block text-sm font-medium text-gray-600 mb-2">Website</label>
                 <p className="text-gray-800">
                   {profile?.website ? (
-                    <a href={profile.website} target="_blank" rel="noopener noreferrer" className="text-brand hover:underline">
+                    <a href={profile.website} target="_blank" rel="noopener noreferrer" className="text-lime-600 hover:underline">
                       {profile.website}
                     </a>
                   ) : (

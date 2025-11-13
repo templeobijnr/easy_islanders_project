@@ -19,7 +19,7 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
-from assistant.models import UserPreference
+from users.models import UserPreference
 from assistant.services import PreferenceService
 
 User = get_user_model()

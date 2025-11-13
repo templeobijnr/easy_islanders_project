@@ -42,15 +42,14 @@ const Spotlight: React.FC<SpotlightProps> = ({ items, intervalMs = 3500 }) => {
       </div>
 
       <AnimatePresence mode="wait">
-        <motion.div
-          key={active.id}
-          variants={spotlightSwap}
-          initial="enter"
-          animate="center"
-          exit="exit"
-          className="flex items-center justify-between gap-4"
-        >
-          <div>
+        <div key={active.id} className="flex items-center justify-between gap-4">
+          <motion.div
+            variants={spotlightSwap}
+            initial="enter"
+            animate="center"
+            exit="exit"
+          >
+            <div>
             <div className="text-sm font-semibold">{active.title}</div>
             <div className="text-xs text-slate-600">{active.description}</div>
             {active.ctaText && (
@@ -61,11 +60,12 @@ const Spotlight: React.FC<SpotlightProps> = ({ items, intervalMs = 3500 }) => {
                 {active.ctaText}
               </button>
             )}
-          </div>
+            </div>
+          </motion.div>
           <div className="h-20 w-28 bg-white/60 rounded-lg border border-white/70 shadow-inner flex items-center justify-center text-slate-400">
             image
           </div>
-        </motion.div>
+        </div>
       </AnimatePresence>
     </div>
   );

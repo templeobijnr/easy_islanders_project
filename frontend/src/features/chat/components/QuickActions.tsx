@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { MotionDiv } from '../../../components/ui/motion-wrapper';
 import { fadeInUp } from '../../../shared/motion/variants';
 import { Button } from '../../../shared/components/index';
 
@@ -22,7 +22,7 @@ const QuickActions = ({ actions }: QuickActionsProps) => {
     localStorage.setItem('quickActions_selectedJob', selectedJob);
   }, [selectedJob]);
   return (
-    <motion.div
+    <MotionDiv
       className="flex flex-wrap gap-2 px-6 py-4"
       variants={fadeInUp}
       initial="hidden"
@@ -31,7 +31,7 @@ const QuickActions = ({ actions }: QuickActionsProps) => {
       {actions.map((action) => (
         <Button
           key={action.id}
-          variant={selectedJob === action.id ? "primary" : "secondary"}
+          variant={selectedJob === action.id ? "default" : "secondary"}
           size="sm"
           onClick={() => {
             setSelectedJob(action.id);
@@ -41,7 +41,7 @@ const QuickActions = ({ actions }: QuickActionsProps) => {
           {action.label}
         </Button>
       ))}
-    </motion.div>
+    </MotionDiv>
   );
 };
 

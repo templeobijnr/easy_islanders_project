@@ -1,4 +1,5 @@
-import type { RecItem, LaneCard, FeaturedItem, Tab, JobId } from '.../../shared/types';
+import type { RecItem, LaneCard, FeaturedItem, Tab, JobId } from '../shared/types';
+export { apiClient } from './apiClient';
 
 export async function getRecs(job: JobId): Promise<RecItem[]> {
   const res = await fetch(`/api/${job}/recs`);

@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { HelpCircle, Search, ChevronDown, ChevronUp, Mail, Phone, MessageCircle, BookOpen, Video, FileText } from 'lucide-react';
-import DashboardHeader from '../../components/dashboard/DashboardHeader';
 
 const Help = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -86,34 +85,38 @@ const Help = () => {
   };
 
   return (
-    <div className="flex flex-col h-full">
-      <DashboardHeader title="Help & Support" subtitle="Find answers and get assistance" />
-      <div className="flex-1 overflow-y-auto p-6">
-        {/* Search */}
-        <div className="mb-8">
-          <div className="relative max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search help articles..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
-            />
-          </div>
-        </div>
+    <div className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 p-8">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-slate-900 mb-2">Help & Support</h1>
+        <p className="text-slate-600">Find answers and get assistance</p>
+      </div>
 
-        {/* Help Categories */}
-        <div className="mb-8">
+      {/* Search */}
+      <div className="mb-8">
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search help articles..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-lime-600 focus:border-transparent"
+          />
+        </div>
+      </div>
+
+      {/* Help Categories */}
+      <div className="mb-8">
           <h3 className="text-lg font-semibold text-gray-800 mb-4">Help Categories</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {helpCategories.map((category, index) => {
               const Icon = category.icon;
               return (
-                <div key={index} className="p-6 bg-white border border-gray-200 rounded-lg hover:border-brand transition-colors cursor-pointer">
+                <div key={index} className="p-6 bg-white border border-gray-200 rounded-lg hover:border-lime-600 transition-colors cursor-pointer">
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 bg-brand/10 rounded-lg flex items-center justify-center">
-                      <Icon className="w-5 h-5 text-brand" />
+                    <div className="w-10 h-10 bg-lime-100 rounded-lg flex items-center justify-center">
+                      <Icon className="w-5 h-5 text-lime-600" />
                     </div>
                     <h4 className="font-semibold text-gray-800">{category.title}</h4>
                   </div>
@@ -127,10 +130,10 @@ const Help = () => {
               );
             })}
           </div>
-        </div>
+      </div>
 
-        {/* FAQ Section */}
-        <div className="mb-8">
+      {/* FAQ Section */}
+      <div className="mb-8">
           <h3 className="text-lg font-semibold text-gray-800 mb-4">Frequently Asked Questions</h3>
           <div className="space-y-4">
             {filteredFaqs.map((faq) => (
@@ -154,12 +157,12 @@ const Help = () => {
               </div>
             ))}
           </div>
-        </div>
+      </div>
 
-        {/* Contact Support */}
-        <div className="bg-gradient-to-r from-brand to-brand-dark rounded-lg p-6 text-white">
+      {/* Contact Support */}
+      <div className="bg-gradient-to-r from-emerald-600 to-sky-700 rounded-xl p-6 text-white">
           <h3 className="text-lg font-semibold mb-4">Still need help?</h3>
-          <p className="text-brand-light mb-6">Can't find what you're looking for? Our support team is here to help you succeed.</p>
+          <p className="text-lime-50 mb-6">Can't find what you're looking for? Our support team is here to help you succeed.</p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
@@ -167,7 +170,7 @@ const Help = () => {
               </div>
               <div>
                 <h4 className="font-semibold">Email Support</h4>
-                <p className="text-sm text-brand-light">support@easyislanders.com</p>
+                <p className="text-sm text-lime-50">support@easyislanders.com</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -176,7 +179,7 @@ const Help = () => {
               </div>
               <div>
                 <h4 className="font-semibold">Phone Support</h4>
-                <p className="text-sm text-brand-light">+1 (555) 123-4567</p>
+                <p className="text-sm text-lime-50">+1 (555) 123-4567</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -185,17 +188,17 @@ const Help = () => {
               </div>
               <div>
                 <h4 className="font-semibold">Live Chat</h4>
-                <p className="text-sm text-brand-light">Available 24/7</p>
+                <p className="text-sm text-lime-50">Available 24/7</p>
               </div>
             </div>
           </div>
-        </div>
+      </div>
 
-        {/* Quick Links */}
-        <div className="mt-8">
+      {/* Quick Links */}
+      <div className="mt-8">
           <h3 className="text-lg font-semibold text-gray-800 mb-4">Quick Links</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <a href="/create-listing" className="p-4 bg-white border border-gray-200 rounded-lg hover:border-brand transition-colors text-left">
+            <a href="/create-listing" className="p-4 bg-white border border-gray-200 rounded-lg hover:border-lime-600 transition-colors text-left">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
                   <FileText className="w-4 h-4 text-green-600" />
@@ -207,7 +210,7 @@ const Help = () => {
               </div>
             </a>
             
-            <a href="/dashboard/my-listings" className="p-4 bg-white border border-gray-200 rounded-lg hover:border-brand transition-colors text-left">
+            <a href="/dashboard/my-listings" className="p-4 bg-white border border-gray-200 rounded-lg hover:border-lime-600 transition-colors text-left">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
                   <HelpCircle className="w-4 h-4 text-blue-600" />
@@ -219,7 +222,7 @@ const Help = () => {
               </div>
             </a>
             
-            <a href="/dashboard/profile" className="p-4 bg-white border border-gray-200 rounded-lg hover:border-brand transition-colors text-left">
+            <a href="/dashboard/profile" className="p-4 bg-white border border-gray-200 rounded-lg hover:border-lime-600 transition-colors text-left">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
                   <BookOpen className="w-4 h-4 text-purple-600" />
@@ -231,7 +234,7 @@ const Help = () => {
               </div>
             </a>
             
-            <a href="/dashboard/analytics" className="p-4 bg-white border border-gray-200 rounded-lg hover:border-brand transition-colors text-left">
+            <a href="/dashboard/analytics" className="p-4 bg-white border border-gray-200 rounded-lg hover:border-lime-600 transition-colors text-left">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-yellow-100 rounded-lg flex items-center justify-center">
                   <Video className="w-4 h-4 text-yellow-600" />
@@ -243,7 +246,6 @@ const Help = () => {
               </div>
             </a>
           </div>
-        </div>
       </div>
     </div>
   );

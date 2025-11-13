@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { MotionDiv } from '../../../components/ui/motion-wrapper';
 import { User, MessageCircle } from '../../../shared/icons';
 
 interface ChatMessageProps {
@@ -13,7 +13,7 @@ const ChatMessage = ({ content, sender, timestamp, isTyping = false }: ChatMessa
   const isUser = sender === 'user';
 
   return (
-    <motion.div
+    <MotionDiv
       className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
@@ -52,7 +52,7 @@ const ChatMessage = ({ content, sender, timestamp, isTyping = false }: ChatMessa
           </span>
         </div>
       </div>
-    </motion.div>
+    </MotionDiv>
   );
 };
 

@@ -58,13 +58,16 @@ INSTALLED_APPS = [
     'drf_spectacular',
     'drf_spectacular_sidecar',
     'channels',  # WebSocket support
+    'django_filters',  # Filtering for REST API
 
     # Local apps - users must come before assistant
     'users',
-    'listings',
+    'listings',  # Universal marketplace (includes seller management)
+    'bookings',  # Booking management system
     'assistant',
     'router_service',
     'real_estate',
+    'seller_portal',  # Multi-domain seller orchestration
 ]
 
 MIDDLEWARE = [
@@ -213,6 +216,9 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticated',
     ],
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend',
+    ],
     # Gate B: DRF throttling (proper 429 responses)
     'DEFAULT_THROTTLE_CLASSES': [
         'rest_framework.throttling.UserRateThrottle',

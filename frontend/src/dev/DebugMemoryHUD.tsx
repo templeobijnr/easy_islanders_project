@@ -18,13 +18,14 @@ export default function DebugMemoryHUD({ lastTrace, correlationId }: Props) {
   const [open, setOpen] = useState(true);
   const data = useMemo(() => lastTrace ?? null, [lastTrace]);
 
-  if (!data) return null;
-
+  // Calculate severity before conditional return (hooks must be called unconditionally)
   const severity = useMemo(() => {
     if (data?.source === "timeout" || data?.mode === "off") return "critical" as const;
     if (data?.mode === "write_only") return "warning" as const;
     return "ok" as const;
   }, [data]);
+
+  if (!data) return null;
 
   const badgeClass =
     severity === "critical"

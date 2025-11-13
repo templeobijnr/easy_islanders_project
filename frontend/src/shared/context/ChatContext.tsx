@@ -37,12 +37,13 @@ interface ChatState {
   typing: boolean;
   setTyping: (v: boolean) => void;
   results: any[];
-  bottomRef: React.RefObject<HTMLDivElement>;
+  bottomRef: React.RefObject<HTMLDivElement | null>;
   onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   sendMessage: (text: string, role?: Role) => void;
 
   // Realtime additions expected by ChatPage
   threadId: string | null;
+  connectionStatus: ConnectionStatus;
   setConnectionStatus: (s: ConnectionStatus) => void;
   pushAssistantMessage: (frame: AssistantFrame) => void;
   wsCorrelationId: string | null;
@@ -68,7 +69,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [typing, setTyping] = useState(false);
   const [results, setResults] = useState<any[]>([]);  // ✅ Add setter for recommendations
   const [connectionStatus, setConnectionStatusState] = useState<ConnectionStatus>('disconnected');
-  const [threadId, setThreadId] = useState<string | null>(() => localStorage.getItem('threadId'));
+  const [threadId] = useState<string | null>(() => localStorage.getItem('threadId'));
   const [wsCorrelationId] = useState<string | null>(null);
   const [lastMemoryTrace, setLastMemoryTrace] = useState<any | null>(null);
   const [lastCorrelationId, setLastCorrelationId] = useState<string | null>(null);
@@ -364,6 +365,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         sendMessage,
         // realtime additions
         threadId,
+        connectionStatus,
         setConnectionStatus,
         pushAssistantMessage,
         wsCorrelationId,

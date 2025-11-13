@@ -8,6 +8,12 @@ import uuid
 from django.db import models
 
 
+# NOTE: We intentionally keep real_estate.Listing independent and link it to
+# the cross-domain listings.Listing via a nullable OneToOne. This allows
+# existing real estate flows to continue while enabling unified dashboards,
+# storefronts, and bookings through listings.Listing.
+
+
 class Listing(models.Model):
     """Property listing supporting short-term, long-term, or both rental types."""
 
@@ -147,6 +153,16 @@ class Listing(models.Model):
         help_text="User rating (0.0-5.0)"
     )
 
+    # Bridge to cross-domain aggregate
+    listing = models.OneToOneField(
+        'listings.Listing',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='real_estate_property',
+        help_text="Generic listing used for cross-domain features (dashboard, storefront, bookings)"
+    )
+
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -206,4 +222,3 @@ class ShortTermBlock(models.Model):
 
     def __str__(self):
         return f"{self.listing.title}: {self.start_date} to {self.end_date} (blocked)"
-

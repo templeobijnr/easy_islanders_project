@@ -134,6 +134,79 @@ const api = {
     const response = await http.post('/api/preferences/', payload);
     return response.data; // { ok, preference }
   },
+
+  // Seller Dashboard APIs
+  getSellerProfile: async () => {
+    const response = await http.get('/api/sellers/me/');
+    return response.data;
+  },
+
+  getSellerAnalytics: async () => {
+    const response = await http.get('/api/sellers/analytics/');
+    return response.data;
+  },
+
+  // Buyer Requests APIs
+  getBuyerRequests: async (params = {}) => {
+    const response = await http.get('/api/buyer-requests/', { params });
+    return response.data;
+  },
+
+  getMyBuyerRequests: async () => {
+    const response = await http.get('/api/buyer-requests/my-requests/');
+    return response.data;
+  },
+
+  createBuyerRequest: async (data) => {
+    const response = await http.post('/api/buyer-requests/', data);
+    return response.data;
+  },
+
+  updateBuyerRequest: async (id, data) => {
+    const response = await http.patch(`/api/buyer-requests/${id}/`, data);
+    return response.data;
+  },
+
+  deleteBuyerRequest: async (id) => {
+    const response = await http.delete(`/api/buyer-requests/${id}/`);
+    return response.data;
+  },
+
+  // Broadcasts APIs
+  getBroadcasts: async (params = {}) => {
+    const response = await http.get('/api/broadcasts/', { params });
+    return response.data;
+  },
+
+  getMyBroadcasts: async () => {
+    const response = await http.get('/api/broadcasts/my-broadcasts/');
+    return response.data;
+  },
+
+  createBroadcast: async (data) => {
+    const response = await http.post('/api/broadcasts/', data);
+    return response.data;
+  },
+
+  updateBroadcast: async (id, data) => {
+    const response = await http.patch(`/api/broadcasts/${id}/`, data);
+    return response.data;
+  },
+
+  deleteBroadcast: async (id) => {
+    const response = await http.delete(`/api/broadcasts/${id}/`);
+    return response.data;
+  },
+
+  publishBroadcast: async (id) => {
+    const response = await http.post(`/api/broadcasts/${id}/publish/`);
+    return response.data;
+  },
+
+  incrementBroadcastView: async (id) => {
+    const response = await http.post(`/api/broadcasts/${id}/increment-view/`);
+    return response.data;
+  },
 };
 
 export default api;

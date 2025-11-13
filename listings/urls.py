@@ -14,6 +14,9 @@ from .views import (
     subcategories_list,
     CategoryViewSet,
     ListingViewSet,
+    DomainViewSet,
+    StorefrontViewSet,
+    RealEstateDashboardViewSet,
 )
 
 app_name = 'listings'
@@ -22,7 +25,10 @@ app_name = 'listings'
 router = DefaultRouter()
 router.register(r'sellers', SellerProfileViewSet, basename='seller')
 router.register(r'categories', CategoryViewSet, basename='category')
+router.register(r'domains', DomainViewSet, basename='domain')
 router.register(r'listings', ListingViewSet, basename='listing')
+router.register(r'storefronts', StorefrontViewSet, basename='storefront')
+router.register(r'dashboard/real-estate', RealEstateDashboardViewSet, basename='re-dashboard')
 
 urlpatterns = [
     # Short-term booking endpoints

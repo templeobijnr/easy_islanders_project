@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import Category, SubCategory, Listing, ListingImage, SellerProfile
+from .models import Category, SubCategory, Listing, ListingImage, SellerProfile, CarListing, ServiceListing, EventListing, ProductListing
 
 # Register your models here.
 @admin.register(Category)
@@ -151,6 +151,7 @@ class SellerProfileAdmin(admin.ModelAdmin):
 
     list_display = [
         'business_name',
+        'slug',
         'user',
         'verified',
         'rating',
@@ -158,20 +159,23 @@ class SellerProfileAdmin(admin.ModelAdmin):
         'ai_agent_enabled',
         'created_at',
     ]
-    list_filter = ['verified', 'ai_agent_enabled', 'created_at']
-    search_fields = ['business_name', 'user__username', 'user__email', 'description']
+    list_filter = ['verified', 'ai_agent_enabled', 'storefront_published', 'created_at']
+    search_fields = ['business_name', 'slug', 'user__username', 'user__email', 'description']
     readonly_fields = ['user', 'total_listings', 'created_at', 'updated_at']
     date_hierarchy = 'created_at'
 
     fieldsets = (
         ('Basic Information', {
-            'fields': ('user', 'business_name', 'description')
+            'fields': ('user', 'business_name', 'slug', 'description')
         }),
         ('Status & Verification', {
             'fields': ('verified', 'rating', 'total_listings', 'ai_agent_enabled')
         }),
         ('Contact Information', {
             'fields': ('phone', 'email', 'website', 'logo_url')
+        }),
+        ('Storefront', {
+            'fields': ('storefront_published', 'storefront_config')
         }),
         ('Metadata', {
             'fields': ('created_at', 'updated_at'),
@@ -197,3 +201,29 @@ class SellerProfileAdmin(admin.ModelAdmin):
         self.message_user(request, f'{updated} seller profiles marked as unverified.')
 
 
+@admin.register(CarListing)
+class CarListingAdmin(admin.ModelAdmin):
+    list_display = ('listing', 'vehicle_type', 'make', 'model', 'year', 'is_for_sale', 'is_for_rent', 'updated_at')
+    search_fields = ('listing__title', 'make', 'model')
+    list_filter = ('vehicle_type', 'is_for_sale', 'is_for_rent', 'year')
+
+
+@admin.register(ServiceListing)
+class ServiceListingAdmin(admin.ModelAdmin):
+    list_display = ('listing', 'service_subcategory', 'pricing_model', 'base_price', 'supports_online', 'supports_on_site', 'updated_at')
+    search_fields = ('listing__title',)
+    list_filter = ('pricing_model', 'supports_online', 'supports_on_site')
+
+
+@admin.register(EventListing)
+class EventListingAdmin(admin.ModelAdmin):
+    list_display = ('listing', 'start_datetime', 'end_datetime', 'venue_name', 'max_capacity', 'has_tickets', 'updated_at')
+    search_fields = ('listing__title', 'venue_name')
+    list_filter = ('has_tickets',)
+
+
+@admin.register(ProductListing)
+class ProductListingAdmin(admin.ModelAdmin):
+    list_display = ('listing', 'brand', 'sku', 'stock_quantity', 'is_new', 'updated_at')
+    search_fields = ('listing__title', 'brand', 'sku')
+    list_filter = ('is_new',)

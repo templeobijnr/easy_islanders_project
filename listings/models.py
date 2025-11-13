@@ -83,6 +83,7 @@ class SellerProfile(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="seller_profile")
 
     business_name = models.CharField(max_length=255)
+    slug = models.SlugField(max_length=64, unique=True, help_text="Public storefront handle", default="")
     description = models.TextField(blank=True)
     phone = models.CharField(max_length=50, blank=True)
     email = models.EmailField(blank=True)
@@ -92,6 +93,8 @@ class SellerProfile(models.Model):
     total_listings = models.PositiveIntegerField(default=0)
     ai_agent_enabled = models.BooleanField(default=True)
     logo_url = models.URLField(blank=True, null=True)
+    storefront_published = models.BooleanField(default=True)
+    storefront_config = models.JSONField(default=dict, blank=True, help_text="Theme, hero, socials, hours, policy links")
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -120,6 +123,14 @@ class Listing(models.Model):
     category = models.ForeignKey(Category, on_delete=models.PROTECT, related_name="listings", null=True, blank=True)
     subcategory = models.ForeignKey(SubCategory, on_delete=models.PROTECT, related_name="listings", null=True, blank=True)
 
+    # Domain slug (optional, aligns with top-level Category slug)
+    domain = models.SlugField(
+        max_length=64,
+        null=True,
+        blank=True,
+        help_text="Top-level domain slug, e.g. 'real-estate', 'vehicles', 'services'"
+    )
+
     title = models.CharField(max_length=255)
     description = models.TextField()
     price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
@@ -129,6 +140,21 @@ class Listing(models.Model):
     longitude = models.FloatField(null=True, blank=True)
 
     dynamic_fields = models.JSONField(default=dict, blank=True, help_text="Flexible metadata based on category schema")
+
+    LISTING_KIND_CHOICES = [
+        ("offer", "Offer"),
+        ("request", "Request"),
+    ]
+    listing_kind = models.CharField(max_length=20, choices=LISTING_KIND_CHOICES, default="offer")
+
+    TRANSACTION_TYPE_CHOICES = [
+        ("sale", "For Sale"),
+        ("rent_short", "Short-Term Rent"),
+        ("rent_long", "Long-Term Rent"),
+        ("booking", "Bookable"),
+        ("project", "Project/Off-plan"),
+    ]
+    transaction_type = models.CharField(max_length=20, choices=TRANSACTION_TYPE_CHOICES, default="sale")
 
     STATUS_CHOICES = [
         ("draft", "Draft"),
@@ -186,3 +212,119 @@ class ListingImage(models.Model):
 
     def __str__(self):
         return f"Image for {self.listing.title}"
+
+
+# --------------------------------------------------------------------
+# DOMAIN DETAIL MODELS (OneToOne → Listing)
+# --------------------------------------------------------------------
+
+
+class CarListing(models.Model):
+    """Domain-specific details for vehicle listings."""
+    listing = models.OneToOneField(
+        Listing,
+        on_delete=models.CASCADE,
+        related_name="car",
+        primary_key=True,
+    )
+
+    is_for_sale = models.BooleanField(default=False)
+    is_for_rent = models.BooleanField(default=False)
+
+    VEHICLE_TYPE_CHOICES = [
+        ("car", "Car"),
+        ("suv", "SUV"),
+        ("van", "Van"),
+        ("truck", "Truck"),
+        ("motorcycle", "Motorcycle"),
+        ("other", "Other"),
+    ]
+    vehicle_type = models.CharField(max_length=30, choices=VEHICLE_TYPE_CHOICES, default="car")
+
+    make = models.CharField(max_length=100)
+    model = models.CharField(max_length=100)
+    year = models.PositiveIntegerField()
+    mileage_km = models.PositiveIntegerField(null=True, blank=True)
+    transmission = models.CharField(max_length=20, choices=[("manual", "Manual"), ("automatic", "Automatic")], default="automatic")
+    fuel_type = models.CharField(max_length=20, choices=[("petrol", "Petrol"), ("diesel", "Diesel"), ("electric", "Electric"), ("hybrid", "Hybrid"), ("other", "Other")], default="petrol")
+
+    sale_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    rental_price_per_day = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    rental_price_per_month = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class ServiceListing(models.Model):
+    """Domain-specific details for services and appointments."""
+    listing = models.OneToOneField(
+        Listing,
+        on_delete=models.CASCADE,
+        related_name="service",
+        primary_key=True,
+    )
+
+    # Optional fine-grained service type
+    service_subcategory = models.ForeignKey(
+        SubCategory,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="service_listings",
+    )
+
+    PRICING_MODEL_CHOICES = [
+        ("fixed", "Fixed Price"),
+        ("per_hour", "Per Hour"),
+        ("per_session", "Per Session"),
+        ("quote", "Quote Based"),
+    ]
+    pricing_model = models.CharField(max_length=20, choices=PRICING_MODEL_CHOICES, default="per_hour")
+    base_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+
+    supports_online = models.BooleanField(default=False)
+    supports_on_site = models.BooleanField(default=True)
+    max_group_size = models.PositiveIntegerField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class EventListing(models.Model):
+    """Domain-specific details for events and activities."""
+    listing = models.OneToOneField(
+        Listing,
+        on_delete=models.CASCADE,
+        related_name="event",
+        primary_key=True,
+    )
+
+    start_datetime = models.DateTimeField()
+    end_datetime = models.DateTimeField()
+    venue_name = models.CharField(max_length=255, blank=True)
+    max_capacity = models.PositiveIntegerField(null=True, blank=True)
+
+    has_tickets = models.BooleanField(default=True)
+    base_ticket_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class ProductListing(models.Model):
+    """Domain-specific details for products/P2P goods."""
+    listing = models.OneToOneField(
+        Listing,
+        on_delete=models.CASCADE,
+        related_name="product",
+        primary_key=True,
+    )
+
+    brand = models.CharField(max_length=100, blank=True)
+    sku = models.CharField(max_length=100, blank=True)
+    stock_quantity = models.PositiveIntegerField(default=1)
+    is_new = models.BooleanField(default=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)

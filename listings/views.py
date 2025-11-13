@@ -15,8 +15,20 @@ from .serializers import (
     SellerAnalyticsSerializer,
     CategorySerializer,
     SubCategorySerializer,
+    DomainSerializer,
+    REDashboardOverviewSerializer,
+    REPortfolioSerializer,
+    RERequestsSerializer,
+    RECalendarSerializer,
 )
 from .analytics import compute_dashboard_summary
+from django.utils import timezone
+
+try:
+    from real_estate.models import Listing as REListing, ShortTermBlock as REBlock
+except Exception:  # pragma: no cover
+    REListing = None
+    REBlock = None
 
 
 class ShortTermBookingView(generics.CreateAPIView):
@@ -646,14 +658,30 @@ class ListingViewSet(viewsets.ModelViewSet):
         return ListingSerializer
     
     def get_queryset(self):
-        """Filter queryset by owner if requested"""
+        """Filter queryset by owner if requested and support 'domain' alias."""
         queryset = super().get_queryset()
+        params = self.request.query_params
+
         # Allow viewing own listings even if not active
-        if self.request.user.is_authenticated and self.request.query_params.get('my_listings'):
+        if self.request.user.is_authenticated and params.get('my_listings'):
             queryset = queryset.filter(owner=self.request.user)
         else:
             # Non-owners can only see active listings
             queryset = queryset.filter(status='active')
+
+        # Optional domain alias (maps to category slug)
+        domain_slug = params.get('domain')
+        if domain_slug:
+            queryset = queryset.filter(category__slug=domain_slug)
+
+        # Public owner filters for storefronts
+        owner_id = params.get('owner') or params.get('owner_id')
+        if owner_id:
+            queryset = queryset.filter(owner_id=owner_id)
+        seller_slug = params.get('seller') or params.get('seller_slug')
+        if seller_slug:
+            queryset = queryset.filter(owner__seller_profile__slug=seller_slug)
+
         return queryset
     
     def perform_create(self, serializer):
@@ -690,3 +718,323 @@ class ListingViewSet(viewsets.ModelViewSet):
         
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
+
+
+class DomainViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Public API for marketplace domains.
+
+    Domains map 1:1 to top-level Category records to preserve current schema.
+
+    - GET /api/domains/                      List active domains
+    - GET /api/domains/{slug}/               Domain detail
+    - GET /api/domains/{slug}/categories/    Categories (SubCategories) for domain
+    """
+
+    lookup_field = 'slug'
+    serializer_class = DomainSerializer
+    permission_classes = [permissions.AllowAny]
+
+    def get_queryset(self):
+        return Category.objects.filter(is_active=True).order_by('display_order', 'name')
+
+    @action(detail=True, methods=['get'])
+    def categories(self, request, slug=None):
+        domain = self.get_object()
+        subcats = domain.subcategories.all().order_by('display_order', 'name')
+        return Response(SubCategorySerializer(subcats, many=True).data)
+
+
+class RealEstateDashboardViewSet(viewsets.ViewSet):
+    """
+    Seller Real Estate dashboard endpoints.
+
+    Base path: /api/dashboard/real-estate/
+    All endpoints require authentication and operate on properties
+    linked to the current user's aggregate listings (real_estate.Listing.listing.owner = user).
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def _get_user_properties(self, request):
+        if REListing is None:
+            return REListing.objects.none()  # type: ignore
+        return REListing.objects.select_related('listing').filter(listing__owner=request.user)
+
+    def _get_user_bookings(self, request, props_qs):
+        listing_ids = list(props_qs.exclude(listing__isnull=True).values_list('listing_id', flat=True))
+        return Booking.objects.filter(listing_id__in=listing_ids)
+
+    @action(detail=False, methods=['get'])
+    def overview(self, request):
+        now = timezone.now()
+        start_range = now - timezone.timedelta(days=30)
+        props = self._get_user_properties(request)
+        total_units = props.count()
+
+        # Occupancy over last 30 days
+        bookings = self._get_user_bookings(request, props).filter(
+            status__in=['confirmed', 'in_progress'],
+            start_date__lt=now,
+            end_date__gt=start_range,
+        )
+
+        total_nights = max(total_units * 30, 1)
+        occupied_nights = 0
+        for b in bookings:
+            s = max(b.start_date, start_range)
+            e = min(b.end_date or now, now)
+            delta = (e - s).days
+            if delta > 0:
+                occupied_nights += delta
+
+        occupancy_rate = round((occupied_nights / total_nights) * 100.0, 2) if total_nights else 0.0
+        units_occupied = min(total_units, bookings.values('listing_id').distinct().count())
+
+        # Monthly revenue (current month)
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        month_bookings = self._get_user_bookings(request, props).filter(
+            status__in=['confirmed', 'completed'],
+            start_date__gte=month_start,
+        )
+        from decimal import Decimal
+        monthly_revenue = sum((b.total_price or Decimal('0.00')) for b in month_bookings)
+        currency = 'EUR'
+
+        data = {
+            'occupancy_rate': occupancy_rate,
+            'units_occupied': units_occupied,
+            'total_units': total_units,
+            'monthly_revenue': monthly_revenue,
+            'revenue_currency': currency,
+            'summary_period_days': 30,
+        }
+        return Response(REDashboardOverviewSerializer(data).data)
+
+    @action(detail=False, methods=['get'])
+    def portfolio(self, request):
+        now = timezone.now()
+        start_range = now - timezone.timedelta(days=30)
+        props = self._get_user_properties(request)
+
+        # Mix by property_type
+        from collections import Counter
+        mix_counter = Counter(list(props.values_list('property_type', flat=True)))
+        mix = [{'label': k or 'unknown', 'count': v} for k, v in mix_counter.items()]
+
+        # Helper: occupancy last 30d per property
+        listing_map = {p.id: p for p in props}
+        occupied_nights_map = {p.id: 0 for p in props}
+
+        bookings = self._get_user_bookings(request, props).filter(
+            status__in=['confirmed', 'in_progress'],
+            start_date__lt=now,
+            end_date__gt=start_range,
+        )
+        for b in bookings:
+            s = max(b.start_date, start_range)
+            e = min(b.end_date or now, now)
+            delta = (e - s).days
+            if delta > 0 and b.listing_id:
+                # find real_estate property by reverse OneToOne
+                prop = props.filter(listing_id=b.listing_id).first()
+                if prop:
+                    occupied_nights_map[prop.id] += delta
+
+        def prop_status(prop):
+            # Simple status: occupied if any overlapping booking today; else vacant
+            active = self._get_user_bookings(request, props).filter(
+                listing=prop.listing,
+                status__in=['confirmed', 'in_progress'],
+                start_date__lte=now,
+                end_date__gte=now,
+            ).exists()
+            if active:
+                return 'occupied'
+            # Maintenance check using REBlock
+            if REBlock and REBlock.objects.filter(listing=prop, start_date__lte=now.date(), end_date__gte=now.date()).exists():
+                return 'maintenance'
+            return 'vacant'
+
+        items = []
+        for p in props:
+            occ = round((occupied_nights_map.get(p.id, 0) / 30) * 100.0, 1)
+            items.append({
+                'id': p.id,
+                'title': p.title,
+                'property_type': p.property_type,
+                'city': p.city,
+                'status': prop_status(p),
+                'purpose': 'rent' if p.rent_type in ('short_term', 'long_term', 'both') else 'sale',
+                'nightly_price': p.nightly_price,
+                'monthly_price': p.monthly_price,
+                'occupancy_last_30d': occ,
+            })
+
+        # Underperforming: occupancy < 40%
+        underperforming = [it for it in items if it['occupancy_last_30d'] < 40.0]
+
+        summary = {
+            'total_units': props.count(),
+            'short_term': props.filter(rent_type='short_term').count(),
+            'long_term': props.filter(rent_type='long_term').count(),
+            'both': props.filter(rent_type='both').count(),
+        }
+
+        return Response(REPortfolioSerializer({
+            'summary': summary,
+            'mix': mix,
+            'items': items,
+            'underperforming': underperforming,
+        }).data)
+
+    @action(detail=False, methods=['get'])
+    def requests(self, request):
+        props = self._get_user_properties(request)
+        bookings = self._get_user_bookings(request, props).filter(status='pending').order_by('-created_at')[:100]
+        items = []
+        for b in bookings:
+            items.append({
+                'id': b.id,
+                'created_at': b.created_at,
+                'status': b.status,
+                'customer_name': getattr(b.user, 'username', ''),
+                'start_date': b.start_date,
+                'end_date': b.end_date,
+                'listing_id': b.listing_id,
+                'listing_title': b.listing.title if b.listing_id else '',
+                'requested_type': getattr(getattr(b, 'booking_type', None), 'slug', ''),
+            })
+        return Response(RERequestsSerializer({'total': len(items), 'items': items}).data)
+
+    @action(detail=False, methods=['get'])
+    def calendar(self, request):
+        # Accept range via query (start, end); default next 30 days
+        try:
+            start_param = request.query_params.get('start')
+            end_param = request.query_params.get('end')
+            now = timezone.now()
+            start_dt = datetime.fromisoformat(start_param) if start_param else now
+            end_dt = datetime.fromisoformat(end_param) if end_param else (now + timezone.timedelta(days=30))
+        except Exception:
+            return Response({'error': 'Invalid date format. Use ISO 8601.'}, status=400)
+
+        props = self._get_user_properties(request)
+        bookings = self._get_user_bookings(request, props).filter(
+            start_date__lt=end_dt,
+            end_date__gt=start_dt,
+            status__in=['confirmed', 'in_progress', 'pending']
+        )
+        events = []
+        for b in bookings:
+            events.append({
+                'id': f'booking:{b.id}',
+                'kind': 'booking',
+                'title': b.listing.title if b.listing_id else 'Booking',
+                'start': b.start_date,
+                'end': b.end_date or b.start_date,
+                'listing_id': b.listing_id,
+                'listing_title': b.listing.title if b.listing_id else '',
+            })
+
+        if REBlock is not None:
+            blocks = REBlock.objects.filter(
+                listing__in=props,
+                start_date__lte=end_dt.date(),
+                end_date__gte=start_dt.date(),
+            )
+            for blk in blocks:
+                events.append({
+                    'id': f'block:{blk.id}',
+                    'kind': 'block',
+                    'title': f'Blocked: {blk.start_date}–{blk.end_date}',
+                    'start': datetime.combine(blk.start_date, datetime.min.time(), tzinfo=timezone.get_current_timezone()),
+                    'end': datetime.combine(blk.end_date, datetime.max.time(), tzinfo=timezone.get_current_timezone()),
+                    'listing_id': getattr(blk.listing, 'listing_id', None),
+                    'listing_title': blk.listing.title,
+                })
+
+        return Response(RECalendarSerializer({
+            'range_start': start_dt,
+            'range_end': end_dt,
+            'events': events,
+        }).data)
+
+    # Stubs for later deep-dive sections (return empty shapes to avoid 404s)
+    @action(detail=False, methods=['get'])
+    def occupancy(self, request):
+        return Response({'timeline': [], 'vacancy': [], 'seasonality': [], 'forecast': {}})
+
+    @action(detail=False, methods=['get'])
+    def earnings(self, request):
+        return Response({'summary': {}, 'by_property': [], 'payouts': [], 'top_performers': []})
+
+    @action(detail=False, methods=['get'], url_path='sales-pipeline')
+    def sales_pipeline(self, request):
+        return Response({'funnel': [], 'stages': {}, 'agent_performance': [], 'stalled': []})
+
+    @action(detail=False, methods=['get'])
+    def location(self, request):
+        return Response({'areas': [], 'insights': [], 'opportunities': []})
+
+    @action(detail=False, methods=['get'])
+    def maintenance(self, request):
+        return Response({'tickets': [], 'stats': {}, 'inspections': []})
+
+    @action(detail=False, methods=['get'], url_path='owners-tenants')
+    def owners_tenants(self, request):
+        return Response({'owners': [], 'tenants': [], 'lease_expiries': []})
+
+    @action(detail=False, methods=['get'], url_path='pricing-promotions')
+    def pricing_promotions(self, request):
+        return Response({'suggestions': [], 'campaigns': [], 'competitive_set': []})
+
+    @action(detail=False, methods=['get'], url_path='channels')
+    def channels(self, request):
+        return Response({'performance': [], 'mix': [], 'settings': {}})
+
+    @action(detail=False, methods=['get'])
+    def projects(self, request):
+        return Response({'projects': [], 'funnel': [], 'timeline': []})
+
+
+class StorefrontViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Public storefronts per seller.
+
+    - GET /api/storefronts/{slug}/                 → Seller profile + summary
+    - GET /api/storefronts/{slug}/domains/         → Domains (category slugs) with counts
+    - GET /api/storefronts/{slug}/listings/?domain=... → Active listings for seller, optionally by domain
+    """
+
+    queryset = SellerProfile.objects.filter(verified=True, storefront_published=True).select_related('user')
+    serializer_class = SellerProfileSerializer
+    permission_classes = [permissions.AllowAny]
+    lookup_field = 'slug'
+
+    @action(detail=True, methods=['get'])
+    def domains(self, request, slug=None):
+        seller = self.get_object()
+        qs = Listing.objects.filter(owner=seller.user, status='active').select_related('category')
+        counts = {}
+        for l in qs:
+            if l.category:
+                key = l.category.slug
+                counts[key] = counts.get(key, 0) + 1
+        data = [
+            {"slug": k, "count": v} for k, v in sorted(counts.items(), key=lambda x: x[0])
+        ]
+        return Response({"domains": data, "total": qs.count()})
+
+    @action(detail=True, methods=['get'])
+    def listings(self, request, slug=None):
+        seller = self.get_object()
+        domain = request.query_params.get('domain')
+        qs = Listing.objects.filter(owner=seller.user, status='active').select_related('category', 'subcategory', 'owner').prefetch_related('images')
+        if domain:
+            qs = qs.filter(category__slug=domain)
+        page = self.paginate_queryset(qs)
+        ser = ListingSerializer(page or qs, many=True, context={'request': request})
+        if page is not None:
+            return self.get_paginated_response(ser.data)
+        return Response(ser.data)

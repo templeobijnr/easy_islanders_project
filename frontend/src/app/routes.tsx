@@ -34,7 +34,7 @@ import Requests from '../pages/Requests';
 const AppRoutes: React.FC = () => (
   <Routes>
     {/* Core routes */}
-    <Route path="/" element={<FeaturedPanel />} />
+    <Route path="/" element={<ChatPage />} />
     <Route path="/chat" element={<ChatPage />} />
     <Route path="/chat/:conversationId" element={<ChatPage />} />
 

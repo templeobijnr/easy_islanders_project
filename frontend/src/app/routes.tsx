@@ -2,7 +2,6 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 
 // Core pages
-import FeaturedPanel from '../features/featured/FeaturedPanel';
 import ChatPage from '../features/chat/ChatPage';
 
 // Dashboard pages

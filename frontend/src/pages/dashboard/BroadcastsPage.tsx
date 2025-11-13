@@ -1,7 +1,7 @@
 import React from 'react';
 import { DomainProvider } from '../../features/seller-dashboard/context/DomainContext';
 import DashboardLayout from '../../features/seller-dashboard/layout/DashboardLayout';
-import Broadcasts from './Broadcasts';
+import Broadcasts from './Broadcasts.jsx';
 
 /**
  * Broadcasts Page

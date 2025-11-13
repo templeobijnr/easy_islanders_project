@@ -1,7 +1,7 @@
 import React from 'react';
 import { DomainProvider } from '../../features/seller-dashboard/context/DomainContext';
 import DashboardLayout from '../../features/seller-dashboard/layout/DashboardLayout';
-import MyListings from './MyListings';
+import MyListings from './MyListings.jsx';
 
 /**
  * My Listings Page

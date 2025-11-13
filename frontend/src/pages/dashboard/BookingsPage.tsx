@@ -1,7 +1,7 @@
 import React from 'react';
 import { DomainProvider } from '../../features/seller-dashboard/context/DomainContext';
 import DashboardLayout from '../../features/seller-dashboard/layout/DashboardLayout';
-import Bookings from './Bookings';
+import Bookings from './Bookings.jsx';
 
 /**
  * Bookings Page

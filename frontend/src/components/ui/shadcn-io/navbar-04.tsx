@@ -12,18 +12,14 @@ import { Skeleton } from "../skeleton";
 
 export function Navbar04() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const location = useLocation();
   const { isAuthenticated, user, openAuthModal, handleLogout, unreadCount } = useAuth();
 
   console.log('[Navbar04] Rendering:', { isAuthenticated, user: user?.email, unreadCount });
 
-  React.useEffect(() => {
-    setIsLoading(false);
-  }, []);
-
   const navigation = [
     { name: "Chat", href: "/", icon: MessageCircle },
+    { name: "Messages", href: "/messages", icon: MessageCircle, showBadge: true },
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, authRequired: true, businessOnly: true },
     { name: "Create Listing", href: "/listings/create", icon: Plus, authRequired: true, businessOnly: true },
   ];
@@ -80,6 +76,11 @@ export function Navbar04() {
                   >
                     <item.icon className="w-4 h-4" />
                     <span>{item.name}</span>
+                    {item.showBadge && unreadCount > 0 && (
+                      <span className="ml-1 bg-red-500 text-white text-[10px] rounded-full px-1.5 min-w-[18px] h-[18px] flex items-center justify-center">
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </span>
+                    )}
                   </MotionDiv>
                   {isActive(item.href) && (
                     <MotionDiv
@@ -94,20 +95,18 @@ export function Navbar04() {
 
             {/* Right Side Actions */}
             <div className="hidden md:flex items-center space-x-4">
-              {isLoading ? (
-                <Skeleton className="h-10 w-32" />
-              ) : isAuthenticated ? (
+              {isAuthenticated && user ? (
                 <UserMenu user={user} onLogout={handleLogout} unreadCount={unreadCount} />
               ) : (
                 <div className="flex items-center space-x-2">
-                  <Button variant="ghost" onClick={() => openAuthModal('login')}>
+                  <Button variant="ghost" onClick={() => openAuthModal?.('login')}>
                     Sign In
                   </Button>
                   <MotionButton
                     className="flex items-center space-x-2 px-5 py-2.5 bg-gradient-to-r from-brand-500 to-cyan-500 text-white rounded-xl font-semibold text-sm shadow-lg hover:shadow-xl transition-shadow"
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => openAuthModal('register')}
+                    onClick={() => openAuthModal?.('register')}
                   >
                     <User className="w-4 h-4" />
                     <span>Sign Up</span>
@@ -160,6 +159,11 @@ export function Navbar04() {
                   >
                     <item.icon className="w-5 h-5" />
                     <span>{item.name}</span>
+                    {item.showBadge && unreadCount > 0 && (
+                      <span className="ml-auto bg-red-500 text-white text-[10px] rounded-full px-1.5 min-w-[18px] h-[18px] flex items-center justify-center">
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </span>
+                    )}
                   </MotionDiv>
                 </Link>
               ))}
@@ -171,7 +175,7 @@ export function Navbar04() {
                       variant="ghost"
                       className="w-full"
                       onClick={() => {
-                        openAuthModal('login');
+                        openAuthModal?.('login');
                         setMobileMenuOpen(false);
                       }}
                     >
@@ -181,7 +185,7 @@ export function Navbar04() {
                       className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-brand-500 to-cyan-500 text-white rounded-xl font-semibold text-sm shadow-lg"
                       whileTap={{ scale: 0.98 }}
                       onClick={() => {
-                        openAuthModal('register');
+                        openAuthModal?.('register');
                         setMobileMenuOpen(false);
                       }}
                     >

@@ -21,29 +21,8 @@ import { SectionNavigationCard } from './components/SectionNavigationCard';
 import { useRealEstateOverview } from '../hooks/useRealEstateDashboard';
 
 export const RealEstateOverviewPage = () => {
-  const { data: overview, isLoading, error } = useRealEstateOverview();
-
-  if (isLoading) {
-    return (
-      <div className="p-6">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold">Real Estate Dashboard</h1>
-          <p className="text-muted-foreground mt-2">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="p-6">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold">Real Estate Dashboard</h1>
-          <p className="text-red-500 mt-2">Error loading dashboard data</p>
-        </div>
-      </div>
-    );
-  }
+  // Fetch overview data (optional - cards will render without it)
+  const { data: overview } = useRealEstateOverview();
 
   const sections = [
     {

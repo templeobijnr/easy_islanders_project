@@ -1,11 +1,13 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
 import axios from 'axios';
-import HomePage from './pages/HomePage';
+import AppShell from './app/AppShell';
+import AppRoutes from './app/routes';
 import { AuthProvider } from './shared/context/AuthContext';
 import { UiProvider } from './shared/context/UiContext';
 import { ChatProvider } from './shared/context/ChatContext';
-import './main.css'; // ensure tailwind is imported here
+import './main.css';
 
 // ✅ GLOBAL AXIOS INTERCEPTOR - Inject auth token for all requests
 axios.interceptors.request.use((axiosConfig) => {
@@ -19,11 +21,15 @@ axios.interceptors.request.use((axiosConfig) => {
 });
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <AuthProvider>
-    <UiProvider>
-      <ChatProvider>
-        <HomePage />
-      </ChatProvider>
-    </UiProvider>
-  </AuthProvider>
+  <BrowserRouter>
+    <AuthProvider>
+      <UiProvider>
+        <ChatProvider>
+          <AppShell>
+            <AppRoutes />
+          </AppShell>
+        </ChatProvider>
+      </UiProvider>
+    </AuthProvider>
+  </BrowserRouter>
 );

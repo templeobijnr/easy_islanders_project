@@ -7,7 +7,6 @@ import {
   Package,
   Stethoscope,
   MapPin,
-  ShoppingCart,
   Users
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';

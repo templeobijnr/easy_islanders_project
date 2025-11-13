@@ -1,5 +1,5 @@
 import React from 'react';
-import { Building2, TrendingUp, Calendar, Users, CheckCircle, Bell } from 'lucide-react';
+import { Building2, TrendingUp, Calendar, CheckCircle, Bell } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../../components/ui/card';
 import { Badge } from '../../../../components/ui/badge';
 import { Button } from '../../../../components/ui/button';
@@ -207,6 +207,6 @@ const RealEstateBroadcastTeaser: React.FC = () => (
 // Missing Plus import
 const Plus = ({ className }: { className?: string }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="width" strokeWidth={2} d="M12 4v16m8-8H4" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
   </svg>
 );

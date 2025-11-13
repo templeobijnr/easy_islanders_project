@@ -1,7 +1,7 @@
 import React from 'react';
 import { DomainProvider } from '../../../features/seller-dashboard/context/DomainContext';
 import DashboardLayout from '../../../features/seller-dashboard/layout/DashboardLayout';
-import { DomainHomeRealEstate } from '../../../features/seller-dashboard/domains/real-estate/DomainHomeRealEstate';
+import { RealEstateOverviewPage } from '../../../features/seller-dashboard/domains/real-estate/overview/RealEstateOverviewPage';
 
 /**
  * Real Estate Domain Home Page
@@ -10,7 +10,7 @@ import { DomainHomeRealEstate } from '../../../features/seller-dashboard/domains
 const RealEstateHomePage: React.FC = () => (
   <DomainProvider domainId="real_estate" initialSection="home">
     <DashboardLayout>
-      <DomainHomeRealEstate />
+      <RealEstateOverviewPage />
     </DashboardLayout>
   </DomainProvider>
 );

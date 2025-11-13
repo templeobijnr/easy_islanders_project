@@ -20,8 +20,27 @@ def ensure_listing_for_property(property_obj: REListing, owner: Optional[object]
 
     Returns: listings.models.Listing
     """
+    # If listing exists, sync and return
     if property_obj.listing:
-        return property_obj.listing
+        generic = property_obj.listing
+        # Sync key fields
+        generic.title = property_obj.title
+        generic.description = property_obj.description or ''
+        generic.price = property_obj.monthly_price or property_obj.nightly_price
+        generic.currency = str(property_obj.currency or 'EUR')
+        generic.location = property_obj.city
+        generic.latitude = float(property_obj.lat) if property_obj.lat is not None else None
+        generic.longitude = float(property_obj.lng) if property_obj.lng is not None else None
+        generic.transaction_type = _infer_transaction_type(property_obj)
+        # Update dynamic fields
+        generic.dynamic_fields = {
+            'rent_type': property_obj.rent_type,
+            'bedrooms': property_obj.bedrooms,
+            'bathrooms': float(property_obj.bathrooms) if property_obj.bathrooms is not None else None,
+            'property_type': property_obj.property_type,
+        }
+        generic.save()
+        return generic
 
     # Determine owner (required by Generic Listing model)
     if owner is None:
@@ -50,9 +69,10 @@ def ensure_listing_for_property(property_obj: REListing, owner: Optional[object]
         location=property_obj.city,
         latitude=float(property_obj.lat) if property_obj.lat is not None else None,
         longitude=float(property_obj.lng) if property_obj.lng is not None else None,
+        transaction_type=_infer_transaction_type(property_obj),
+        listing_kind='offer',
         # Optional attributes to hint transaction mode
         dynamic_fields={
-            'transaction_type': 'rent' if property_obj.rent_type in ('long_term', 'short_term', 'both') else 'sale',
             'rent_type': property_obj.rent_type,
             'bedrooms': property_obj.bedrooms,
             'bathrooms': float(property_obj.bathrooms) if property_obj.bathrooms is not None else None,

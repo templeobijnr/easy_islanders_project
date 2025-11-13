@@ -29,11 +29,6 @@ from drf_spectacular.views import (
     SpectacularSwaggerView,
     SpectacularRedocView,
 )
-from real_estate.views import ListingSearchViewSet
-
-# Real estate search endpoint
-listing_search = ListingSearchViewSet.as_view({"get": "list"})
-
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('users.urls')),
@@ -42,9 +37,7 @@ urlpatterns = [
     path('api/', include('listings.urls')),  # Bookings, listings & sellers API
     path('api/seller/', include('seller_portal.urls')),  # Seller Portal - Multi-domain orchestration
     path('api/p2p/', include('seller_portal.p2p_urls')),  # P2P Consumer API - for regular users
-
-    # Real Estate Search API
-    path('api/v1/real_estate/search', listing_search, name='real-estate-search'),
+    path('api/', include('real_estate.urls')),  # Real Estate search & dashboard APIs
 
     # JWT Authentication (Cookie-enabled - PR D: Auth Hardening)
     path('api/token/', CookieTokenObtainPairView.as_view(), name='token_obtain_pair'),

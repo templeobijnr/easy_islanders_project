@@ -6,6 +6,7 @@ rentals. A separate ShortTermBlock table tracks unavailable dates for ST listing
 """
 import uuid
 from django.db import models
+from django.conf import settings
 
 
 # NOTE: We intentionally keep real_estate.Listing independent and link it to
@@ -25,6 +26,14 @@ class Listing(models.Model):
 
     # Identity (UUID primary key for external stability)
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    # Ownership
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='real_estate_listings',
+        help_text="User who owns/manages this property"
+    )
 
     # Basic info
     title = models.CharField(max_length=160)
@@ -182,6 +191,13 @@ class Listing(models.Model):
         ordering = ['city', 'bedrooms', 'monthly_price']
         verbose_name = "Listing"
         verbose_name_plural = "Listings"
+
+    def save(self, *args, **kwargs):
+        """Save and ensure cross-domain listing is synced."""
+        super().save(*args, **kwargs)
+        # Sync to cross-domain listing after save (requires pk to exist)
+        from .services import ensure_listing_for_property
+        ensure_listing_for_property(self, owner=self.owner)
 
     def __str__(self):
         return f"{self.title} ({self.rent_type}, {self.city})"

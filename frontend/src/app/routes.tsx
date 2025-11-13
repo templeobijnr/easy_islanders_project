@@ -18,6 +18,19 @@ import DashboardHelpPage from '../pages/dashboard/HelpPage';
 
 // Domain-specific home pages
 import RealEstateHomePage from '../pages/dashboard/home/real-estate';
+import RealEstatePortfolioPage from '../pages/dashboard/home/real-estate/portfolio';
+import RealEstateLocationPage from '../pages/dashboard/home/real-estate/location';
+import RealEstateOccupancyPage from '../pages/dashboard/home/real-estate/occupancy';
+import RealEstateEarningsPage from '../pages/dashboard/home/real-estate/earnings';
+import RealEstateSalesPipelinePage from '../pages/dashboard/home/real-estate/sales-pipeline';
+import RealEstateRequestsPage from '../pages/dashboard/home/real-estate/requests';
+import RealEstateCalendarPage from '../pages/dashboard/home/real-estate/calendar';
+import RealEstateMaintenancePage from '../pages/dashboard/home/real-estate/maintenance';
+import RealEstateOwnersAndTenantsPage from '../pages/dashboard/home/real-estate/owners-and-tenants';
+import RealEstatePricingAndPromotionsPage from '../pages/dashboard/home/real-estate/pricing-and-promotions';
+import RealEstateChannelsAndDistributionPage from '../pages/dashboard/home/real-estate/channels-and-distribution';
+import RealEstateProjectsPage from '../pages/dashboard/home/real-estate/projects';
+
 import CarsHomePage from '../pages/dashboard/home/cars';
 import EventsHomePage from '../pages/dashboard/home/events';
 import ServicesHomePage from '../pages/dashboard/home/services';
@@ -58,6 +71,19 @@ const AppRoutes: React.FC = () => (
 
     {/* Domain-specific home pages */}
     <Route path="/dashboard/home/real-estate" element={<RealEstateHomePage />} />
+    <Route path="/dashboard/home/real-estate/portfolio" element={<RealEstatePortfolioPage />} />
+    <Route path="/dashboard/home/real-estate/location" element={<RealEstateLocationPage />} />
+    <Route path="/dashboard/home/real-estate/occupancy" element={<RealEstateOccupancyPage />} />
+    <Route path="/dashboard/home/real-estate/earnings" element={<RealEstateEarningsPage />} />
+    <Route path="/dashboard/home/real-estate/sales-pipeline" element={<RealEstateSalesPipelinePage />} />
+    <Route path="/dashboard/home/real-estate/requests" element={<RealEstateRequestsPage />} />
+    <Route path="/dashboard/home/real-estate/calendar" element={<RealEstateCalendarPage />} />
+    <Route path="/dashboard/home/real-estate/maintenance" element={<RealEstateMaintenancePage />} />
+    <Route path="/dashboard/home/real-estate/owners-and-tenants" element={<RealEstateOwnersAndTenantsPage />} />
+    <Route path="/dashboard/home/real-estate/pricing-and-promotions" element={<RealEstatePricingAndPromotionsPage />} />
+    <Route path="/dashboard/home/real-estate/channels-and-distribution" element={<RealEstateChannelsAndDistributionPage />} />
+    <Route path="/dashboard/home/real-estate/projects" element={<RealEstateProjectsPage />} />
+
     <Route path="/dashboard/home/cars" element={<CarsHomePage />} />
     <Route path="/dashboard/home/events" element={<EventsHomePage />} />
     <Route path="/dashboard/home/services" element={<ServicesHomePage />} />

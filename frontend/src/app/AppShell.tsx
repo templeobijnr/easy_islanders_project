@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Navbar04 } from '../components/ui/shadcn-io/navbar-04';
 import AuthModal from '../components/auth/AuthModal';
 import DebugMemoryHUD from '../dev/DebugMemoryHUD';
+import LeftRail from '../features/left-rail/LeftRail';
 import { useChat } from '../shared/context/ChatContext';
 import { useAuth } from '../shared/context/AuthContext';
 import useAuthMigration from '../hooks/useAuthMigration';
@@ -14,8 +16,15 @@ type Props = { children: React.ReactNode };
  * Provides consistent layout with navbar and main content area
  */
 export const AppShell: React.FC<Props> = ({ children }) => {
+  const location = useLocation();
   const { isAuthenticated, setUnreadCount } = useAuth();
   const { dev_lastMemoryTrace, dev_lastCorrelationId } = useChat();
+
+  // Only show LeftRail on ChatPage (root path)
+  const showLeftRail = location.pathname === '/' || location.pathname.startsWith('/chat');
+
+  // Dashboard has its own internal layout
+  const isDashboard = location.pathname.startsWith('/dashboard');
 
   // Debug HUD feature flag and state
   const HUD_FLAG = (
@@ -95,10 +104,20 @@ export const AppShell: React.FC<Props> = ({ children }) => {
       {/* Auth Modal */}
       <AuthModal />
 
-      {/* Main Content */}
-      <main className="relative">
-        {children}
-      </main>
+      {/* Main Content Area with optional LeftRail */}
+      <div className={`mx-auto max-w-7xl px-4 py-4 ${showLeftRail ? 'grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)] gap-4' : ''}`}>
+        {/* Left Rail - only on ChatPage */}
+        {showLeftRail && (
+          <aside className="hidden lg:block">
+            <LeftRail />
+          </aside>
+        )}
+
+        {/* Main Content */}
+        <main className={!showLeftRail && !isDashboard ? 'max-w-5xl mx-auto w-full' : ''}>
+          {children}
+        </main>
+      </div>
 
       {/* Debug HUD (dev only, toggle with Cmd/Ctrl+M) */}
       {HUD_FLAG && hudVisible && (

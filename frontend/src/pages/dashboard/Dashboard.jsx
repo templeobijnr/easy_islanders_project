@@ -11,6 +11,21 @@ import Messages from './Messages';
 import SellerInbox from './SellerInbox';
 import { useAuth } from '../../contexts/AuthContext';
 
+// Real Estate Domain Pages
+import RealEstate from './home/real-estate/index';
+import Portfolio from './home/real-estate/portfolio';
+import Location from './home/real-estate/location';
+import Occupancy from './home/real-estate/occupancy';
+import Earnings from './home/real-estate/earnings';
+import SalesPipeline from './home/real-estate/sales-pipeline';
+import Requests from './home/real-estate/requests';
+import Calendar from './home/real-estate/calendar';
+import Maintenance from './home/real-estate/maintenance';
+import OwnersAndTenants from './home/real-estate/owners-and-tenants';
+import PricingAndPromotions from './home/real-estate/pricing-and-promotions';
+import ChannelsAndDistribution from './home/real-estate/channels-and-distribution';
+import Projects from './home/real-estate/projects';
+
 const Dashboard = () => {
   const { isAuthenticated, user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -45,6 +60,21 @@ const Dashboard = () => {
             <Route path="/profile" element={<BusinessProfile />} />
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/help" element={<Help />} />
+
+            {/* Real Estate Domain Routes */}
+            <Route path="/home/real-estate" element={<RealEstate />} />
+            <Route path="/home/real-estate/portfolio" element={<Portfolio />} />
+            <Route path="/home/real-estate/location" element={<Location />} />
+            <Route path="/home/real-estate/occupancy" element={<Occupancy />} />
+            <Route path="/home/real-estate/earnings" element={<Earnings />} />
+            <Route path="/home/real-estate/sales-pipeline" element={<SalesPipeline />} />
+            <Route path="/home/real-estate/requests" element={<Requests />} />
+            <Route path="/home/real-estate/calendar" element={<Calendar />} />
+            <Route path="/home/real-estate/maintenance" element={<Maintenance />} />
+            <Route path="/home/real-estate/owners-and-tenants" element={<OwnersAndTenants />} />
+            <Route path="/home/real-estate/pricing-and-promotions" element={<PricingAndPromotions />} />
+            <Route path="/home/real-estate/channels-and-distribution" element={<ChannelsAndDistribution />} />
+            <Route path="/home/real-estate/projects" element={<Projects />} />
           </Routes>
         </div>
       </main>

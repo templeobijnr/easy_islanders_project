@@ -6,16 +6,16 @@ import FeaturedPanel from '../features/featured/FeaturedPanel';
 import ChatPage from '../features/chat/ChatPage';
 
 // Dashboard pages
-import DashboardIndexPage from '../pages/dashboard/index';
-import DashboardMyListingsPage from '../pages/dashboard/my-listings';
-import DashboardBookingsPage from '../pages/dashboard/bookings';
-import DashboardSellerInboxPage from '../pages/dashboard/seller-inbox';
-import DashboardBroadcastsPage from '../pages/dashboard/broadcasts';
-import DashboardSalesPage from '../pages/dashboard/sales';
-import DashboardMessagesPage from '../pages/dashboard/messages';
-import DashboardAnalyticsPage from '../pages/dashboard/analytics';
-import DashboardProfilePage from '../pages/dashboard/profile';
-import DashboardHelpPage from '../pages/dashboard/help';
+import DashboardIndexPage from '../pages/dashboard/DashboardIndexPage';
+import DashboardMyListingsPage from '../pages/dashboard/MyListingsPage';
+import DashboardBookingsPage from '../pages/dashboard/BookingsPage';
+import DashboardSellerInboxPage from '../pages/dashboard/SellerInboxPage';
+import DashboardBroadcastsPage from '../pages/dashboard/BroadcastsPage';
+import DashboardSalesPage from '../pages/dashboard/SalesPage';
+import DashboardMessagesPage from '../pages/dashboard/MessagesPage';
+import DashboardAnalyticsPage from '../pages/dashboard/AnalyticsPage';
+import DashboardProfilePage from '../pages/dashboard/ProfilePage';
+import DashboardHelpPage from '../pages/dashboard/HelpPage';
 
 // Domain-specific home pages
 import RealEstateHomePage from '../pages/dashboard/home/real-estate';
@@ -40,6 +40,7 @@ const AppRoutes: React.FC = () => (
 
     {/* Legacy routes (to be migrated to features) */}
     <Route path="/listings/create" element={<CreateListing />} />
+    <Route path="/create-listing" element={<Navigate to="/listings/create" replace />} />
     <Route path="/bookings" element={<Bookings />} />
     <Route path="/messages" element={<Messages />} />
     <Route path="/requests" element={<Requests />} />

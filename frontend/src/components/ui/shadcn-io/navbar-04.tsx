@@ -5,21 +5,38 @@ import { MotionDiv, MotionButton } from "../motion-wrapper";
 import { Menu, X, Compass, MessageCircle, LayoutDashboard, Plus, User } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "../../../lib/utils";
+import { useAuth } from "../../../shared/context/AuthContext";
+import UserMenu from "../../common/UserMenu";
+import { Button } from "../button";
+import { Skeleton } from "../skeleton";
 
 export function Navbar04() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const location = useLocation();
+  const { isAuthenticated, user, openAuthModal, handleLogout, unreadCount } = useAuth();
+
+  React.useEffect(() => {
+    setIsLoading(false);
+  }, []);
 
   const navigation = [
     { name: "Chat", href: "/", icon: MessageCircle },
-    { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, authRequired: true },
-    { name: "Create Listing", href: "/create-listing", icon: Plus, authRequired: true, businessOnly: true },
+    { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, authRequired: true, businessOnly: true },
+    { name: "Create Listing", href: "/listings/create", icon: Plus, authRequired: true, businessOnly: true },
   ];
 
   const isActive = (href: string) => {
     if (href === "/") return location.pathname === "/";
     return location.pathname.startsWith(href);
   };
+
+  const visibleNavigation = navigation.filter(item => {
+    if (!item.authRequired) return true;
+    if (!isAuthenticated) return false;
+    if (item.businessOnly && user?.user_type !== 'business') return false;
+    return true;
+  });
 
   return (
     <nav className="relative z-50">
@@ -43,7 +60,7 @@ export function Navbar04() {
 
             {/* Desktop Menu */}
             <div className="hidden md:flex items-center space-x-2">
-              {navigation.map((item) => (
+              {visibleNavigation.map((item) => (
                 <Link
                   key={item.name}
                   to={item.href}
@@ -75,23 +92,26 @@ export function Navbar04() {
 
             {/* Right Side Actions */}
             <div className="hidden md:flex items-center space-x-4">
-              <MotionButton
-                className="relative p-2.5 rounded-xl text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100/80 transition-colors"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <MessageCircle className="w-5 h-5" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white"></span>
-              </MotionButton>
-
-              <MotionButton
-                className="flex items-center space-x-2 px-5 py-2.5 bg-gradient-to-r from-brand-500 to-cyan-500 text-white rounded-xl font-semibold text-sm shadow-lg hover:shadow-xl transition-shadow"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                <User className="w-4 h-4" />
-                <span>Account</span>
-              </MotionButton>
+              {isLoading ? (
+                <Skeleton className="h-10 w-32" />
+              ) : isAuthenticated ? (
+                <UserMenu user={user} onLogout={handleLogout} unreadCount={unreadCount} />
+              ) : (
+                <div className="flex items-center space-x-2">
+                  <Button variant="ghost" onClick={() => openAuthModal('login')}>
+                    Sign In
+                  </Button>
+                  <MotionButton
+                    className="flex items-center space-x-2 px-5 py-2.5 bg-gradient-to-r from-brand-500 to-cyan-500 text-white rounded-xl font-semibold text-sm shadow-lg hover:shadow-xl transition-shadow"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => openAuthModal('register')}
+                  >
+                    <User className="w-4 h-4" />
+                    <span>Sign Up</span>
+                  </MotionButton>
+                </div>
+              )}
             </div>
 
             {/* Mobile Menu Button */}
@@ -121,7 +141,7 @@ export function Navbar04() {
             className="md:hidden overflow-hidden bg-white border-b border-neutral-200/50 shadow-lg"
           >
             <div className="px-4 py-6 space-y-3">
-              {navigation.map((item) => (
+              {visibleNavigation.map((item) => (
                 <Link
                   key={item.name}
                   to={item.href}
@@ -142,14 +162,36 @@ export function Navbar04() {
                 </Link>
               ))}
 
-              <div className="pt-4 border-t border-neutral-200/50">
-                <MotionButton
-                  className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-brand-500 to-cyan-500 text-white rounded-xl font-semibold text-sm shadow-lg"
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <User className="w-5 h-5" />
-                  <span>Account</span>
-                </MotionButton>
+              <div className="pt-4 border-t border-neutral-200/50 space-y-2">
+                {!isAuthenticated ? (
+                  <>
+                    <Button
+                      variant="ghost"
+                      className="w-full"
+                      onClick={() => {
+                        openAuthModal('login');
+                        setMobileMenuOpen(false);
+                      }}
+                    >
+                      Sign In
+                    </Button>
+                    <MotionButton
+                      className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-brand-500 to-cyan-500 text-white rounded-xl font-semibold text-sm shadow-lg"
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => {
+                        openAuthModal('register');
+                        setMobileMenuOpen(false);
+                      }}
+                    >
+                      <User className="w-5 h-5" />
+                      <span>Sign Up</span>
+                    </MotionButton>
+                  </>
+                ) : (
+                  <div className="text-sm text-neutral-600 px-4">
+                    Logged in as <span className="font-semibold">{user?.email}</span>
+                  </div>
+                )}
               </div>
             </div>
           </MotionDiv>

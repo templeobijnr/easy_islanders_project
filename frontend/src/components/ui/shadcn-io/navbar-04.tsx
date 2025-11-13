@@ -16,6 +16,8 @@ export function Navbar04() {
   const location = useLocation();
   const { isAuthenticated, user, openAuthModal, handleLogout, unreadCount } = useAuth();
 
+  console.log('[Navbar04] Rendering:', { isAuthenticated, user: user?.email, unreadCount });
+
   React.useEffect(() => {
     setIsLoading(false);
   }, []);

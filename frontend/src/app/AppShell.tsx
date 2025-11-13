@@ -96,6 +96,8 @@ export const AppShell: React.FC<Props> = ({ children }) => {
     setUnreadCount(fetchedCount);
   }, [fetchedCount, setUnreadCount]);
 
+  console.log('[AppShell] Rendering:', { showLeftRail, isDashboard, pathname: location.pathname });
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-50 to-slate-50 text-slate-900">
       {/* Top Navbar */}

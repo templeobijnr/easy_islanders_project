@@ -6,7 +6,7 @@ import { Menu, X, Compass, MessageCircle, LayoutDashboard, Plus, User } from "lu
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "../../../lib/utils";
 import { useAuth } from "../../../shared/context/AuthContext";
-import UserMenu from "../../common/UserMenu";
+import UserMenu from "../../common/UserMenu.jsx";
 import { Button } from "../button";
 import { Skeleton } from "../skeleton";
 

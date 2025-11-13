@@ -5,7 +5,7 @@ import {
   Loader2, AlertCircle, CheckCircle, XCircle, Calendar
 } from 'lucide-react';
 import Page from '../shared/components/Page';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../shared/context/AuthContext';
 import axios from 'axios';
 import config from '../config';
 import { Button } from '../components/ui/button';

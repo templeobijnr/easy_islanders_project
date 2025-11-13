@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { User, Mail, Phone, Save, Loader2, Check, AlertCircle, Upload } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../shared/context/AuthContext';
 import axios from 'axios';
 import config from '../config';
 import { Button } from '../components/ui/button';

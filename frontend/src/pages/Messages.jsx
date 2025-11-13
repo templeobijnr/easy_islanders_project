@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useUnreadCount } from '../hooks/useMessages';
-// import { useAuth } from '../contexts/AuthContext'; // Unused
+// import { useAuth } from '../shared/context/AuthContext'; // Unused
 import { Send, Loader2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { PageTransition, StaggerContainer, StaggerItem, AnimatedWrapper } from '../components/ui/animated-wrapper';

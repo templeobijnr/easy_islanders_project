@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Loader2, AlertCircle, CheckCircle } from 'lucide-react';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../shared/context/AuthContext';
 import axios from 'axios';
 import config from '../../config';
 

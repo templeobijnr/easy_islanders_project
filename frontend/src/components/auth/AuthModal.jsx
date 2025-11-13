@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Mail, Lock, User, Phone, Briefcase, Users, AlertCircle, Loader } from 'lucide-react';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../shared/context/AuthContext';
 
 const AuthModal = () => {
   const {

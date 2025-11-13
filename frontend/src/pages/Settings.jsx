@@ -4,7 +4,7 @@ import {
   Globe, Bell, Mail, Smartphone, Lock, Trash2,
   Save, Loader2, Check, AlertCircle, Shield, Eye, EyeOff
 } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../shared/context/AuthContext';
 import axios from 'axios';
 import config from '../config';
 import { Button } from '../components/ui/button';

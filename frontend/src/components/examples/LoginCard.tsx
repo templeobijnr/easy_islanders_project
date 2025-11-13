@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../shared/context/AuthContext';
 import { Loader2 } from 'lucide-react';
 
 interface LoginCardProps {

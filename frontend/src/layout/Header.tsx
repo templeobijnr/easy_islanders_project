@@ -1,7 +1,7 @@
 import { Compass, MessageCircle, Menu } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import HeaderActions from '../components/common/HeaderActions';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../shared/context/AuthContext';
 import { useUi } from '../shared/context/UiContext';
 
 export default function Header() {

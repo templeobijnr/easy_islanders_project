@@ -1,4 +1,3 @@
 export { default as DashboardLayout } from './DashboardLayout';
-export { SidebarNav } from './SidebarNav';
-export { TopBar } from './TopBar';
+export { DashboardSidebar } from './DashboardSidebar';
 export { navItems } from './NavItems';

@@ -15,7 +15,7 @@ import {
   Sparkles,
   FileText
 } from 'lucide-react';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../shared/context/AuthContext';
 import HITLApprovalsList from '../../components/HITLApprovalsList';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';

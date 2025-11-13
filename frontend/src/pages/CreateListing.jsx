@@ -22,7 +22,7 @@ import {
   Wrench,
 } from "lucide-react";
 import axios from "axios";
-import { useAuth } from "../contexts/AuthContext";
+import { useAuth } from "../shared/context/AuthContext";
 import config from "../config";
 import { CATEGORY_DESIGN } from "../lib/categoryDesign";
 import { PageTransition, StaggerContainer, StaggerItem, AnimatedWrapper } from "../components/ui/animated-wrapper";

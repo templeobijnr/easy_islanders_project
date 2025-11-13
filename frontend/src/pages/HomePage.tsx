@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { Compass } from 'lucide-react';
-import { AuthProvider, useAuth } from '../contexts/AuthContext';
+import { AuthProvider, useAuth } from '../shared/context/AuthContext';
 import DebugMemoryHUD from '../dev/DebugMemoryHUD';
 import { useChat } from '../shared/context/ChatContext';
 import { UiProvider } from '../shared/context/UiContext';

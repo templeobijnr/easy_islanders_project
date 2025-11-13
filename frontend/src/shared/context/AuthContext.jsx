@@ -1,7 +1,7 @@
 import React, { createContext, useState, useCallback, useEffect } from 'react';
-import config from '../config';
-import { http } from '../api';
-import { setAccessToken, clearAccessToken, getAccessToken } from '../auth/tokenStore';
+import config from '../../config';
+import { http } from '../../api';
+import { setAccessToken, clearAccessToken, getAccessToken } from '../../auth/tokenStore';
 
 export const AuthContext = createContext();
 

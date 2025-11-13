@@ -40,6 +40,8 @@ urlpatterns = [
     path('api/', include('assistant.urls')),
     path('api/', include('router_service.urls')),
     path('api/', include('listings.urls')),  # Bookings, listings & sellers API
+    path('api/seller/', include('seller_portal.urls')),  # Seller Portal - Multi-domain orchestration
+    path('api/p2p/', include('seller_portal.p2p_urls')),  # P2P Consumer API - for regular users
 
     # Real Estate Search API
     path('api/v1/real_estate/search', listing_search, name='real-estate-search'),

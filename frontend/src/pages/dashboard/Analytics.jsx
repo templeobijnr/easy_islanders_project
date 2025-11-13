@@ -12,9 +12,9 @@ const Analytics = () => {
 
   if (loading) {
     return (
-      <div className="bg-background/90 backdrop-blur rounded-2xl border border-border p-8">
-        <h1 className="text-2xl font-bold text-foreground mb-2">Analytics</h1>
-        <p className="text-muted-foreground mb-8">Track your business performance</p>
+      <div className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 p-8">
+        <h1 className="text-2xl font-bold text-slate-900 mb-2">Analytics</h1>
+        <p className="text-slate-600 mb-8">Track your business performance</p>
         <div className="flex items-center justify-center py-12">
           <motion.div
             animate={{ rotate: 360 }}
@@ -29,9 +29,9 @@ const Analytics = () => {
 
   if (error) {
     return (
-      <div className="bg-background/90 backdrop-blur rounded-2xl border border-border p-8">
-        <h1 className="text-2xl font-bold text-foreground mb-2">Analytics</h1>
-        <p className="text-muted-foreground mb-8">Track your business performance</p>
+      <div className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 p-8">
+        <h1 className="text-2xl font-bold text-slate-900 mb-2">Analytics</h1>
+        <p className="text-slate-600 mb-8">Track your business performance</p>
         <div className="flex items-center justify-center py-12">
           <div className="text-center">
             <p className="text-red-600 mb-4">{error}</p>
@@ -50,12 +50,12 @@ const Analytics = () => {
   const insights = analytics?.insights || [];
 
   return (
-    <div className="bg-background/90 backdrop-blur rounded-2xl border border-border p-8">
+    <div className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 p-8">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-foreground mb-2">Analytics</h1>
-          <p className="text-muted-foreground">Track your business performance</p>
+          <h1 className="text-2xl font-bold text-slate-900 mb-2">Analytics</h1>
+          <p className="text-slate-600">Track your business performance</p>
         </div>
         <Button variant="outline" onClick={refetch}>
           <TrendingUp className="w-4 h-4 mr-2" />

@@ -121,9 +121,9 @@ const Bookings = () => {
 
   if (loading) {
     return (
-      <div className="bg-background/90 backdrop-blur rounded-2xl border border-border p-8">
-        <h1 className="text-2xl font-bold text-foreground mb-2">Bookings</h1>
-        <p className="text-muted-foreground mb-8">Manage reservations and bookings</p>
+      <div className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 p-8">
+        <h1 className="text-2xl font-bold text-slate-900 mb-2">Bookings</h1>
+        <p className="text-slate-600 mb-8">Manage reservations and bookings</p>
         <div className="flex items-center justify-center py-12">
           <motion.div
             animate={{ rotate: 360 }}
@@ -138,14 +138,14 @@ const Bookings = () => {
 
   if (error) {
     return (
-      <div className="bg-background/90 backdrop-blur rounded-2xl border border-border p-8">
-        <h1 className="text-2xl font-bold text-foreground mb-2">Bookings</h1>
-        <p className="text-muted-foreground mb-8">Manage reservations and bookings</p>
+      <div className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 p-8">
+        <h1 className="text-2xl font-bold text-slate-900 mb-2">Bookings</h1>
+        <p className="text-slate-600 mb-8">Manage reservations and bookings</p>
         <div className="flex items-center justify-center py-12">
           <div className="text-center">
             <AlertCircle className="w-16 h-16 text-destructive mx-auto mb-4" />
             <p className="text-destructive font-medium mb-4">{error}</p>
-            <Button variant="premium" onClick={fetchBookings}>Try Again</Button>
+            <Button className="bg-gradient-to-r from-emerald-600 to-sky-700 hover:from-emerald-700 hover:to-sky-800 text-white" onClick={fetchBookings}>Try Again</Button>
           </div>
         </div>
       </div>
@@ -153,11 +153,11 @@ const Bookings = () => {
   }
 
   return (
-    <div className="bg-background/90 backdrop-blur rounded-2xl border border-border p-8">
+    <div className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 p-8">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-foreground mb-2">Bookings</h1>
-        <p className="text-muted-foreground">Manage reservations and bookings</p>
+        <h1 className="text-2xl font-bold text-slate-900 mb-2">Bookings</h1>
+        <p className="text-slate-600">Manage reservations and bookings</p>
       </div>
 
       {/* Stats Cards */}

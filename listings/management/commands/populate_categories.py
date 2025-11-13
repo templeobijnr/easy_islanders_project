@@ -5,7 +5,7 @@ for Easy Islanders marketplace.
 
 from django.core.management.base import BaseCommand
 from django.db import transaction
-from listings.models import Category, Subcategory
+from listings.models import Category, SubCategory
 
 
 class Command(BaseCommand):
@@ -228,7 +228,7 @@ class Command(BaseCommand):
                     # Generate slug from name
                     subcat_slug = subcat_name.lower().replace(' ', '_').replace('/', '_').replace('&', 'and')
                     
-                    subcategory, sub_created = Subcategory.objects.update_or_create(
+                    subcategory, sub_created = SubCategory.objects.update_or_create(
                         category=category,
                         slug=subcat_slug,
                         defaults={
@@ -251,4 +251,4 @@ class Command(BaseCommand):
             self.stdout.write(f'Subcategories created: {subcategories_created}')
             self.stdout.write(f'Subcategories updated: {subcategories_updated}')
             self.stdout.write(f'Total categories: {Category.objects.count()}')
-            self.stdout.write(f'Total subcategories: {Subcategory.objects.count()}')
+            self.stdout.write(f'Total subcategories: {SubCategory.objects.count()}')

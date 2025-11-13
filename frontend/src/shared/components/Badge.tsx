@@ -17,14 +17,15 @@ const Badge = ({ children, variant = 'default' }: BadgeProps) => {
   };
 
   return (
-    <motion.span
-      className={`${baseClasses} ${variantClasses[variant]}`}
-      variants={fadeInUp}
-      initial="hidden"
-      animate="show"
-    >
-      {children}
-    </motion.span>
+    <span className={`${baseClasses} ${variantClasses[variant]}`}>
+      <motion.span
+        variants={fadeInUp}
+        initial="hidden"
+        animate="show"
+      >
+        {children}
+      </motion.span>
+    </span>
   );
 };
 

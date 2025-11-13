@@ -25,6 +25,13 @@ import axios from "axios";
 import { useAuth } from "../contexts/AuthContext";
 import config from "../config";
 import { CATEGORY_DESIGN } from "../lib/categoryDesign";
+import { PageTransition, StaggerContainer, StaggerItem, AnimatedWrapper } from "../components/ui/animated-wrapper";
+import { spacing, layout } from "../lib/spacing";
+import { Skeleton } from "../components/ui/skeleton";
+
+const CardSkeleton = ({ className }) => (
+  <Skeleton className={`h-48 w-full rounded-3xl ${className}`} />
+);
 
 const CreateListingPage = () => {
   const { isAuthenticated, user } = useAuth();
@@ -98,66 +105,135 @@ const CreateListingPage = () => {
 
   // --- Fetch Categories ---
   useEffect(() => {
-    console.log('CreateListing: useEffect triggered', { isAuthenticated, userType: user?.user_type });
     if (isAuthenticated && user?.user_type === "business") {
-      console.log('CreateListing: User is business, calling fetchCategories');
       fetchCategories();
-    } else {
-      console.log('CreateListing: User not authenticated or not business type');
     }
   }, [isAuthenticated, user]);
 
   const fetchCategories = async () => {
     try {
-      console.log('CreateListing: fetchCategories called');
       setCategoriesLoading(true);
-      const apiUrl = `${config.API_BASE_URL}/api/categories/`;
-      console.log('CreateListing: Making request to:', apiUrl);
-
-      const response = await axios.get(apiUrl);
-      console.log('CreateListing: Response received:', response);
-      console.log('CreateListing: Response status:', response.status);
-      console.log('CreateListing: Response data:', response.data);
-
+      const response = await axios.get(`${config.API_BASE_URL}/api/categories/`);
+      
+      // Handle the response format: {categories: [...], count: number}
       const categoriesData = response.data.categories || [];
-      console.log('CreateListing: Extracted categories:', categoriesData.length, 'items');
-      console.log('CreateListing: Categories details:', categoriesData);
-
-      setCategories(categoriesData);
-      console.log('CreateListing: Categories state updated');
+      setCategories(categoriesData.filter(cat => cat.is_active));
     } catch (err) {
-      console.error('CreateListing: fetchCategories error:', err);
-      console.error('CreateListing: Error response:', err.response);
+      console.error('Failed to load categories:', err);
       setError("Failed to load categories");
     } finally {
       setCategoriesLoading(false);
-      console.log('CreateListing: Loading state set to false');
     }
   };
 
-  // --- Fetch Subcategories ---
-  useEffect(() => {
-    if (selectedCategory) {
-      fetchSubcategories(selectedCategory.slug);
-    }
-  }, [selectedCategory]);
-
-  const fetchSubcategories = async (slug) => {
-    try {
-      const response = await axios.get(
-        `${config.API_BASE_URL}/api/categories/${slug}/subcategories/`
-      );
-      setSubcategories(response.data.subcategories || []);
-    } catch (err) {
-      setSubcategories([]);
-    }
+  // --- Handle Category Selection ---
+  const handleCategorySelect = (category) => {
+    setSelectedCategory(category);
+    // Subcategories are already included in the category data
+    setSubcategories(category.subcategories || []);
+    // Reset dynamic fields when category changes
+    setFormData(prev => ({ ...prev, dynamic_fields: {} }));
   };
 
-  const handleCategorySelect = (category) => setSelectedCategory(category);
 
   const handleSubcategorySelect = (subcategory) => {
     setSelectedSubcategory(subcategory);
     setStep(2);
+  };
+
+  // --- Handle Dynamic Fields ---
+  const handleDynamicFieldChange = (fieldName, value) => {
+    setFormData(prev => ({
+      ...prev,
+      dynamic_fields: {
+        ...prev.dynamic_fields,
+        [fieldName]: value
+      }
+    }));
+  };
+
+  // --- Render Dynamic Fields ---
+  const renderDynamicFields = () => {
+    if (!selectedCategory?.schema?.fields) return null;
+
+    return selectedCategory.schema.fields.map((field) => {
+      const value = formData.dynamic_fields[field.name] || '';
+      
+      return (
+        <div key={field.name} className="space-y-2">
+          <label className="block text-muted-foreground mb-2 text-sm font-semibold">
+            {field.label}
+            {field.required && <span className="text-red-500 ml-1">*</span>}
+          </label>
+          
+          {field.type === 'text' && (
+            <input
+              type="text"
+              value={value}
+              onChange={(e) => handleDynamicFieldChange(field.name, e.target.value)}
+              className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-foreground focus:outline-none focus:ring-2 focus:ring-brand"
+              placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
+              required={field.required}
+            />
+          )}
+          
+          {field.type === 'number' && (
+            <input
+              type="number"
+              value={value}
+              onChange={(e) => handleDynamicFieldChange(field.name, parseFloat(e.target.value) || '')}
+              className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-foreground focus:outline-none focus:ring-2 focus:ring-brand"
+              placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
+              min={field.min || 0}
+              max={field.max}
+              required={field.required}
+            />
+          )}
+          
+          {field.type === 'select' && (
+            <select
+              value={value}
+              onChange={(e) => handleDynamicFieldChange(field.name, e.target.value)}
+              className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-foreground focus:outline-none focus:ring-2 focus:ring-brand"
+              required={field.required}
+            >
+              <option value="">Select {field.label}</option>
+              {field.choices?.map((choice) => (
+                <option key={choice} value={choice}>
+                  {choice.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                </option>
+              ))}
+            </select>
+          )}
+          
+          {field.type === 'boolean' && (
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id={field.name}
+                checked={value === true}
+                onChange={(e) => handleDynamicFieldChange(field.name, e.target.checked)}
+                className="w-4 h-4 text-brand border-border rounded focus:ring-brand"
+              />
+              <label htmlFor={field.name} className="text-sm text-slate-600">
+                {field.label}
+              </label>
+            </div>
+          )}
+          
+          {field.type === 'textarea' && (
+            <textarea
+              value={value}
+              onChange={(e) => handleDynamicFieldChange(field.name, e.target.value)}
+              rows={3}
+              className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-foreground focus:outline-none focus:ring-2 focus:ring-brand resize-none"
+              placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
+              required={field.required}
+            />
+          )}
+        </div>
+      );
+    });
   };
 
   const handleInputChange = (field, value) =>
@@ -181,6 +257,7 @@ const CreateListingPage = () => {
   };
 
   const validateForm = () => {
+    // Basic validation
     if (
       !formData.title.trim() ||
       !formData.description.trim() ||
@@ -190,6 +267,20 @@ const CreateListingPage = () => {
       setError(t.validationError);
       return false;
     }
+
+    // Dynamic fields validation
+    if (selectedCategory?.schema?.fields) {
+      for (const field of selectedCategory.schema.fields) {
+        if (field.required) {
+          const value = formData.dynamic_fields[field.name];
+          if (!value && value !== 0 && value !== false) {
+            setError(`${field.label} is required`);
+            return false;
+          }
+        }
+      }
+    }
+
     return true;
   };
 
@@ -207,8 +298,8 @@ const CreateListingPage = () => {
         {
           title: formData.title,
           description: formData.description,
-          category: selectedCategory.slug,
-          subcategory: selectedSubcategory?.slug,
+          category: selectedCategory.id,
+          subcategory: selectedSubcategory?.id,
           price: parseFloat(formData.price),
           currency: formData.currency,
           location: formData.location,
@@ -247,72 +338,56 @@ const CreateListingPage = () => {
   // --- Conditional Rendering for Auth ---
   if (!isAuthenticated) {
     return (
-      <div className="min-h-[calc(100vh-80px)] bg-white flex items-center justify-center px-6">
-        <div className="max-w-md w-full bg-white rounded-3xl p-8 text-center">
-          <Lock className="w-16 h-16 text-brand mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">
-            {t.pleaseLogin}
-          </h1>
-          <p className="text-gray-500">
-            You need to be logged in to create a new listing.
-          </p>
+      <PageTransition>
+        <div className="min-h-screen bg-background flex items-center justify-center px-6">
+          <div className="max-w-md w-full bg-background rounded-3xl p-8 text-center">
+            <Lock className="w-16 h-16 text-brand mx-auto mb-4" />
+            <h1 className="text-2xl font-bold text-foreground mb-2">
+              {t.pleaseLogin}
+            </h1>
+            <p className="text-muted-foreground">
+              You need to be logged in to create a new listing.
+            </p>
+          </div>
         </div>
-      </div>
+      </PageTransition>
     );
   }
 
   if (user?.user_type !== "business") {
     return (
-      <div className="min-h-[calc(100vh-80px)] bg-white flex items-center justify-center px-6">
-        <div className="max-w-md w-full bg-white rounded-3xl p-8 text-center">
-          <Briefcase className="w-16 h-16 text-brand mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">
-            {t.businessAccountRequired}
-          </h1>
-          <p className="text-gray-500">
-            Switch to a business account to start selling.
-          </p>
+      <PageTransition>
+        <div className="min-h-screen bg-background flex items-center justify-center px-6">
+          <div className="max-w-md w-full bg-background rounded-3xl p-8 text-center">
+            <Briefcase className="w-16 h-16 text-brand mx-auto mb-4" />
+            <h1 className="text-2xl font-bold text-foreground mb-2">
+              {t.businessAccountRequired}
+            </h1>
+            <p className="text-muted-foreground">
+              Switch to a business account to start selling.
+            </p>
+          </div>
         </div>
-      </div>
+      </PageTransition>
     );
   }
 
   // --- Main Render ---
   console.log('CreateListing: Main render - categories:', categories.length, 'loading:', categoriesLoading);
   return (
-    <div className="min-h-[calc(100vh-80px)] bg-gray-50">
-      {/* Debug Panel */}
-      <div style={{
-        position: 'fixed',
-        top: '100px',
-        right: '10px',
-        background: 'red',
-        color: 'white',
-        padding: '10px',
-        zIndex: 9999,
-        fontSize: '12px',
-        maxWidth: '300px'
-      }}>
-        <div>DEBUG INFO:</div>
-        <div>Categories: {categories.length}</div>
-        <div>Loading: {categoriesLoading ? 'true' : 'false'}</div>
-        <div>API URL: {config.API_BASE_URL}</div>
-        <div>Auth: {isAuthenticated ? 'true' : 'false'}</div>
-        <div>User Type: {user?.user_type}</div>
-        <div>Categories Data: {JSON.stringify(categories.slice(0, 2), null, 2)}</div>
-      </div>
-
+    <PageTransition>
+      <div className="min-h-screen bg-background">
       {/* Alerts */}
       {error && (
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 text-red-400" />
-            <p className="text-red-300">{error}</p>
+        <div className={spacing.pageContainer}>
+          <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-4 flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-destructive" />
+            <p className="text-destructive">{error}</p>
           </div>
         </div>
       )}
       {success && (
-        <div className="max-w-7xl mx-auto px-6 py-4">
+        <div className={spacing.pageContainer}>
           <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 flex items-center gap-3">
             <Check className="w-5 h-5 text-green-400" />
             <p className="text-green-300">{t.success}</p>
@@ -321,22 +396,22 @@ const CreateListingPage = () => {
       )}
 
       {/* Step Indicator */}
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className={spacing.pageContainer}>
         <div className="flex items-center justify-center mb-12">
-          <div className="flex items-center gap-4">
+          <div className={spacing.buttonGroupGap}>
             {[1, 2].map((num) => (
               <React.Fragment key={num}>
-                <div className={step >= num ? "text-brand" : "text-gray-400"}>
+                <div className={step >= num ? "text-brand" : "text-muted-foreground"}>
                   <div
                     className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
-                      step >= num ? "bg-brand text-white" : "bg-gray-200"
+                      step >= num ? "bg-brand text-white" : "bg-muted"
                     }`}
                   >
                     {num}
                   </div>
                 </div>
                 {num === 1 && (
-                  <ChevronRight className="w-6 h-6 text-gray-300" />
+                  <ChevronRight className="w-6 h-6 text-muted-foreground" />
                 )}
               </React.Fragment>
             ))}
@@ -346,24 +421,21 @@ const CreateListingPage = () => {
         {/* Step 1: Category Selection */}
         {step === 1 && (
           <div>
-            <h2 className="text-3xl font-bold text-gray-800 mb-8 text-center">
+            <h2 className="text-3xl font-bold text-foreground mb-8 text-center">
               {t.selectCategory}
             </h2>
             {categoriesLoading ? (
-              <div className="flex flex-col items-center justify-center py-16">
-                <Loader2 className="w-8 h-8 text-brand animate-spin" />
-                <p className="mt-4 text-gray-600">{t.loadingCategories}</p>
+              <div className={layout.grid3}>
+                {Array(6).fill(0).map((_, i) => (
+                  <CardSkeleton key={i} />
+                ))}
               </div>
             ) : (
               <>
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-8"
-                >
+                <StaggerContainer className={layout.grid3}>
                   {categories.length === 0 ? (
                     <div className="col-span-full text-center py-16">
-                      <p className="text-gray-500 text-lg">No categories found</p>
+                      <p className="text-muted-foreground text-lg">No categories found</p>
                     </div>
                   ) : (
                     categories.map((category, index) => {
@@ -375,93 +447,88 @@ const CreateListingPage = () => {
                       const description = design.description || "Explore this category";
 
                       return (
-                        <motion.button
-                          key={category.id}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: index * 0.1 }}
-                          whileHover={{ y: -8, scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                          onClick={() => handleCategorySelect(category)}
-                          className={`relative overflow-hidden rounded-3xl p-8 transition-all duration-300 ${
-                            isSelected
-                              ? `bg-gradient-to-br ${gradient} shadow-2xl border-2 border-white`
-                              : `bg-gradient-to-br ${gradientLight} border-2 border-gray-200 hover:border-gray-300`
-                          }`}
-                        >
-                          <div className="relative z-10">
-                            <div
-                              className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 ${
-                                isSelected
-                                  ? "bg-white/20 backdrop-blur"
-                                  : `bg-gradient-to-br ${gradient}`
-                              }`}
-                            >
-                              <Icon className="w-9 h-9 text-white" />
+                        <StaggerItem key={category.id}>
+                          <motion.button
+                            whileHover={{ y: -8, scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => handleCategorySelect(category)}
+                            className={`relative overflow-hidden rounded-3xl ${spacing.cardPadding} transition-all duration-300 ${
+                              isSelected
+                                ? `bg-gradient-to-br ${gradient} shadow-2xl border-2 border-white`
+                                : `bg-gradient-to-br ${gradientLight} border-2 border-border hover:border-border`
+                            }`}
+                          >
+                            <div className="relative z-10">
+                              <div
+                                className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 ${
+                                  isSelected
+                                    ? "bg-white/20 backdrop-blur"
+                                    : `bg-gradient-to-br ${gradient}`
+                                }`}
+                              >
+                                <Icon className="w-9 h-9 text-white" />
+                              </div>
+                              <h3
+                                className={`text-2xl font-bold mb-2 text-left ${
+                                  isSelected ? "text-white" : "text-foreground"
+                                }`}
+                              >
+                                {category.name}
+                              </h3>
+                              <p
+                                className={`text-sm text-left ${
+                                  isSelected ? "text-white/90" : "text-muted-foreground"
+                                }`}
+                              >
+                                {description}
+                              </p>
+                              <AnimatePresence>
+                                {isSelected && (
+                                  <motion.div
+                                    initial={{ scale: 0, opacity: 0 }}
+                                    animate={{ scale: 1, opacity: 1 }}
+                                    exit={{ scale: 0, opacity: 0 }}
+                                    transition={{
+                                      type: "spring",
+                                      stiffness: 500,
+                                      damping: 25,
+                                    }}
+                                    className="absolute top-4 right-4 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-lg"
+                                  >
+                                    <Check className="w-5 h-5 text-green-600" />
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
                             </div>
-                            <h3
-                              className={`text-2xl font-bold mb-2 text-left ${
-                                isSelected ? "text-white" : "text-gray-900"
-                              }`}
-                            >
-                              {category.name}
-                            </h3>
-                            <p
-                              className={`text-sm text-left ${
-                                isSelected ? "text-white/90" : "text-gray-600"
-                              }`}
-                            >
-                              {description}
-                            </p>
-                            <AnimatePresence>
-                              {isSelected && (
-                                <motion.div
-                                  initial={{ scale: 0, opacity: 0 }}
-                                  animate={{ scale: 1, opacity: 1 }}
-                                  exit={{ scale: 0, opacity: 0 }}
-                                  transition={{
-                                    type: "spring",
-                                    stiffness: 500,
-                                    damping: 25,
-                                  }}
-                                  className="absolute top-4 right-4 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-lg"
-                                >
-                                  <Check className="w-5 h-5 text-green-600" />
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
-                          </div>
-                        </motion.button>
+                          </motion.button>
+                        </StaggerItem>
                       );
                     })
                   )}
-                </motion.div>
+                </StaggerContainer>
 
                 {/* Subcategories */}
                 {selectedCategory && subcategories.length > 0 && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="bg-white rounded-3xl p-8 border-2 border-gray-200 shadow-lg"
-                  >
-                    <h3 className="text-2xl font-bold text-gray-900 mb-4">
+                  <AnimatedWrapper animation="fadeInUp" className={`bg-background rounded-3xl ${spacing.cardPadding} border-2 border-border shadow-lg`}>
+                    <h3 className="text-2xl font-bold text-foreground mb-4">
                       {t.selectSubcategory}
                     </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                    <StaggerContainer className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                       {subcategories.map((subcategory) => (
-                        <motion.button
-                          key={subcategory.id}
-                          whileHover={{ scale: 1.05 }}
-                          onClick={() => handleSubcategorySelect(subcategory)}
-                          className="relative bg-gradient-to-br from-white to-gray-50 border-2 border-gray-200 rounded-xl p-4 hover:shadow-lg transition-all"
-                        >
-                          <p className="text-gray-900 font-semibold text-center text-sm">
-                            {subcategory.name}
-                          </p>
-                        </motion.button>
+                        <StaggerItem key={subcategory.id}>
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            onClick={() => handleSubcategorySelect(subcategory)}
+                            className="relative bg-gradient-to-br from-background to-muted border-2 border-border rounded-xl p-4 hover:shadow-lg transition-all"
+                          >
+                            <p className="text-foreground font-semibold text-center text-sm">
+                              {subcategory.name}
+                            </p>
+                          </motion.button>
+                        </StaggerItem>
                       ))}
-                    </div>
-                  </motion.div>
+                    </StaggerContainer>
+                  </AnimatedWrapper>
                 )}
               </>
             )}
@@ -471,191 +538,210 @@ const CreateListingPage = () => {
         {/* Step 2: Listing Details */}
         {step === 2 && (
           <div className="max-w-4xl mx-auto">
-            <div className="bg-white rounded-3xl p-8 border border-gray-100">
-              <div className="mb-8 p-4 bg-gray-50 rounded-2xl border border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-brand/10 rounded-xl flex items-center justify-center">
-                      {React.createElement(
-                        categoryIconMap[selectedCategory.slug] || ShoppingBag,
-                        { className: "w-6 h-6 text-brand" }
-                      )}
+            <AnimatedWrapper animation="fadeInUp">
+              <div className={`bg-background rounded-3xl ${spacing.cardPadding} border border-border`}>
+                <div className={`mb-8 ${spacing.cardPadding} bg-muted rounded-2xl border border-border`}>
+                  <div className="flex items-center justify-between">
+                    <div className={spacing.buttonGap}>
+                      <div className="w-12 h-12 bg-brand/10 rounded-xl flex items-center justify-center">
+                        {React.createElement(
+                          categoryIconMap[selectedCategory.slug] || ShoppingBag,
+                          { className: "w-6 h-6 text-brand" }
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground text-sm">Category</p>
+                        <p className="text-foreground font-bold">
+                          {selectedCategory.name} → {selectedSubcategory.name}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-gray-500 text-sm">Category</p>
-                      <p className="text-gray-800 font-bold">
-                        {selectedCategory.name} → {selectedSubcategory.name}
+                    <button
+                      onClick={() => {
+                        setStep(1);
+                        setSelectedSubcategory(null);
+                      }}
+                      className="text-brand text-sm font-semibold"
+                    >
+                      {t.change}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Image Upload */}
+                <div className="mb-8">
+                  <h3 className="text-xl font-bold text-foreground mb-4 flex items-center gap-2">
+                    <ImageIcon className="w-6 h-6 text-brand" />
+                    {t.uploadPhotos}
+                  </h3>
+                  <div className={`grid grid-cols-2 md:grid-cols-4 ${spacing.gridGap} mb-4`}>
+                    {uploadedImages.map((image, index) => (
+                      <div key={index} className="relative group">
+                        <img
+                          src={image}
+                          alt={`Upload ${index + 1}`}
+                          className="w-full h-32 object-cover rounded-xl border border-border"
+                        />
+                        <button
+                          onClick={() => removeImage(index)}
+                          className="absolute top-2 right-2 bg-destructive rounded-full p-1 opacity-0 group-hover:opacity-100"
+                        >
+                          <X className="w-4 h-4 text-background" />
+                        </button>
+                      </div>
+                    ))}
+                    {loading && Array(2).fill(0).map((_, i) => (
+                      <Skeleton key={`skeleton-${i}`} className="h-32 w-full rounded-xl" />
+                    ))}
+                  </div>
+                  <label className="block">
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      className="hidden"
+                    />
+                    <div className="border-2 border-dashed border-muted-foreground rounded-2xl p-8 text-center cursor-pointer hover:border-brand">
+                      <Upload className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                      <p className="text-muted-foreground">{t.dragDrop}</p>
+                      <p className="text-muted-foreground text-sm mt-2">
+                        {uploadedImages.length}/10
                       </p>
                     </div>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setStep(1);
-                      setSelectedSubcategory(null);
-                    }}
-                    className="text-brand text-sm font-semibold"
-                  >
-                    {t.change}
-                  </button>
-                </div>
-              </div>
-
-              {/* Image Upload */}
-              <div className="mb-8">
-                <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                  <ImageIcon className="w-6 h-6 text-brand" />
-                  {t.uploadPhotos}
-                </h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                  {uploadedImages.map((image, index) => (
-                    <div key={index} className="relative group">
-                      <img
-                        src={image}
-                        alt={`Upload ${index + 1}`}
-                        className="w-full h-32 object-cover rounded-xl border border-gray-200"
-                      />
-                      <button
-                        onClick={() => removeImage(index)}
-                        className="absolute top-2 right-2 bg-red-500 rounded-full p-1 opacity-0 group-hover:opacity-100"
-                      >
-                        <X className="w-4 h-4 text-white" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-                <label className="block">
-                  <input
-                    type="file"
-                    multiple
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    className="hidden"
-                  />
-                  <div className="border-2 border-dashed border-gray-300 rounded-2xl p-8 text-center cursor-pointer hover:border-brand">
-                    <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-500">{t.dragDrop}</p>
-                    <p className="text-gray-400 text-sm mt-2">
-                      {uploadedImages.length}/10
-                    </p>
-                  </div>
-                </label>
-              </div>
-
-              {/* Form Fields */}
-              <div className="space-y-6">
-                <h3 className="text-xl font-bold text-gray-800 mb-4">
-                  {t.listingDetails}
-                </h3>
-                <div>
-                  <label className="block text-gray-500 mb-2 text-sm font-semibold">
-                    {t.title} <span className="text-brand">*</span>
                   </label>
-                  <input
-                    type="text"
-                    value={formData.title}
-                    onChange={(e) => handleInputChange("title", e.target.value)}
-                    placeholder={t.titlePlaceholder}
-                    className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-3 text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand"
-                  />
                 </div>
-                <div>
-                  <label className="block text-gray-500 mb-2 text-sm font-semibold">
-                    {t.description} <span className="text-brand">*</span>
-                  </label>
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) =>
-                      handleInputChange("description", e.target.value)
-                    }
-                    placeholder={t.descriptionPlaceholder}
-                    rows="6"
-                    className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-3 text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand resize-none"
-                  />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                {/* Form Fields */}
+                <div className={spacing.formGap}>
+                  <h3 className="text-xl font-bold text-foreground mb-4">
+                    {t.listingDetails}
+                  </h3>
                   <div>
-                    <label className="block text-gray-500 mb-2 text-sm font-semibold">
-                      <DollarSign className="w-4 h-4 inline mr-1" />
-                      {t.price} <span className="text-brand">*</span>
+                    <label className="block text-muted-foreground mb-2 text-sm font-semibold">
+                      {t.title} <span className="text-brand">*</span>
                     </label>
                     <input
-                      type="number"
-                      value={formData.price}
-                      onChange={(e) =>
-                        handleInputChange("price", e.target.value)
-                      }
-                      placeholder={t.pricePlaceholder}
-                      step="0.01"
-                      className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-3 text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand"
+                      type="text"
+                      value={formData.title}
+                      onChange={(e) => handleInputChange("title", e.target.value)}
+                      placeholder={t.titlePlaceholder}
+                      className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-foreground focus:outline-none focus:ring-2 focus:ring-brand"
                     />
                   </div>
                   <div>
-                    <label className="block text-gray-500 mb-2 text-sm font-semibold">
-                      {t.currency}
+                    <label className="block text-muted-foreground mb-2 text-sm font-semibold">
+                      {t.description} <span className="text-brand">*</span>
                     </label>
-                    <select
-                      value={formData.currency}
+                    <textarea
+                      value={formData.description}
                       onChange={(e) =>
-                        handleInputChange("currency", e.target.value)
+                        handleInputChange("description", e.target.value)
                       }
-                      className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-3 text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand"
-                    >
-                      <option>EUR</option>
-                      <option>USD</option>
-                      <option>GBP</option>
-                      <option>TRY</option>
-                    </select>
+                      placeholder={t.descriptionPlaceholder}
+                      rows="6"
+                      className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-foreground focus:outline-none focus:ring-2 focus:ring-brand resize-none"
+                    />
                   </div>
-                </div>
-                <div>
-                  <label className="block text-gray-500 mb-2 text-sm font-semibold">
-                    <MapPin className="w-4 h-4 inline mr-1" />
-                    {t.location} <span className="text-brand">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.location}
-                    onChange={(e) =>
-                      handleInputChange("location", e.target.value)
-                    }
-                    placeholder={t.locationPlaceholder}
-                    className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-3 text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand"
-                  />
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="flex gap-4 mt-8 pt-6 border-t border-gray-200">
-                <button
-                  onClick={() => setStep(1)}
-                  disabled={loading}
-                  className="flex-1 bg-gray-200 border border-gray-300 text-gray-800 py-4 px-6 rounded-2xl hover:bg-gray-300 disabled:opacity-50 font-semibold"
-                >
-                  {t.back}
-                </button>
-                <button
-                  onClick={handleSubmit}
-                  disabled={loading}
-                  className="flex-1 bg-brand text-white py-4 px-6 rounded-2xl hover:bg-brand-dark disabled:opacity-50 flex items-center justify-center gap-2 font-semibold"
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      {t.creatingListing}
-                    </>
-                  ) : (
-                    <>
-                      <Check className="w-5 h-5" />
-                      {t.publish}
-                    </>
+                  <div className={`grid grid-cols-1 md:grid-cols-2 ${spacing.gridGap}`}>
+                    <div>
+                      <label className="block text-muted-foreground mb-2 text-sm font-semibold">
+                        <DollarSign className="w-4 h-4 inline mr-1" />
+                        {t.price} <span className="text-brand">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        value={formData.price}
+                        onChange={(e) =>
+                          handleInputChange("price", e.target.value)
+                        }
+                        placeholder={t.pricePlaceholder}
+                        step="0.01"
+                        className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-foreground focus:outline-none focus:ring-2 focus:ring-brand"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-muted-foreground mb-2 text-sm font-semibold">
+                        {t.currency}
+                      </label>
+                      <select
+                        value={formData.currency}
+                        onChange={(e) =>
+                          handleInputChange("currency", e.target.value)
+                        }
+                        className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-foreground focus:outline-none focus:ring-2 focus:ring-brand"
+                      >
+                        <option>EUR</option>
+                        <option>USD</option>
+                        <option>GBP</option>
+                        <option>TRY</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-muted-foreground mb-2 text-sm font-semibold">
+                      <MapPin className="w-4 h-4 inline mr-1" />
+                      {t.location} <span className="text-brand">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.location}
+                      onChange={(e) =>
+                        handleInputChange("location", e.target.value)
+                      }
+                      placeholder={t.locationPlaceholder}
+                      className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-foreground focus:outline-none focus:ring-2 focus:ring-brand"
+                    />
+                  </div>
+                  
+                  {/* Dynamic Fields */}
+                  {selectedCategory?.schema?.fields && (
+                    <div className="mt-8 pt-6 border-t border-border">
+                      <h3 className="text-xl font-bold text-foreground mb-4 flex items-center gap-2">
+                        <Sparkles className="w-6 h-6 text-brand" />
+                        {selectedCategory.name} Details
+                      </h3>
+                      <div className={spacing.formGap}>
+                        {renderDynamicFields()}
+                      </div>
+                    </div>
                   )}
-                </button>
+                </div>
+
+                {/* Actions */}
+                <div className={`flex ${spacing.buttonGroupGap} mt-8 pt-6 border-t border-border`}>
+                  <button
+                    onClick={() => setStep(1)}
+                    disabled={loading}
+                    className="flex-1 bg-muted border border-border text-foreground py-4 px-6 rounded-2xl hover:bg-muted/80 disabled:opacity-50 font-semibold"
+                  >
+                    {t.back}
+                  </button>
+                  <button
+                    onClick={handleSubmit}
+                    disabled={loading}
+                    className="flex-1 bg-brand text-background py-4 px-6 rounded-2xl hover:bg-brand/90 disabled:opacity-50 flex items-center justify-center gap-2 font-semibold"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        {t.creatingListing}
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-5 h-5" />
+                        {t.publish}
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
-            </div>
+            </AnimatedWrapper>
           </div>
         )}
       </div>
-    </div>
+      </div>
+    </PageTransition>
   );
 };
 

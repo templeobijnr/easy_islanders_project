@@ -23,12 +23,20 @@ import { getAllCategories } from '../../lib/categoryDesign';
 import { Tabs, TabsList, TabsTrigger } from '../../components/ui/tabs';
 import { Badge } from '../../components/ui/badge';
 import { Card, CardContent } from '../../components/ui/card';
+import { Skeleton } from '../../components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import EditListingModal from '../../components/modals/EditListingModal';
 import DeleteConfirmModal from '../../components/modals/DeleteConfirmModal';
 import PublishActionModal from '../../components/modals/PublishActionModal';
 import axios from 'axios';
 import config from '../../config';
+import { spacing, layout } from '../../lib/spacing';
+import { AnimatedWrapper, StaggerContainer, StaggerItem } from '../../components/ui/animated-wrapper';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
+
+const CardSkeleton = ({ className }) => (
+  <div className={`animate-pulse rounded-lg bg-gray-200 ${className || 'h-48'}`} />
+);
 
 const MyListings = () => {
   const [listings, setListings] = useState([]);
@@ -173,16 +181,16 @@ const MyListings = () => {
   };
 
   return (
-    <div className="bg-background/90 backdrop-blur rounded-2xl border border-border p-8">
+    <div className={`bg-white/90 backdrop-blur rounded-2xl border border-slate-200 ${spacing.cardPadding}`}>
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between mb-8"
+        className={`flex items-center justify-between ${spacing.sectionSmall}`}
       >
         <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">My Listings</h1>
-          <p className="text-muted-foreground">Manage your marketplace offerings</p>
+          <h1 className="text-3xl font-bold text-slate-900 mb-2">My Listings</h1>
+          <p className="text-slate-600">Manage your marketplace offerings</p>
         </div>
         <Link
           to="/create-listing"
@@ -220,11 +228,11 @@ const MyListings = () => {
           variants={container}
           initial="hidden"
           animate="show"
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"
+          className={`${layout.grid4} ${spacing.sectionSmall}`}
         >
           <motion.div variants={item}>
             <Card className="group cursor-pointer hover:shadow-xl transition-all duration-300">
-              <CardContent className="p-6">
+              <CardContent className={spacing.cardPadding}>
                 <div className="flex items-center justify-between mb-3">
                   <div className="p-3 bg-primary/30 rounded-xl group-hover:scale-110 transition-transform duration-300">
                     <Package className="w-6 h-6 text-primary" />
@@ -246,7 +254,7 @@ const MyListings = () => {
 
           <motion.div variants={item}>
             <Card className="group cursor-pointer hover:shadow-xl transition-all duration-300">
-              <CardContent className="p-6">
+              <CardContent className={spacing.cardPadding}>
                 <div className="flex items-center justify-between mb-3">
                   <div className="p-3 bg-success/30 rounded-xl group-hover:scale-110 transition-transform duration-300">
                     <CheckCircle2 className="w-6 h-6 text-success" />
@@ -268,7 +276,7 @@ const MyListings = () => {
 
           <motion.div variants={item}>
             <Card className="group cursor-pointer hover:shadow-xl transition-all duration-300">
-              <CardContent className="p-6">
+              <CardContent className={spacing.cardPadding}>
                 <div className="flex items-center justify-between mb-3">
                   <div className="p-3 bg-warning/30 rounded-xl group-hover:scale-110 transition-transform duration-300">
                     <FileText className="w-6 h-6 text-warning" />
@@ -290,13 +298,13 @@ const MyListings = () => {
 
           <motion.div variants={item}>
             <Card className="group cursor-pointer hover:shadow-xl transition-all duration-300">
-              <CardContent className="p-6">
+              <CardContent className={spacing.cardPadding}>
                 <div className="flex items-center justify-between mb-3">
-                  <div className="p-3 bg-purple-500/30 rounded-xl group-hover:scale-110 transition-transform duration-300">
-                    <TrendingUp className="w-6 h-6 text-purple-700" />
+                  <div className="p-3 bg-accent/30 rounded-xl group-hover:scale-110 transition-transform duration-300">
+                    <TrendingUp className="w-6 h-6 text-accent" />
                   </div>
                   <motion.p
-                    className="text-4xl font-bold text-purple-700"
+                    className="text-4xl font-bold text-accent"
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
                     transition={{ type: "spring", delay: 0.5 }}
@@ -305,7 +313,7 @@ const MyListings = () => {
                   </motion.p>
                 </div>
                 <h3 className="text-sm font-semibold text-foreground mb-1">Total Views</h3>
-                <p className="text-xs text-purple-700">Across all listings</p>
+                <p className="text-xs text-accent">Across all listings</p>
               </CardContent>
             </Card>
           </motion.div>
@@ -316,7 +324,7 @@ const MyListings = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="mb-6"
+          className={spacing.sectionSmall}
         >
           <Tabs value={categoryFilter} onValueChange={setCategoryFilter} className="w-full">
             <TabsList className="w-full justify-start overflow-x-auto bg-slate-100 p-1.5 rounded-xl">
@@ -364,7 +372,7 @@ const MyListings = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="bg-background border border-border rounded-2xl p-6 mb-6 shadow-sm"
+          className={`bg-background border border-border rounded-2xl ${spacing.cardPadding} ${spacing.sectionSmall} shadow-sm`}
         >
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {/* Search */}
@@ -416,22 +424,11 @@ const MyListings = () => {
 
         {/* Loading State */}
         {loading && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="flex items-center justify-center py-24"
-          >
-            <div className="text-center">
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                className="inline-block"
-              >
-                <Package className="w-12 h-12 text-lime-600 mb-4" />
-              </motion.div>
-              <p className="text-slate-600 font-medium">Loading your listings...</p>
-            </div>
-          </motion.div>
+          <div className={layout.grid3}>
+            {Array(6).fill(0).map((_, i) => (
+              <CardSkeleton key={i} />
+            ))}
+          </div>
         )}
 
         {/* Error State */}
@@ -439,7 +436,7 @@ const MyListings = () => {
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-red-50 border border-red-200 rounded-2xl p-6 flex items-center gap-4 mb-6 shadow-sm"
+            className={`bg-red-50 border border-red-200 rounded-2xl ${spacing.cardPadding} flex items-center gap-4 mb-6 shadow-sm`}
           >
             <AlertCircle className="w-6 h-6 text-red-600 flex-shrink-0" />
             <div className="flex-1">
@@ -455,9 +452,8 @@ const MyListings = () => {
 
         {/* Empty State */}
         {!loading && sortedListings.length === 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
+          <AnimatedWrapper
+            animation="scaleIn"
             className="bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200 rounded-2xl p-16 text-center shadow-inner"
           >
             <motion.div
@@ -484,23 +480,18 @@ const MyListings = () => {
                 Create Your First Listing
               </Link>
             )}
-          </motion.div>
+          </AnimatedWrapper>
         )}
 
         {/* Listings Grid */}
         {!loading && sortedListings.length > 0 && (
-          <motion.div
-            variants={container}
-            initial="hidden"
-            animate="show"
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-          >
+          <StaggerContainer className={layout.grid3}>
             {sortedListings.map((listing, index) => (
-              <motion.div
-                key={listing.id}
-                variants={item}
-                whileHover={{ y: -8, scale: 1.02 }}
-              >
+              <StaggerItem>
+                <motion.div
+                  key={listing.id}
+                  whileHover={{ y: -8, scale: 1.02 }}
+                >
                 <Card className="overflow-hidden hover:shadow-xl transition-all duration-300 group">
                   {/* Listing Image */}
                   <div className="relative h-48 bg-gradient-to-br from-slate-100 to-slate-200 overflow-hidden">
@@ -511,9 +502,9 @@ const MyListings = () => {
                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center">
+                      <Skeleton className="w-full h-full flex items-center justify-center">
                         <ImageIcon className="w-16 h-16 text-slate-300" />
-                      </div>
+                      </Skeleton>
                     )}
 
                     {/* Status Badge */}
@@ -526,26 +517,34 @@ const MyListings = () => {
                     {/* Quick Actions */}
                     <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                       <div className="flex gap-2">
-                        <button
-                          onClick={() => setPreviewListing(listing)}
-                          className="p-2 bg-white/90 backdrop-blur-sm rounded-lg hover:bg-white shadow-lg transition-colors"
-                          title="Quick View"
-                        >
-                          <Eye className="w-4 h-4 text-slate-700" />
-                        </button>
-                        <button
-                          onClick={() => setEditingListing(listing)}
-                          className="p-2 bg-white/90 backdrop-blur-sm rounded-lg hover:bg-white shadow-lg transition-colors"
-                          title="Edit"
-                        >
-                          <Edit3 className="w-4 h-4 text-slate-700" />
-                        </button>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={() => setPreviewListing(listing)}
+                              className="p-2 bg-white/90 backdrop-blur-sm rounded-lg hover:bg-white shadow-lg transition-colors"
+                            >
+                              <Eye className="w-4 h-4 text-slate-700" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>Quick View</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={() => setEditingListing(listing)}
+                              className="p-2 bg-white/90 backdrop-blur-sm rounded-lg hover:bg-white shadow-lg transition-colors"
+                            >
+                              <Edit3 className="w-4 h-4 text-slate-700" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>Edit</TooltipContent>
+                        </Tooltip>
                       </div>
                     </div>
                   </div>
 
                   {/* Listing Details */}
-                  <CardContent className="p-5">
+                  <CardContent className={spacing.cardPadding}>
                     <div className="mb-4">
                       <h3 className="text-lg font-bold text-foreground mb-1 line-clamp-1 group-hover:text-primary transition-colors">
                         {listing.title}
@@ -583,27 +582,36 @@ const MyListings = () => {
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleDuplicate(listing)}
-                          className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-                          title="Duplicate"
-                        >
-                          <Copy className="w-4 h-4 text-slate-600" />
-                        </button>
-                        <button
-                          onClick={() => setDeletingListing(listing)}
-                          className="p-2 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-4 h-4 text-destructive" />
-                        </button>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={() => handleDuplicate(listing)}
+                              className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                            >
+                              <Copy className="w-4 h-4 text-slate-600" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>Duplicate</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={() => setDeletingListing(listing)}
+                              className="p-2 hover:bg-red-50 rounded-lg transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4 text-destructive" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>Delete</TooltipContent>
+                        </Tooltip>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
-              </motion.div>
+                </motion.div>
+              </StaggerItem>
             ))}
-          </motion.div>
+          </StaggerContainer>
         )}
       </div>
 

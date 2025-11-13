@@ -1,7 +1,8 @@
 import React from 'react';
-import { motion, Variants } from 'framer-motion';
+import { Variants } from 'framer-motion';
 import { useLocation } from 'react-router-dom';
 import * as animations from '../../lib/animations';
+import { MotionDiv } from './motion-wrapper';
 
 interface AnimatedWrapperProps {
   children: React.ReactNode;
@@ -28,7 +29,7 @@ export const AnimatedWrapper: React.FC<AnimatedWrapperProps> = ({
   duration,
   as = 'div'
 }) => {
-  const MotionComponent = motion[as as keyof typeof motion] as any;
+  const MotionComponent = MotionDiv;
   const variant = animations[animation] as Variants;
 
   // Override duration if provided
@@ -69,20 +70,22 @@ export const AnimatedWrapper: React.FC<AnimatedWrapperProps> = ({
 export const PageTransition: React.FC<{
   children: React.ReactNode;
   className?: string;
-}> = ({ children, className = '' }) => {
+  delay?: number;
+}> = ({ children, className = '', delay = 0 }) => {
   const location = useLocation();
 
   return (
-    <motion.div
+    <MotionDiv
       key={location.pathname}
       variants={animations.pageTransition}
       initial="initial"
       animate="animate"
       exit="exit"
+      transition={{ delay }}
       className={className}
     >
       {children}
-    </motion.div>
+    </MotionDiv>
   );
 };
 
@@ -100,14 +103,14 @@ export const StaggerContainer: React.FC<{
   className?: string;
 }> = ({ children, className = '' }) => {
   return (
-    <motion.div
+    <MotionDiv
       variants={animations.staggerContainer}
       initial="hidden"
       animate="visible"
       className={className}
     >
       {children}
-    </motion.div>
+    </MotionDiv>
   );
 };
 
@@ -116,9 +119,9 @@ export const StaggerItem: React.FC<{
   className?: string;
 }> = ({ children, className = '' }) => {
   return (
-    <motion.div variants={animations.staggerItem} className={className}>
+    <MotionDiv variants={animations.staggerItem} className={className}>
       {children}
-    </motion.div>
+    </MotionDiv>
   );
 };
 
@@ -131,13 +134,13 @@ export const AnimatedCard: React.FC<{
   glow?: boolean;
 }> = ({ children, className = '', glow = false }) => {
   return (
-    <motion.div
+    <MotionDiv
       variants={glow ? animations.cardHoverGlow : animations.cardHover}
       initial="rest"
       whileHover="hover"
       className={className}
     >
       {children}
-    </motion.div>
+    </MotionDiv>
   );
 };

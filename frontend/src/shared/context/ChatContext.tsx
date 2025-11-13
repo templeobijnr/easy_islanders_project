@@ -37,7 +37,7 @@ interface ChatState {
   typing: boolean;
   setTyping: (v: boolean) => void;
   results: any[];
-  bottomRef: React.RefObject<HTMLDivElement>;
+  bottomRef: React.RefObject<HTMLDivElement | null>;
   onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   sendMessage: (text: string, role?: Role) => void;
 

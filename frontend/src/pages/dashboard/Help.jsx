@@ -160,7 +160,7 @@ const Help = () => {
       </div>
 
       {/* Contact Support */}
-      <div className="bg-gradient-to-r from-lime-600 to-lime-700 rounded-xl p-6 text-white">
+      <div className="bg-gradient-to-r from-emerald-600 to-sky-700 rounded-xl p-6 text-white">
           <h3 className="text-lg font-semibold mb-4">Still need help?</h3>
           <p className="text-lime-50 mb-6">Can't find what you're looking for? Our support team is here to help you succeed.</p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { motion } from 'framer-motion';
+import { MotionDiv } from '../../../components/ui/motion-wrapper';
 import { Card, CardContent } from '../../../components/ui/card';
 import StatusBadge from './StatusBadge';
 import PaymentBadge from './PaymentBadge';
@@ -30,17 +30,17 @@ const BookingCard: React.FC<BookingCardProps> = ({
   };
 
   return (
-    <motion.div
-      whileHover={{ scale: onClick ? 1.02 : 1 }}
-      transition={{ duration: 0.2 }}
-      className={className}
-    >
-      <Card
-        className={`${
-          onClick ? 'cursor-pointer hover:shadow-lg' : ''
-        } transition-shadow duration-200`}
-        onClick={handleClick}
+    <div className={className}>
+      <MotionDiv
+        whileHover={{ scale: onClick ? 1.02 : 1 }}
+        transition={{ duration: 0.2 }}
       >
+        <Card
+          className={`${
+            onClick ? 'cursor-pointer hover:shadow-lg' : ''
+          } transition-shadow duration-200`}
+          onClick={handleClick}
+        >
         <CardContent className="p-6">
           <div className="flex items-start space-x-4">
             {/* Booking Type Icon */}
@@ -129,8 +129,9 @@ const BookingCard: React.FC<BookingCardProps> = ({
             </div>
           </div>
         </CardContent>
-      </Card>
-    </motion.div>
+        </Card>
+      </MotionDiv>
+    </div>
   );
 };
 

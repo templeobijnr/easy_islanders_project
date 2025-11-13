@@ -1,16 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { User, Mail, Phone, Save, Loader2, Check, AlertCircle } from 'lucide-react';
+import { User, Mail, Phone, Save, Loader2, Check, AlertCircle, Upload } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
 import config from '../config';
 import { Button } from '../components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
+import { PageTransition, StaggerContainer, StaggerItem, AnimatedWrapper } from '../components/ui/animated-wrapper';
+import { spacing, layout } from '../lib/spacing';
+import { Badge } from '../components/ui/badge';
+import { Input } from '../components/ui/input';
+import { Skeleton } from '../components/ui/skeleton';
 
 const Profile = () => {
   const { isAuthenticated } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [profileData, setProfileData] = useState(null);
   const [formData, setFormData] = useState({
     username: '',
@@ -76,6 +82,27 @@ const Profile = () => {
     }
   };
 
+  const handleAvatarUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    setUploadingAvatar(true);
+    try {
+      const token = localStorage.getItem('token');
+      const formDataUpload = new FormData();
+      formDataUpload.append('avatar', file);
+      await axios.post(`${config.API_BASE_URL}/api/auth/profile/avatar/`, formDataUpload, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      await fetchProfile(); // Refresh profile data
+    } catch (err) {
+      console.error('Failed to upload avatar:', err);
+      setMessage({ type: 'error', text: 'Failed to upload avatar' });
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
   const getInitials = (name) => {
     if (!name) return '?';
     const names = name.split(' ');
@@ -87,214 +114,230 @@ const Profile = () => {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-[calc(100vh-80px)] bg-muted flex items-center justify-center p-6">
-        <div className="max-w-md w-full bg-card rounded-3xl p-8 text-center shadow-lg border border-border">
-          <AlertCircle className="w-16 h-16 text-primary mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-foreground mb-2">Authentication Required</h1>
-          <p className="text-muted-foreground">Please log in to view your profile.</p>
+      <PageTransition>
+        <div className={`min-h-[calc(100vh-80px)] bg-muted flex items-center justify-center ${spacing.cardPadding}`}>
+          <div className="max-w-md w-full bg-card rounded-3xl p-8 text-center shadow-lg border border-border">
+            <AlertCircle className="w-16 h-16 text-primary mx-auto mb-4" />
+            <h1 className="text-2xl font-bold text-foreground mb-2">Authentication Required</h1>
+            <p className="text-muted-foreground">Please log in to view your profile.</p>
+          </div>
         </div>
-      </div>
+      </PageTransition>
     );
   }
 
   if (loading) {
     return (
-      <div className="min-h-[calc(100vh-80px)] bg-muted flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-primary animate-spin" />
-      </div>
+      <PageTransition>
+        <div className={`min-h-[calc(100vh-80px)] bg-muted ${spacing.pageContainer}`}>
+          <div className="max-w-4xl mx-auto">
+            <div className={spacing.formGap}>
+              {/* CardSkeleton placeholder */}
+              <Skeleton className="h-32 w-full rounded-2xl" />
+              <Skeleton className="h-64 w-full rounded-2xl" />
+              <Skeleton className="h-48 w-full rounded-2xl" />
+            </div>
+          </div>
+        </div>
+      </PageTransition>
     );
   }
 
   return (
-    <div className="min-h-[calc(100vh-80px)] bg-muted py-8">
-      <div className="max-w-4xl mx-auto px-4 md:px-6">
+    <PageTransition>
+      <div className={`min-h-[calc(100vh-80px)] bg-muted ${spacing.pageContainer}`}>
+        <div className={layout.containerSmall}>
         {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
-        >
+        <AnimatedWrapper animation="fadeInUp" className={spacing.section}>
           <h1 className="text-3xl font-bold text-foreground">Profile</h1>
           <p className="text-muted-foreground mt-1">Manage your account information</p>
-        </motion.div>
+        </AnimatedWrapper>
 
         {/* Success/Error Message */}
         {message.text && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className={`mb-6 p-4 rounded-xl border flex items-center gap-3 ${
+          <AnimatedWrapper animation="slideInFromTop" className="mb-6">
+            <div className={`p-4 rounded-xl border flex items-center gap-3 ${
               message.type === 'success'
-                ? 'bg-green-50 border-green-200 text-green-700'
-                : 'bg-red-50 border-red-200 text-red-700'
-            }`}
-          >
-            {message.type === 'success' ? (
-              <Check className="w-5 h-5" />
-            ) : (
-              <AlertCircle className="w-5 h-5" />
-            )}
-            <p className="text-sm font-medium">{message.text}</p>
-          </motion.div>
+                ? 'bg-success/10 border-success/20 text-success'
+                : 'bg-destructive/10 border-destructive/20 text-destructive'
+            }`}>
+              {message.type === 'success' ? (
+                <Check className="w-5 h-5" />
+              ) : (
+                <AlertCircle className="w-5 h-5" />
+              )}
+              <p className="text-sm font-medium">{message.text}</p>
+            </div>
+          </AnimatedWrapper>
         )}
 
-        {/* Profile Header Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="mb-6"
-        >
-          <Card>
-            <CardContent className="p-8">
-              <div className="flex items-center gap-6">
-                {/* Avatar */}
-                <div className="w-24 h-24 rounded-2xl bg-primary flex items-center justify-center text-white text-3xl font-bold shadow-lg">
-                  {getInitials(profileData?.username)}
-                </div>
-
-                {/* User Info */}
-                <div className="flex-1">
-                  <h2 className="text-2xl font-bold text-foreground">{profileData?.username}</h2>
-                  <p className="text-muted-foreground flex items-center gap-2 mt-1">
-                    <Mail className="w-4 h-4" />
-                    {profileData?.email}
-                  </p>
-                  {profileData?.user_type && (
-                    <div className="mt-2">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
-                        profileData.user_type === 'business'
-                          ? 'bg-purple-100 text-purple-700'
-                          : 'bg-primary/10 text-primary'
-                      }`}>
-                        {profileData.user_type === 'business' ? '💼 Business' : '👤 Consumer'}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* Edit Profile Form */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <Card>
-            <CardHeader>
-              <CardTitle>Personal Information</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                {/* Username */}
-                <div>
-                  <label className="block text-sm font-semibold text-foreground mb-2">
-                    <User className="w-4 h-4 inline mr-1" />
-                    Username
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.username}
-                    onChange={(e) => handleInputChange('username', e.target.value)}
-                    className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-                    placeholder="Enter your username"
-                  />
-                </div>
-
-                {/* Email */}
-                <div>
-                  <label className="block text-sm font-semibold text-foreground mb-2">
-                    <Mail className="w-4 h-4 inline mr-1" />
-                    Email Address
-                  </label>
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => handleInputChange('email', e.target.value)}
-                    className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-                    placeholder="Enter your email"
-                  />
-                </div>
-
-                {/* Phone */}
-                <div>
-                  <label className="block text-sm font-semibold text-foreground mb-2">
-                    <Phone className="w-4 h-4 inline mr-1" />
-                    Phone Number
-                  </label>
-                  <input
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) => handleInputChange('phone', e.target.value)}
-                    className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-                    placeholder="Enter your phone number"
-                  />
-                </div>
-
-                {/* Save Button */}
-                <Button
-                  onClick={handleSave}
-                  disabled={saving}
-                  variant="premium"
-                  className="w-full"
-                >
-                  {saving ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="w-5 h-5 mr-2" />
-                      Save Changes
-                    </>
-                  )}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* Business Profile (if applicable) */}
-        {profileData?.business_profile && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="mt-6"
-          >
+        {/* Profile Cards */}
+        <StaggerContainer className={spacing.section}>
+          {/* Profile Header Card */}
+          <StaggerItem>
             <Card>
-              <CardHeader>
-                <CardTitle>Business Information</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between py-3 border-b border-border">
-                    <span className="text-muted-foreground text-sm">Business Name</span>
-                    <span className="text-foreground font-semibold">
-                      {profileData.business_profile.business_name || 'Not set'}
-                    </span>
+              <CardContent className={spacing.cardPadding}>
+                <div className="flex items-center gap-6">
+                  {/* Avatar */}
+                  <div className="relative w-24 h-24 rounded-2xl bg-primary flex items-center justify-center text-white text-3xl font-bold shadow-lg">
+                    {profileData?.avatar ? (
+                      <motion.img
+                        src={profileData.avatar}
+                        alt="Avatar"
+                        className="w-full h-full rounded-2xl object-cover"
+                        initial={{ scale: 0.8 }}
+                        animate={{ scale: 1 }}
+                        transition={{ duration: 0.3 }}
+                      />
+                    ) : (
+                      getInitials(profileData?.username)
+                    )}
+                    {uploadingAvatar && (
+                      <div className="absolute inset-0 bg-black/50 rounded-2xl flex items-center justify-center">
+                        <Loader2 className="w-6 h-6 text-white animate-spin" />
+                      </div>
+                    )}
+                    <label className="absolute inset-0 cursor-pointer rounded-2xl flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50">
+                      <Upload className="w-6 h-6 text-white" />
+                      <input type="file" accept="image/*" onChange={handleAvatarUpload} className="hidden" />
+                    </label>
                   </div>
-                  <div className="flex items-center justify-between py-3">
-                    <span className="text-muted-foreground text-sm">Verification Status</span>
-                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                      profileData.business_profile.is_verified_by_admin
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-yellow-100 text-yellow-700'
-                    }`}>
-                      {profileData.business_profile.is_verified_by_admin ? '✓ Verified' : '⏳ Pending'}
-                    </span>
+
+                  {/* User Info */}
+                  <div className="flex-1">
+                    <h2 className="text-2xl font-bold text-foreground">{profileData?.username}</h2>
+                    <p className="text-muted-foreground flex items-center gap-2 mt-1">
+                      <Mail className="w-4 h-4" />
+                      {profileData?.email}
+                    </p>
+                    {profileData?.user_type && (
+                      <div className="mt-2">
+                        <Badge variant={profileData.user_type === 'business' ? 'secondary' : 'default'} className={profileData.user_type === 'business' ? 'animate-pulse' : ''}>
+                          {profileData.user_type === 'business' ? '💼 Business' : '👤 Consumer'}
+                        </Badge>
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardContent>
             </Card>
-          </motion.div>
-        )}
+          </StaggerItem>
+
+          {/* Edit Profile Form */}
+          <StaggerItem>
+            <AnimatedWrapper animation="fadeInUp">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Personal Information</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className={spacing.formGap}>
+                    {/* Username */}
+                    <div>
+                      <label className="block text-sm font-semibold text-foreground mb-2">
+                        <User className="w-4 h-4 inline mr-1" />
+                        Username
+                      </label>
+                      <Input
+                        type="text"
+                        value={formData.username}
+                        onChange={(e) => handleInputChange('username', e.target.value)}
+                        placeholder="Enter your username"
+                      />
+                    </div>
+
+                    {/* Email */}
+                    <div>
+                      <label className="block text-sm font-semibold text-foreground mb-2">
+                        <Mail className="w-4 h-4 inline mr-1" />
+                        Email Address
+                      </label>
+                      <Input
+                        type="email"
+                        value={formData.email}
+                        onChange={(e) => handleInputChange('email', e.target.value)}
+                        placeholder="Enter your email"
+                      />
+                    </div>
+
+                    {/* Phone */}
+                    <div>
+                      <label className="block text-sm font-semibold text-foreground mb-2">
+                        <Phone className="w-4 h-4 inline mr-1" />
+                        Phone Number
+                      </label>
+                      <Input
+                        type="tel"
+                        value={formData.phone}
+                        onChange={(e) => handleInputChange('phone', e.target.value)}
+                        placeholder="Enter your phone number"
+                      />
+                    </div>
+
+                    {/* Save Button */}
+                    <Button
+                      onClick={handleSave}
+                      disabled={saving}
+                      variant="premium"
+                      className="w-full"
+                    >
+                      {saving ? (
+                        <>
+                          <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                          Saving...
+                        </>
+                      ) : message.type === 'success' ? (
+                        <motion.div
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          className="flex items-center"
+                        >
+                          <Check className="w-5 h-5 mr-2 text-green-600" />
+                          Saved!
+                        </motion.div>
+                      ) : (
+                        <>
+                          <Save className="w-5 h-5 mr-2" />
+                          Save Changes
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </AnimatedWrapper>
+          </StaggerItem>
+
+          {/* Business Profile (if applicable) */}
+          {profileData?.business_profile && (
+            <StaggerItem>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Business Information</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className={spacing.formGap}>
+                    <div className="flex items-center justify-between py-3 border-b border-border">
+                      <span className="text-muted-foreground text-sm">Business Name</span>
+                      <span className="text-foreground font-semibold">
+                        {profileData.business_profile.business_name || 'Not set'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between py-3">
+                      <span className="text-muted-foreground text-sm">Verification Status</span>
+                      <Badge variant={profileData.business_profile.is_verified_by_admin ? 'default' : 'secondary'}>
+                        {profileData.business_profile.is_verified_by_admin ? '✓ Verified' : '⏳ Pending'}
+                      </Badge>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </StaggerItem>
+          )}
+        </StaggerContainer>
+        </div>
       </div>
-    </div>
+    </PageTransition>
   );
 };
 

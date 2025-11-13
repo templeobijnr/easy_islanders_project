@@ -1,49 +1,20 @@
 import * as React from "react"
-import { motion } from "framer-motion"
+
 import { cn } from "../../lib/utils"
 
-interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
-  hoverGlow?: boolean
-  disableHover?: boolean
-}
-
-const Card = React.forwardRef<HTMLDivElement, CardProps>(
-  ({ className, hoverGlow = false, disableHover = false, ...props }, ref) => {
-    if (disableHover) {
-      return (
-        <div
-          ref={ref}
-          className={cn(
-            "rounded-2xl border bg-card text-card-foreground shadow-sm transition-all duration-300",
-            className
-          )}
-          {...props}
-        />
-      )
-    }
-
-    return (
-      <motion.div
-        ref={ref}
-        className={cn(
-          "rounded-2xl border bg-card text-card-foreground shadow-sm",
-          hoverGlow && "shadow-premium",
-          className
-        )}
-        whileHover={{
-          scale: 1.02,
-          y: -4,
-          boxShadow: hoverGlow
-            ? "0 20px 60px -12px rgba(108, 194, 74, 0.3)"
-            : "0 10px 30px -6px rgba(15, 23, 42, 0.15)",
-          transition: { duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }
-        }}
-        transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
-        {...(props as any)}
-      />
-    )
-  }
-)
+const Card = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn(
+      "rounded-lg border bg-card text-card-foreground shadow-sm",
+      className
+    )}
+    {...props}
+  />
+))
 Card.displayName = "Card"
 
 const CardHeader = React.forwardRef<
@@ -52,17 +23,17 @@ const CardHeader = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn("flex flex-col space-y-1.5 p-6", className)}
+    className={cn("flex flex-col space-y-1.5 p-6 relative", className)}
     {...props}
   />
 ))
 CardHeader.displayName = "CardHeader"
 
 const CardTitle = React.forwardRef<
-  HTMLParagraphElement,
-  React.HTMLAttributes<HTMLHeadingElement>
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
 >(({ className, ...props }, ref) => (
-  <h3
+  <div
     ref={ref}
     className={cn(
       "text-2xl font-semibold leading-none tracking-tight",
@@ -74,10 +45,10 @@ const CardTitle = React.forwardRef<
 CardTitle.displayName = "CardTitle"
 
 const CardDescription = React.forwardRef<
-  HTMLParagraphElement,
-  React.HTMLAttributes<HTMLParagraphElement>
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
 >(({ className, ...props }, ref) => (
-  <p
+  <div
     ref={ref}
     className={cn("text-sm text-muted-foreground", className)}
     {...props}

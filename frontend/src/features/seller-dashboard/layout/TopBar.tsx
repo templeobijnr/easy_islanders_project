@@ -1,7 +1,7 @@
 import { useSellerProfile } from "../../../hooks/useSellerDashboard";
-import { Avatar, AvatarFallback, AvatarImage } from "../../../components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Bell, LogOut, Menu } from "lucide-react";
-import { Button } from "../../../components/ui/button";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "../../../contexts/AuthContext";
 
 interface SellerProfile {

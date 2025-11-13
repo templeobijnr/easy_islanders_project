@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import { MotionDiv } from '../../../components/ui/motion-wrapper';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../../components/ui/card';
 import BookingTypeIcon from './BookingTypeIcon';
 import type { BookingType } from '../types';
@@ -91,7 +91,7 @@ const BookingTypeSelector: React.FC<BookingTypeSelectorProps> = ({
           const isSelected = selectedType?.id === type.id;
 
           return (
-            <motion.div
+            <MotionDiv
               key={type.id}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
@@ -141,18 +141,19 @@ const BookingTypeSelector: React.FC<BookingTypeSelectorProps> = ({
 
                     {/* Selected indicator */}
                     {isSelected && (
-                      <motion.div
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        className="w-full py-2 bg-lime-100 text-lime-700 rounded-lg font-medium text-sm"
-                      >
-                        ✓ Selected
-                      </motion.div>
+                      <div className="w-full py-2 bg-lime-100 text-lime-700 rounded-lg font-medium text-sm">
+                        <MotionDiv
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                        >
+                          ✓ Selected
+                        </MotionDiv>
+                      </div>
                     )}
                   </div>
                 </CardContent>
               </Card>
-            </motion.div>
+            </MotionDiv>
           );
         })}
       </div>

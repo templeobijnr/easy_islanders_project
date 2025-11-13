@@ -166,3 +166,144 @@ class UserPreference(models.Model):
             'use_count': self.use_count,
             'is_stale': self.is_stale,
         }
+
+
+class BusinessDomain(models.Model):
+    """
+    Tracks which business domains/industries a business user operates in.
+    This enables personalized dashboard experience based on their actual business.
+    """
+    
+    DOMAIN_CHOICES = [
+        ('real_estate', 'Real Estate'),
+        ('events', 'Events & Entertainment'),
+        ('activities', 'Activities & Tours'),
+        ('appointments', 'Appointments & Services'),
+        ('vehicles', 'Vehicle Rentals'),
+        ('hospitality', 'Hospitality & Accommodation'),
+        ('food_beverage', 'Food & Beverage'),
+        ('health_wellness', 'Health & Wellness'),
+        ('education', 'Education & Training'),
+        ('professional_services', 'Professional Services'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='business_domains')
+    domain = models.CharField(max_length=50, choices=DOMAIN_CHOICES, db_index=True)
+    
+    # Business details for this domain
+    is_primary = models.BooleanField(default=False, help_text="Primary business domain selected during onboarding")
+    is_active = models.BooleanField(default=True, help_text="Whether this domain is currently active")
+    
+    # Onboarding & setup
+    onboarded_at = models.DateTimeField(auto_now_add=True)
+    setup_completed = models.BooleanField(default=False, help_text="Has completed domain-specific setup")
+    
+    # Performance tracking
+    total_listings = models.IntegerField(default=0)
+    total_bookings = models.IntegerField(default=0)
+    total_revenue = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    
+    # Metadata
+    metadata = models.JSONField(default=dict, blank=True, help_text="Domain-specific settings and preferences")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "Business Domain"
+        verbose_name_plural = "Business Domains"
+        unique_together = [['user', 'domain']]
+        indexes = [
+            models.Index(fields=['user', 'is_active'], name="biz_dom_user_active_idx"),
+            models.Index(fields=['user', 'is_primary'], name="biz_dom_user_primary_idx"),
+            models.Index(fields=['domain', 'is_active'], name="biz_dom_domain_active_idx"),
+        ]
+        ordering = ['-is_primary', '-total_revenue', 'domain']
+    
+    def __str__(self):
+        primary_indicator = " (Primary)" if self.is_primary else ""
+        return f"{self.user.username} - {self.get_domain_display()}{primary_indicator}"
+    
+    @property
+    def domain_display_name(self):
+        """Get human-readable domain name."""
+        return self.get_domain_display()
+    
+    @property
+    def dashboard_config(self):
+        """Get dashboard configuration for this domain."""
+        base_config = {
+            'domain': self.domain,
+            'name': self.domain_display_name,
+            'is_primary': self.is_primary,
+            'is_active': self.is_active,
+            'setup_completed': self.setup_completed,
+            'stats': {
+                'listings': self.total_listings,
+                'bookings': self.total_bookings,
+                'revenue': float(self.total_revenue),
+            }
+        }
+        
+        # Add domain-specific configuration
+        domain_configs = {
+            'real_estate': {
+                'icon': '🏠',
+                'color': 'blue',
+                'description': 'Properties, rentals & sales',
+                'features': ['property_management', 'rental_calendar', 'tenant_screening']
+            },
+            'events': {
+                'icon': '🎉',
+                'color': 'purple',
+                'description': 'Conferences, parties & gatherings',
+                'features': ['event_planning', 'ticket_sales', 'venue_management']
+            },
+            'activities': {
+                'icon': '🎯',
+                'color': 'green',
+                'description': 'Tours, experiences & adventures',
+                'features': ['tour_scheduling', 'group_bookings', 'equipment_rental']
+            },
+            'appointments': {
+                'icon': '📅',
+                'color': 'red',
+                'description': 'Services, consultations & bookings',
+                'features': ['appointment_scheduling', 'service_catalog', 'client_management']
+            },
+            'vehicles': {
+                'icon': '🚗',
+                'color': 'orange',
+                'description': 'Car, bike & vehicle rentals',
+                'features': ['fleet_management', 'rental_tracking', 'maintenance_scheduling']
+            },
+        }
+        
+        base_config.update(domain_configs.get(self.domain, {
+            'icon': '💼',
+            'color': 'gray',
+            'description': 'Business services',
+            'features': []
+        }))
+        
+        return base_config
+    
+    def to_dict(self):
+        """Serialize to dict for API responses."""
+        return {
+            'id': str(self.id),
+            'domain': self.domain,
+            'domain_display_name': self.domain_display_name,
+            'is_primary': self.is_primary,
+            'is_active': self.is_active,
+            'setup_completed': self.setup_completed,
+            'stats': {
+                'listings': self.total_listings,
+                'bookings': self.total_bookings,
+                'revenue': float(self.total_revenue),
+            },
+            'config': self.dashboard_config,
+            'onboarded_at': self.onboarded_at.isoformat(),
+            'created_at': self.created_at.isoformat(),
+        }

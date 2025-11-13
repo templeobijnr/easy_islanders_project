@@ -45,9 +45,9 @@ urlpatterns = [
     # My Listings endpoint (seller's listings)
     path('listings/my/', my_listings, name='my-listings'),
 
-    # Categories and subcategories endpoints (legacy)
-    path('categories/', categories_list, name='categories-list'),
-    path('categories/<slug:category_slug>/subcategories/', subcategories_list, name='subcategories-list'),
+    # Categories and subcategories endpoints (legacy) - DISABLED in favor of ViewSet
+    # path('categories/', categories_list, name='categories-list'),
+    # path('categories/<slug:category_slug>/subcategories/', subcategories_list, name='subcategories-list'),
 
     # Seller, buyer requests, and broadcasts endpoints (router)
     path('', include(router.urls)),

@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { ChatHeader } from './components/ChatHeader';
 import { ChatThread } from './components/ChatThread';
 import InlineRecsCarousel from './components/InlineRecsCarousel';
@@ -8,9 +8,15 @@ import ConnectionStatus from './components/ConnectionStatus';
 import FeaturedPane from '../featured/FeaturedPane';
 import { useUi } from '../../shared/context/UiContext';
 import { useChat } from '../../shared/context/ChatContext';
-import { useChatSocket } from 'shared/hooks/useChatSocket';
-import { AnimatedWrapper } from '../../components/ui/animated-wrapper';
+import { useChatSocket } from '@/shared/hooks/useChatSocket';
+import { AnimatedWrapper, StaggerContainer, StaggerItem } from '../../components/ui/animated-wrapper';
+import { Skeleton } from '../../components/ui/skeleton';
+import { spacing } from '../../lib/spacing';
 import type { ChatMessage } from './types';
+
+// Define simple skeleton components using the base Skeleton
+const ListItemSkeleton = () => <Skeleton className="h-10 w-full mb-2" />;
+const CardSkeleton = () => <Skeleton className="h-32 w-full" />;
 
 const ChatPage: React.FC = () => {
   const { activeJob } = useUi();
@@ -27,6 +33,24 @@ const ChatPage: React.FC = () => {
     setRehydrationData,
     results, // Add results to check state
   } = useChat();
+
+  // Add loading states for skeleton loaders
+  const [loading, setLoading] = useState(true);
+  const [loadingRecs, setLoadingRecs] = useState(true);
+
+  // Set loading to false when messages are available
+  useEffect(() => {
+    if (messages.length > 0) {
+      setLoading(false);
+    }
+  }, [messages.length]);
+
+  // Set loadingRecs to false when recommendations are available
+  useEffect(() => {
+    if (results.length > 0) {
+      setLoadingRecs(false);
+    }
+  }, [results.length]);
 
   console.log('[ChatPage] State check:', {
     threadId,
@@ -106,20 +130,32 @@ const ChatPage: React.FC = () => {
     <AnimatedWrapper animation="fadeInUp" className="space-y-4">
       {/* CHAT SECTION - Top of main column */}
       <AnimatedWrapper animation="fadeInUp" delay={0.1}>
-        <section className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 overflow-hidden flex flex-col">
+        <section className="bg-white/90 backdrop-blur rounded-2xl border border-border overflow-hidden flex flex-col">
           {/* Connection Status Badge */}
           <div className="absolute top-4 right-4 z-10">
-            <ConnectionStatus status={connectionStatus} />
+            <AnimatedWrapper animation="fadeInDown">
+              <ConnectionStatus status={connectionStatus} />
+            </AnimatedWrapper>
           </div>
 
           <ChatHeader />
-          <div className="flex-1 overflow-y-auto px-4 max-h-[58vh]">
-            <ChatThread messages={chatMessages} />
+          <div className={`flex-1 overflow-y-auto max-h-[58vh] ${spacing.listItemPadding}`}>
+            <StaggerContainer>
+              <StaggerItem>
+                {loading ? (
+                  Array(3).fill(0).map((_, i) => <ListItemSkeleton key={i} />)
+                ) : (
+                  <ChatThread messages={chatMessages} />
+                )}
+              </StaggerItem>
+            </StaggerContainer>
 
             {/* Typing Indicator */}
             {typing && (
               <div className="py-2">
-                <TypingDots />
+                <AnimatedWrapper animation="fadeInUp">
+                  <TypingDots />
+                </AnimatedWrapper>
               </div>
             )}
 
@@ -131,7 +167,13 @@ const ChatPage: React.FC = () => {
                 willRenderCarousel: true // Always try to render, let carousel decide
               });
               // Always render carousel - it will handle empty state internally
-              return <InlineRecsCarousel />;
+              return loadingRecs ? (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {Array(3).fill(0).map((_, i) => <CardSkeleton key={i} />)}
+                </div>
+              ) : (
+                <InlineRecsCarousel />
+              );
             })()}
           </div>
           <Composer />
@@ -140,7 +182,7 @@ const ChatPage: React.FC = () => {
 
       {/* FEATURED/EXPLORE SECTION - Below chat in same column */}
       <AnimatedWrapper animation="fadeInUp" delay={0.2}>
-        <section className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 overflow-hidden">
+        <section className="bg-white/90 backdrop-blur rounded-2xl border border-border overflow-hidden">
           <FeaturedPane />
         </section>
       </AnimatedWrapper>

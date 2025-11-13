@@ -54,14 +54,15 @@ export default function UIShowcase() {
       <div className="max-w-7xl mx-auto">
         {/* Hero Section */}
         <AnimatedWrapper animation="fadeInUp" className="text-center mb-16">
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ type: "spring", stiffness: 200, damping: 15 }}
-            className="inline-block mb-4"
-          >
-            <Sparkles className="w-16 h-16 text-brand-500" />
-          </motion.div>
+          <div className="inline-block mb-4">
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: "spring", stiffness: 200, damping: 15 }}
+            >
+              <Sparkles className="w-16 h-16 text-brand-500" />
+            </motion.div>
+          </div>
           <h1 className="text-5xl font-bold bg-gradient-to-r from-brand-600 to-cyan-500 bg-clip-text text-transparent mb-4">
             Premium UI Components
           </h1>

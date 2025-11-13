@@ -67,6 +67,7 @@ INSTALLED_APPS = [
     'assistant',
     'router_service',
     'real_estate',
+    'seller_portal',  # Multi-domain seller orchestration
 ]
 
 MIDDLEWARE = [

@@ -18,5 +18,5 @@ export {
 export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './tooltip';
 export { Avatar, AvatarImage, AvatarFallback } from './avatar';
 export { Calendar } from './calendar';
-export { Skeleton, CardSkeleton, ListItemSkeleton, TextSkeleton, TableSkeleton } from './skeleton';
+export { Skeleton } from './skeleton';
 export { AnimatedWrapper, PageTransition, StaggerContainer, StaggerItem, AnimatedCard } from './animated-wrapper';

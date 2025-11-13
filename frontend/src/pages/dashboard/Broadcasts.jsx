@@ -105,7 +105,7 @@ const Broadcasts = () => {
         </div>
         <button
           onClick={() => setShowCreateModal(true)}
-          className="group flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-lime-600 to-lime-500 text-white rounded-xl hover:from-lime-700 hover:to-lime-600 transition-all duration-200 font-semibold shadow-lg shadow-lime-600/30 hover:shadow-xl hover:shadow-lime-600/40 hover:scale-105"
+          className="group flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-600 to-sky-500 text-white rounded-xl hover:from-emerald-700 hover:to-sky-600 transition-all duration-200 font-semibold shadow-lg shadow-emerald-600/30 hover:shadow-xl hover:shadow-emerald-600/40 hover:scale-105"
         >
           <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
           <span>Create Broadcast</span>

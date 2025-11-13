@@ -156,9 +156,9 @@ const Sales = () => {
 
   if (loading) {
     return (
-      <div className="bg-card backdrop-blur rounded-2xl border border-border p-8">
-        <h1 className="text-2xl font-bold text-foreground mb-2">Sales</h1>
-        <p className="text-muted-foreground mb-8">Track your sales and revenue</p>
+      <div className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 p-8">
+        <h1 className="text-2xl font-bold text-slate-900 mb-2">Sales</h1>
+        <p className="text-slate-600 mb-8">Track your sales and revenue</p>
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -180,7 +180,7 @@ const Sales = () => {
   }
 
   return (
-    <div className="bg-background/90 backdrop-blur rounded-2xl border border-border p-8">
+    <div className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 p-8">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -188,10 +188,10 @@ const Sales = () => {
         className="flex items-center justify-between mb-8"
       >
         <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">Sales Dashboard</h1>
-          <p className="text-muted-foreground">Track revenue, transactions, and performance</p>
+          <h1 className="text-3xl font-bold text-slate-900 mb-2">Sales Dashboard</h1>
+          <p className="text-slate-600">Track revenue, transactions, and performance</p>
         </div>
-        <Button variant="premium" className="group">
+        <Button className="group bg-gradient-to-r from-emerald-600 to-sky-700 hover:from-emerald-700 hover:to-sky-800 text-white">
           <Download className="w-5 h-5 mr-2" />
           Export Report
         </Button>

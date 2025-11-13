@@ -119,13 +119,18 @@ export const ShortTermRecommendationCard: React.FC<ShortTermRecommendationCardPr
             className="relative cursor-pointer group"
             onClick={() => setGalleryOpen(true)}
           >
-            <motion.img
-              src={item.imageUrl || '/placeholder-property.jpg'}
-              alt={item.title}
-              className="h-44 w-full object-cover"
-              whileHover={{ scale: 1.05 }}
-              transition={{ duration: 0.3 }}
-            />
+            <div className="h-44 w-full overflow-hidden">
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                transition={{ duration: 0.3 }}
+              >
+                <img
+                  src={item.imageUrl || '/placeholder-property.jpg'}
+                  alt={item.title}
+                  className="h-44 w-full object-cover"
+                />
+              </motion.div>
+            </div>
             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
               <ImageIcon className="w-8 h-8 text-white" />
             </div>
@@ -247,14 +252,18 @@ export const ShortTermRecommendationCard: React.FC<ShortTermRecommendationCardPr
           <div className="grid grid-cols-2 gap-2 max-h-[600px] overflow-y-auto">
             {item.photos && item.photos.length > 0 ? (
               item.photos.map((src, i) => (
-                <motion.img
-                  key={i}
-                  src={src}
-                  alt={`${item.title}-${i}`}
-                  className="rounded-lg object-cover h-48 w-full"
-                  whileHover={{ scale: 1.05 }}
-                  transition={{ duration: 0.2 }}
-                />
+                <div key={i} className="rounded-lg overflow-hidden">
+                  <motion.div
+                    whileHover={{ scale: 1.05 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <img
+                      src={src}
+                      alt={`${item.title}-${i}`}
+                      className="rounded-lg object-cover h-48 w-full"
+                    />
+                  </motion.div>
+                </div>
               ))
             ) : (
               <div className="col-span-2 p-8 text-center text-muted-foreground">
@@ -306,39 +315,37 @@ export const ShortTermRecommendationCard: React.FC<ShortTermRecommendationCardPr
                 <h4 className="font-semibold mb-2">Contact</h4>
                 <div className="flex flex-wrap gap-3">
                   {item.contactInfo.phone && (
-                    <motion.a
-                      href={`tel:${item.contactInfo.phone}`}
-                      className="flex items-center gap-1 text-sm text-primary hover:text-primary/90"
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                    >
-                      <Phone className="w-4 h-4" />
-                      {item.contactInfo.phone}
-                    </motion.a>
+                    <a href={`tel:${item.contactInfo.phone}`} className="flex items-center gap-1 text-sm text-primary hover:text-primary/90">
+                      <motion.div
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                      >
+                        <Phone className="w-4 h-4" />
+                        {item.contactInfo.phone}
+                      </motion.div>
+                    </a>
                   )}
                   {item.contactInfo.email && (
-                    <motion.a
-                      href={`mailto:${item.contactInfo.email}`}
-                      className="flex items-center gap-1 text-sm text-primary hover:text-primary/90"
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                    >
-                      <Mail className="w-4 h-4" />
-                      {item.contactInfo.email}
-                    </motion.a>
+                    <a href={`mailto:${item.contactInfo.email}`} className="flex items-center gap-1 text-sm text-primary hover:text-primary/90">
+                      <motion.div
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                      >
+                        <Mail className="w-4 h-4" />
+                        {item.contactInfo.email}
+                      </motion.div>
+                    </a>
                   )}
                   {item.contactInfo.website && (
-                    <motion.a
-                      href={item.contactInfo.website}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-sm text-primary hover:text-primary/90"
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                    >
-                      <ExternalLink className="w-4 h-4" />
-                      Website
-                    </motion.a>
+                    <a href={item.contactInfo.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm text-primary hover:text-primary/90">
+                      <motion.div
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        Website
+                      </motion.div>
+                    </a>
                   )}
                 </div>
               </div>

@@ -51,13 +51,18 @@ const ResultCard = ({
       <Card className="overflow-hidden hover:shadow-softmd transition-shadow">
         {image && (
           <div className="relative overflow-hidden">
-            <motion.img
-              src={image}
-              alt={title}
-              className="w-full h-48 object-cover"
-              whileHover={{ scale: 1.05 }}
-              transition={{ duration: 0.3 }}
-            />
+            <div className="w-full h-48 overflow-hidden">
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                transition={{ duration: 0.3 }}
+              >
+                <img
+                  src={image}
+                  alt={title}
+                  className="w-full h-48 object-cover"
+                />
+              </motion.div>
+            </div>
             {price && (
               <div className="absolute top-3 right-3">
                 <Badge variant="premium" className="text-base px-3 py-1">
@@ -98,39 +103,37 @@ const ResultCard = ({
           {contactInfo && (
             <div className="flex flex-wrap gap-2 mb-4">
               {contactInfo.phone && (
-                <motion.a
-                  href={`tel:${contactInfo.phone}`}
-                  className="flex items-center space-x-1 text-sm text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <Phone className="w-4 h-4" />
-                  <span>{contactInfo.phone}</span>
-                </motion.a>
+                <a href={`tel:${contactInfo.phone}`} className="flex items-center space-x-1 text-sm text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">
+                  <motion.div
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <Phone className="w-4 h-4" />
+                    {contactInfo.phone}
+                  </motion.div>
+                </a>
               )}
               {contactInfo.email && (
-                <motion.a
-                  href={`mailto:${contactInfo.email}`}
-                  className="flex items-center space-x-1 text-sm text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <Mail className="w-4 h-4" />
-                  <span>{contactInfo.email}</span>
-                </motion.a>
+                <a href={`mailto:${contactInfo.email}`} className="flex items-center space-x-1 text-sm text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">
+                  <motion.div
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <Mail className="w-4 h-4" />
+                    {contactInfo.email}
+                  </motion.div>
+                </a>
               )}
               {contactInfo.website && (
-                <motion.a
-                  href={contactInfo.website}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center space-x-1 text-sm text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  <span>Website</span>
-                </motion.a>
+                <a href={contactInfo.website} target="_blank" rel="noopener noreferrer" className="flex items-center space-x-1 text-sm text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">
+                  <motion.div
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    Website
+                  </motion.div>
+                </a>
               )}
             </div>
           )}

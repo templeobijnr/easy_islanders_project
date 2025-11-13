@@ -4,7 +4,8 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
+import { MotionDiv } from '../../../components/ui/motion-wrapper';
 import { Button } from '../../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Progress } from '../../../components/ui/progress';
@@ -518,14 +519,15 @@ const BookingWizard: React.FC<BookingWizardProps> = ({
       case 'confirmation':
         return (
           <div className="text-center space-y-6 max-w-2xl mx-auto py-12">
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ type: 'spring', duration: 0.5 }}
-              className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto"
-            >
-              <span className="text-5xl">✓</span>
-            </motion.div>
+            <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto">
+              <MotionDiv
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: 'spring', duration: 0.5 }}
+              >
+                <span className="text-5xl">✓</span>
+              </MotionDiv>
+            </div>
 
             <h2 className="text-3xl font-bold text-slate-900">Booking Confirmed!</h2>
             <p className="text-lg text-slate-600">
@@ -601,7 +603,7 @@ const BookingWizard: React.FC<BookingWizardProps> = ({
 
         {/* Step Content */}
         <AnimatePresence mode="wait">
-          <motion.div
+          <MotionDiv
             key={currentStep}
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -609,7 +611,7 @@ const BookingWizard: React.FC<BookingWizardProps> = ({
             transition={{ duration: 0.3 }}
           >
             {renderStepContent()}
-          </motion.div>
+          </MotionDiv>
         </AnimatePresence>
 
         {/* Navigation Buttons */}

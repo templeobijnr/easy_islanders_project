@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { MotionDiv } from '../../../components/ui/motion-wrapper';
 
 interface Props {
   role: 'user' | 'agent';
@@ -11,13 +11,13 @@ export const MessageBubble: React.FC<Props> = ({ role, text, typing }) => {
   const isAgent = role === 'agent';
 
   return (
-    <motion.div
+    <MotionDiv
       className={`w-full flex ${isAgent ? 'justify-start' : 'justify-end'}`}
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
     >
-      <motion.div
+      <MotionDiv
         className={`max-w-[85%] text-sm p-3 rounded-2xl shadow-sm ${
           isAgent
             ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700'
@@ -36,7 +36,7 @@ export const MessageBubble: React.FC<Props> = ({ role, text, typing }) => {
         ) : (
           text
         )}
-      </motion.div>
-    </motion.div>
+      </MotionDiv>
+    </MotionDiv>
   );
 };

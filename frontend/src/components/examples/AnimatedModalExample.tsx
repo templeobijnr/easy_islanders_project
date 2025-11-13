@@ -53,38 +53,38 @@ export default function AnimatedModalExample() {
               {/* Animated Image Gallery */}
               <div className="flex gap-4 overflow-hidden">
                 {[1, 2, 3, 4].map((idx) => (
-                  <motion.div
-                    key={idx}
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: idx * 0.1 }}
-                    whileHover={{ scale: 1.1, rotate: 0 }}
-                    style={{ rotate: Math.random() * 10 - 5 }}
-                    className="flex-shrink-0 w-24 h-24 rounded-2xl bg-gradient-to-br from-brand-400 to-cyan-400 shadow-lg"
-                  />
+                  <div key={idx} className="flex-shrink-0 w-24 h-24 rounded-2xl bg-gradient-to-br from-brand-400 to-cyan-400 shadow-lg">
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: idx * 0.1 }}
+                      whileHover={{ scale: 1.1, rotate: 0 }}
+                      style={{ rotate: Math.random() * 10 - 5 }}
+                    />
+                  </div>
                 ))}
               </div>
 
               {/* Booking Details */}
               <div className="grid grid-cols-2 gap-4">
                 {bookingDetails.map((detail, idx) => (
-                  <motion.div
-                    key={detail.label}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 + idx * 0.1 }}
-                    className="flex items-start gap-3 p-4 rounded-xl bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700"
-                  >
-                    <detail.icon className="w-5 h-5 text-brand-500 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-medium text-neutral-500 dark:text-neutral-400">
-                        {detail.label}
-                      </p>
-                      <p className="text-base font-semibold text-neutral-900 dark:text-white">
-                        {detail.value}
-                      </p>
-                    </div>
-                  </motion.div>
+                  <div key={detail.label} className="flex items-start gap-3 p-4 rounded-xl bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700">
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.2 + idx * 0.1 }}
+                    >
+                      <detail.icon className="w-5 h-5 text-brand-500 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium text-neutral-500 dark:text-neutral-400">
+                          {detail.label}
+                        </p>
+                        <p className="text-base font-semibold text-neutral-900 dark:text-white">
+                          {detail.value}
+                        </p>
+                      </div>
+                    </motion.div>
+                  </div>
                 ))}
               </div>
 

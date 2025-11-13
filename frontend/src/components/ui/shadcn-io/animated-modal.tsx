@@ -6,7 +6,8 @@ import React, {
   useEffect,
   useState,
 } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence } from "framer-motion";
+import { MotionDiv } from "../motion-wrapper";
 import { cn } from "../../../lib/utils";
 import { X } from "lucide-react";
 
@@ -88,20 +89,20 @@ export function ModalBody({ children }: { children: React.ReactNode }) {
   return (
     <AnimatePresence>
       {open && (
-        <motion.div
+        <MotionDiv
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           className="fixed inset-0 h-full w-full z-50 flex items-center justify-center"
         >
-          <motion.div
+          <MotionDiv
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="absolute inset-0 bg-black/60 backdrop-blur-md"
             onClick={() => setOpen(false)}
           />
-          <motion.div
+          <MotionDiv
             ref={modalRef}
             className="relative z-50 w-full max-w-2xl mx-4"
             initial={{ scale: 0.9, opacity: 0, y: 20 }}
@@ -122,8 +123,8 @@ export function ModalBody({ children }: { children: React.ReactNode }) {
               </button>
               {children}
             </div>
-          </motion.div>
-        </motion.div>
+          </MotionDiv>
+        </MotionDiv>
       )}
     </AnimatePresence>
   );

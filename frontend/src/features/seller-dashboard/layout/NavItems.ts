@@ -1,6 +1,7 @@
-import { Package, Mail, Radio, ShoppingBag, MessageCircle, TrendingUp, Store, LifeBuoy, CalendarCheck } from "lucide-react";
+import { Package, Mail, Radio, ShoppingBag, MessageCircle, TrendingUp, Store, LifeBuoy, CalendarCheck, BarChart3 } from "lucide-react";
 
 export const navItems = [
+  { name: "Dashboard", path: "/dashboard", icon: BarChart3 },
   { name: "My Listings", path: "/dashboard/my-listings", icon: Package },
   { name: "Bookings", path: "/dashboard/bookings", icon: CalendarCheck },
   { name: "Seller Inbox", path: "/dashboard/seller-inbox", icon: Mail },

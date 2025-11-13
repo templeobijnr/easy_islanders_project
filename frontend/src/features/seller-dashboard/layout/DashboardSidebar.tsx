@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
-import { cn } from "../../../lib/utils";
+import { cn } from "@/lib/utils";
 import { navItems } from "./NavItems";
 import { X } from "lucide-react";
 
@@ -42,18 +42,19 @@ export function DashboardSidebar({ isOpen = true, onClose }: DashboardSidebarPro
         {/* Dashboard Header */}
         <div className="relative overflow-hidden rounded-xl mb-4 p-3 bg-gradient-to-r from-lime-200 via-emerald-200 to-sky-200">
           <div className="flex items-center gap-2">
-            <motion.div
-              className="h-8 w-8 rounded-xl bg-lime-600 shadow-inner"
-              animate={{
-                rotate: [0, 5, -5, 0],
-                scale: [1, 1.05, 1]
-              }}
-              transition={{
-                duration: 3,
-                repeat: Infinity,
-                ease: "easeInOut"
-              }}
-            />
+            <div className="h-8 w-8 rounded-xl bg-lime-600 shadow-inner">
+              <motion.div
+                animate={{
+                  rotate: [0, 5, -5, 0],
+                  scale: [1, 1.05, 1]
+                }}
+                transition={{
+                  duration: 3,
+                  repeat: Infinity,
+                  ease: "easeInOut"
+                }}
+              />
+            </div>
             <div className="font-semibold">Seller Dashboard</div>
           </div>
           <div className="text-xs text-slate-700 mt-1">Manage your business</div>

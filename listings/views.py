@@ -477,8 +477,13 @@ def categories_list(request):
     Returns: List of all categories with their subcategories
     """
     from .models import Category
-
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    logger.info(f"Categories API called - Database: {Category.objects.db}")
+    
     categories = Category.objects.all().prefetch_related('subcategories')
+    logger.info(f"Found {categories.count()} categories in database")
 
     # Build response
     categories_data = []
@@ -506,6 +511,7 @@ def categories_list(request):
             'subcategories': subcategories_data,
         })
 
+    logger.info(f"Returning {len(categories_data)} categories")
     return Response({
         "categories": categories_data,
         "count": len(categories_data)
@@ -577,6 +583,24 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = CategorySerializer
     permission_classes = [permissions.AllowAny]
     lookup_field = 'slug'
+    pagination_class = None  # Disable pagination
+    
+    def list(self, request, *args, **kwargs):
+        """Override list to return custom format expected by frontend"""
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error("CategoryViewSet.list called")
+        
+        queryset = self.filter_queryset(self.get_queryset())
+        logger.error(f"Queryset count: {queryset.count()}")
+        
+        serializer = self.get_serializer(queryset, many=True)
+        logger.error(f"Serialized data length: {len(serializer.data)}")
+        
+        return Response({
+            "categories": serializer.data,
+            "count": len(serializer.data)
+        })
     
     @action(detail=True, methods=['get'])
     def subcategories(self, request, slug=None):

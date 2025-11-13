@@ -1,6 +1,6 @@
 "use client";
 import React, { useState } from "react";
-import { motion } from "framer-motion";
+import { MotionDiv, MotionSpan } from "../motion-wrapper";
 import { cn } from "../../../lib/utils";
 
 interface ChartData {
@@ -53,7 +53,7 @@ export function ChartBarInteractive({
                 <span className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">
                   {item.label}
                 </span>
-                <motion.span
+                <MotionSpan
                   className="text-sm font-bold text-neutral-900 dark:text-white"
                   animate={{
                     scale: isHovered ? 1.1 : 1,
@@ -61,13 +61,13 @@ export function ChartBarInteractive({
                   transition={{ duration: 0.2 }}
                 >
                   {item.value}
-                </motion.span>
+                </MotionSpan>
               </div>
 
               {/* Bar Background */}
               <div className="relative h-12 bg-neutral-100 dark:bg-neutral-800 rounded-xl overflow-hidden">
                 {/* Animated Bar */}
-                <motion.div
+                <MotionDiv
                   className={cn(
                     "absolute inset-y-0 left-0 bg-gradient-to-r rounded-xl",
                     item.color || "from-brand-500 to-cyan-500"
@@ -87,7 +87,7 @@ export function ChartBarInteractive({
                   onHoverEnd={() => setHoveredIndex(null)}
                 >
                   {/* Shimmer Effect */}
-                  <motion.div
+                  <MotionDiv
                     className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
                     animate={{
                       x: ["-100%", "200%"],
@@ -98,18 +98,18 @@ export function ChartBarInteractive({
                       ease: "linear",
                     }}
                   />
-                </motion.div>
+                </MotionDiv>
 
                 {/* Value Label Inside Bar */}
                 <div className="absolute inset-0 flex items-center px-4">
-                  <motion.span
+                  <MotionSpan
                     className="text-sm font-semibold text-white drop-shadow-md z-10"
                     animate={{
                       opacity: percentage > 20 ? 1 : 0,
                     }}
                   >
                     {percentage.toFixed(1)}%
-                  </motion.span>
+                  </MotionSpan>
                 </div>
               </div>
             </div>
@@ -121,7 +121,7 @@ export function ChartBarInteractive({
       <div className="mt-8 pt-6 border-t border-neutral-200 dark:border-neutral-800">
         <div className="flex flex-wrap gap-4 justify-center">
           {data.map((item, index) => (
-            <motion.div
+            <MotionDiv
               key={item.label}
               className="flex items-center space-x-2 cursor-pointer"
               whileHover={{ scale: 1.05 }}
@@ -144,7 +144,7 @@ export function ChartBarInteractive({
               >
                 {item.label}
               </span>
-            </motion.div>
+            </MotionDiv>
           ))}
         </div>
       </div>

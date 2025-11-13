@@ -19,8 +19,8 @@ interface LaneProps {
 
 const Lane = ({ title, items, onViewAll }: LaneProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const debounceRef = useRef<NodeJS.Timeout>();
-  const observerRef = useRef<IntersectionObserver>();
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const observerRef = useRef<IntersectionObserver | null>(null);
   const [isVisible, setIsVisible] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
 
@@ -85,24 +85,23 @@ const Lane = ({ title, items, onViewAll }: LaneProps) => {
           role="list"
         >
           {isLoaded && items.map((item) => (
-            <motion.div
-              key={item.id}
-              className="flex-shrink-0 w-64"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              role="listitem"
-            >
-              <Card onClick={item.onClick} className="cursor-pointer overflow-hidden" tabIndex={0} onKeyDown={(e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); item.onClick?.(); } }}>
-                <img
-                  src={item.image}
-                  alt={item.title}
-                  className="w-full h-40 object-cover"
-                />
-                <div className="p-4">
-                  <h3 className="font-semibold text-slate-900">{item.title}</h3>
-                </div>
-              </Card>
-            </motion.div>
+            <div key={item.id} className="flex-shrink-0 w-64">
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <Card onClick={item.onClick} className="cursor-pointer overflow-hidden" tabIndex={0} onKeyDown={(e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); item.onClick?.(); } }}>
+                  <img
+                    src={item.image}
+                    alt={item.title}
+                    className="w-full h-40 object-cover"
+                  />
+                  <div className="p-4">
+                    <h3 className="font-semibold text-slate-900">{item.title}</h3>
+                  </div>
+                </Card>
+              </motion.div>
+            </div>
           ))}
         </div>
 

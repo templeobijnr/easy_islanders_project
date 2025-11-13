@@ -19,15 +19,20 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "baseUrl": "src",
+    "baseUrl": ".",
+    "typeRoots": ["./node_modules/@types", "./src/types"],
     "paths": {
-      "@/*": ["*"],
-      "@app/*": ["app/*"],
-      "@features/*": ["features/*"],
-      "@shared/*": ["shared/*"]
+      "@/*": ["src/*"],
+      "@app/*": ["src/app/*"],
+      "@features/*": ["src/features/*"],
+      "@shared/*": ["src/shared/*"]
     }
   },
   "include": [
-    "src"
+    "src/**/*",
+    "src/**/*.jsx",
+    "src/**/*.tsx",
+    "src/**/*.ts",
+    "src/**/*.js"
   ]
 }

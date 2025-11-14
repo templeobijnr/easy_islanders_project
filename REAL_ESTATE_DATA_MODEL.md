@@ -928,6 +928,269 @@ python manage.py test real_estate
 
 ---
 
+## AI & Query Layer
+
+### Overview
+
+The v1 data model includes an **AI-friendly query layer** that sits on top of the normalized schema. This layer provides:
+
+- **Flattened database views** for efficient searching
+- **REST API endpoints** for both AI agents and frontend UI
+- **Consistent JSON schema** across all consumers
+
+### Database Views
+
+#### `vw_listings_search`
+
+A materialized view that pre-joins common tables for search queries:
+
+```sql
+CREATE OR REPLACE VIEW vw_listings_search AS
+SELECT
+    l.id AS listing_id,
+    l.reference_code AS listing_reference_code,
+    lt.code AS listing_type_code,
+    l.status,
+    l.title,
+    l.description,
+    l.base_price,
+    l.currency,
+    l.price_period,
+    p.bedrooms,
+    p.bathrooms,
+    loc.city,
+    loc.area,
+    pt.label AS property_type_label,
+    -- Feature flags (EXISTS subqueries)
+    EXISTS (
+        SELECT 1 FROM real_estate_propertyfeature pf
+        JOIN real_estate_feature f ON f.id = pf.feature_id
+        WHERE pf.property_id = p.id AND f.code = 'WIFI'
+    ) AS has_wifi,
+    EXISTS (
+        SELECT 1 FROM real_estate_propertyfeature pf
+        JOIN real_estate_feature f ON f.id = pf.feature_id
+        WHERE pf.property_id = p.id AND f.code = 'PRIVATE_POOL'
+    ) AS has_private_pool,
+    -- ... (more feature flags)
+FROM real_estate_listing l
+JOIN real_estate_listingtype lt ON lt.id = l.listing_type_id
+LEFT JOIN real_estate_property p ON p.id = l.property_id
+LEFT JOIN real_estate_location loc ON loc.id = p.location_id
+LEFT JOIN real_estate_propertytype pt ON pt.id = p.property_type_id;
+```
+
+**Benefits:**
+- Single query for AI search (no N+1 problems)
+- Pre-computed feature flags (boolean columns)
+- Optimal indexes on commonly filtered fields
+
+**Migration:** `real_estate/migrations/0002_create_search_views.py`
+
+### REST API Endpoints
+
+#### `GET /api/v1/real_estate/listings/search/`
+
+Search listings with filters:
+
+**Query Parameters:**
+- `listing_type`: `DAILY_RENTAL`, `LONG_TERM_RENTAL`, `SALE`, `PROJECT`
+- `city`: City name (e.g., "Kyrenia")
+- `area`: District/area (e.g., "Esentepe")
+- `min_price`, `max_price`: Price range
+- `min_bedrooms`, `max_bedrooms`: Bedroom count range
+- `has_wifi`, `has_kitchen`, `has_private_pool`: Feature flags (boolean)
+- `available_from`, `available_to`: Date range (ISO 8601)
+- `limit`, `offset`: Pagination
+- `sort_by`: `price_asc`, `price_desc`, `created_at_desc`
+
+**Response:**
+```json
+{
+  "count": 15,
+  "results": [
+    {
+      "listing_id": 123,
+      "listing_reference_code": "EI-L-000123",
+      "listing_type_code": "DAILY_RENTAL",
+      "title": "2BR Apartment in Esentepe",
+      "base_price": "800.00",
+      "currency": "EUR",
+      "price_period": "PER_DAY",
+      "city": "Kyrenia",
+      "area": "Esentepe",
+      "bedrooms": 2,
+      "bathrooms": 1,
+      "has_wifi": true,
+      "has_kitchen": true,
+      "has_private_pool": false,
+      "view_sea": true
+    }
+  ],
+  "limit": 50,
+  "offset": 0
+}
+```
+
+**Implementation:**
+- Serializer: `real_estate/api/search_serializers.py`
+- View: `real_estate/api/search_views.py`
+- URL: `real_estate/urls.py`
+
+### Assistant Integration
+
+#### Domain Layer
+
+**File:** `assistant/domain/real_estate_search_v1.py`
+
+```python
+from assistant.domain import search_listings_v1
+
+result = search_listings_v1(
+    filled_slots={
+        "listing_type": "DAILY_RENTAL",
+        "city": "Kyrenia",
+        "bedrooms": 2,
+        "has_wifi": True,
+        "budget_max": 1000
+    },
+    max_results=20
+)
+# Returns: {"count": 15, "results": [...], "cached": False}
+```
+
+**Features:**
+- Circuit breaker protection (fail-safe)
+- 30-second caching (same query within 30s = instant)
+- Progressive fallback (relax filters if 0 results)
+- Prometheus metrics
+
+#### Agent Tools
+
+**File:** `assistant/agents/real_estate/tools_v1.py`
+
+```python
+from assistant.agents.real_estate.tools_v1 import search_properties_v1
+
+cards = search_properties_v1({
+    "tenure": "long_term",
+    "location": "Kyrenia",
+    "budget": {"min": 500, "max": 800, "currency": "GBP"},
+    "bedrooms": 2,
+    "amenities": ["wifi", "pool"]
+})
+# Returns: List[PropertyCard] (max 25)
+```
+
+**Bridges agent schema → v1 API:**
+- Maps `tenure` → `listing_type`
+- Maps `amenities` → feature flags
+- Adds 10% margin to max budget
+- Formats results as `PropertyCard` for UI
+
+### Frontend Integration
+
+**File:** `frontend/src/services/realEstateApi.ts`
+
+```typescript
+import { searchRealEstateListings, formatListingAsCard } from '@/services/realEstateApi';
+
+// Search
+const response = await searchRealEstateListings({
+  listing_type: 'DAILY_RENTAL',
+  city: 'Kyrenia',
+  min_bedrooms: 2,
+  has_wifi: true,
+  limit: 20
+});
+
+// Format for UI
+const cards = response.results.map(formatListingAsCard);
+// Returns: PropertyCardItem[] (compatible with InlineRecsCarousel)
+```
+
+**TypeScript Types:**
+- `ListingSearchParams` - Query parameters
+- `ListingSearchResult` - API response item
+- `PropertyCardItem` - UI card format
+
+### Query Performance
+
+**Optimizations:**
+- Database view eliminates N+1 queries
+- Indexes on `(city, area)`, `listing_type_code`, `status`, `base_price`
+- EXISTS subqueries for feature flags (faster than JOINs for many-to-many)
+- Circuit breaker prevents cascading failures
+- 30s cache reduces duplicate searches
+
+**Expected Latency:**
+- Cold query (no cache): < 200ms (p95)
+- Warm query (cached): < 10ms
+- Circuit breaker timeout: 800ms
+
+### Testing
+
+**Backend Tests:** `real_estate/tests/test_listing_search_view.py`
+
+```python
+def test_search_by_city():
+    response = client.get('/api/v1/real_estate/listings/search/', {
+        'city': 'Kyrenia',
+        'min_bedrooms': 2
+    })
+    assert response.status_code == 200
+    assert response.json()['count'] > 0
+```
+
+**Frontend Tests:** `frontend/src/__tests__/realEstateSearch.test.tsx`
+
+```typescript
+test('searchRealEstateListings returns results', async () => {
+  const results = await searchRealEstateListings({
+    city: 'Kyrenia',
+    min_bedrooms: 2
+  });
+  expect(results.count).toBeGreaterThan(0);
+});
+```
+
+### Migration Path
+
+1. **Run migrations:**
+   ```bash
+   python manage.py migrate real_estate
+   ```
+
+2. **Seed reference data:**
+   ```bash
+   python manage.py seed_real_estate_data
+   ```
+
+3. **Verify view exists:**
+   ```sql
+   SELECT * FROM vw_listings_search LIMIT 1;
+   ```
+
+4. **Test API:**
+   ```bash
+   curl http://localhost:8000/api/v1/real_estate/listings/search/?city=Kyrenia
+   ```
+
+### Monitoring
+
+**Key Metrics (Prometheus):**
+- `real_estate_search_requests_total{listing_type}`
+- `real_estate_search_duration_seconds{p95}`
+- `real_estate_search_results_count{percentile}`
+- `real_estate_search_cache_hit_rate`
+
+**Alerts:**
+- Search p95 > 500ms
+- Cache hit rate < 20%
+- Error rate > 5%
+
+---
+
 ## Future Enhancements
 
 ### v2 Features (Potential)

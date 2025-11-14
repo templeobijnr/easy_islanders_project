@@ -3,6 +3,7 @@ URL routing for Real Estate app.
 """
 from django.urls import path
 from .views import ListingSearchViewSet
+from .api.search_views import ListingSearchView
 from .api.dashboard_views import (
     RealEstateOverviewView,
     RealEstatePortfolioView,
@@ -19,10 +20,13 @@ from .api.dashboard_views import (
     RealEstateProjectsView,
 )
 
-# ViewSet for search
+# ViewSet for legacy search
 listing_search = ListingSearchViewSet.as_view({"get": "list"})
 
 urlpatterns = [
+    # V1 schema search endpoint (uses vw_listings_search view)
+    path('v1/real_estate/listings/search/', ListingSearchView.as_view(), name='real-estate-listing-search'),
+
     # Legacy search endpoint (keep for backward compatibility)
     path('v1/real_estate/search', listing_search, name='real-estate-search'),
 

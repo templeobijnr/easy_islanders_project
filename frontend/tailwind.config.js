@@ -1,9 +1,13 @@
 const lineClamp = require('@tailwindcss/line-clamp');
 const animate = require('tailwindcss-animate');
+const { heroui } = require('@heroui/theme');
 
 module.exports = {
   darkMode: ["class"],
-  content: ['src/**/*.{ts,tsx,jsx,js}', 'index.html'],
+  content: [
+    'src/**/*.{ts,tsx,jsx,js}',
+    'index.html',
+  ],
   theme: {
     container: {
       center: true,
@@ -15,8 +19,9 @@ module.exports = {
     },
     extend: {
       fontFamily: {
-        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
-        display: ['Space Grotesk', 'Inter', 'system-ui', 'sans-serif'],
+        sans: ['var(--font-sans)', 'system-ui', '-apple-system', 'sans-serif'],
+        display: ['var(--font-display)', 'system-ui', '-apple-system', 'sans-serif'],
+        mono: ['var(--font-mono)', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
       },
       borderRadius: {
         xl: '0.75rem',
@@ -202,9 +207,9 @@ module.exports = {
       },
       // For gradients used in the ribbon/spotlight
       backgroundImage: {
-        'brand-ribbon': 'linear-gradient(90deg, #6CC24A 0%, #22d3ee 100%)',
+        'brand-ribbon': 'linear-gradient(90deg, #6CC24A 0%, #06b6d4 100%)',
         'brand-glass': 'linear-gradient(180deg, rgba(255,255,255,0.65) 0%, rgba(255,255,255,0.5) 100%)',
-        'brand-premium': 'linear-gradient(90deg, #6CC24A 0%, #22d3ee 100%)',
+        'brand-premium': 'linear-gradient(90deg, #6CC24A 0%, #06b6d4 100%)',
         'gold-luxury': 'linear-gradient(90deg, #FBBF24 0%, #F59E0B 100%)',
         'glass-light': 'linear-gradient(180deg, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.5) 100%)',
         'glass-dark': 'linear-gradient(180deg, rgba(15,23,42,0.7) 0%, rgba(15,23,42,0.5) 100%)',
@@ -310,5 +315,5 @@ module.exports = {
       },
     },
   },
-  plugins: [lineClamp, animate],
+  plugins: [lineClamp, animate, heroui()],
 }

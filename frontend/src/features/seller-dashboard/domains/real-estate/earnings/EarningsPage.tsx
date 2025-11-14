@@ -11,7 +11,7 @@ export const EarningsPage = () => {
   return (
     <div className="p-6 lg:p-8">
       <div className="mb-8">
-        <h1 className="text-4xl font-bold font-['Space_Grotesk'] bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-transparent">Earnings</h1>
+        <h1 className="text-4xl font-bold font-display bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-transparent">Earnings</h1>
         <p className="text-muted-foreground mt-2 text-lg">Revenue, expenses, and financial performance</p>
       </div>
 

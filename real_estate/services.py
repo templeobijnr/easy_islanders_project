@@ -50,8 +50,8 @@ def ensure_listing_for_property(property_obj: REListing, owner: Optional[object]
             raise ValueError("Owner is required to create a generic Listing for real estate property")
         owner = prop_owner
 
-    # Resolve the Real Estate domain/category
-    domain_slug = 'real-estate'
+    # Resolve the Real Estate domain/category (align with canonical taxonomy)
+    domain_slug = 'real_estate'
     try:
         domain_category = Category.objects.get(slug=domain_slug)
     except Category.DoesNotExist:

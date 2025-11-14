@@ -50,7 +50,7 @@ const AuthModal = () => {
         <div className="p-8">
           {authMode === 'register' && authStep === 'type' && (
             <div className="space-y-4 text-center">
-              <h2 className="text-3xl font-bold text-slate-900 font-['Space_Grotesk']">Join Easy Islanders</h2>
+              <h2 className="text-3xl font-bold text-slate-900 font-display">Join Easy Islanders</h2>
               <p className="text-slate-600">First, tell us who you are.</p>
 
               <button
@@ -98,7 +98,7 @@ const AuthModal = () => {
           {authStep === 'form' && (
             <div className="space-y-6">
               <div className="text-center">
-                <h2 className="text-3xl font-bold text-slate-900 font-['Space_Grotesk']">
+                <h2 className="text-3xl font-bold text-slate-900 font-display">
                   {authMode === 'login' ? 'Welcome Back' : 'Create Your Account'}
                 </h2>
                 <p className="text-slate-600 mt-2">

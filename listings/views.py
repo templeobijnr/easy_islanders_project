@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from django.db.models import Q
 from datetime import datetime
 from django_filters.rest_framework import DjangoFilterBackend
-from .models import Listing, SellerProfile, Category, SubCategory
+from .models import Listing, SellerProfile, Category, SubCategory, ListingImage
 from bookings.models import Booking
 from .serializers import (
     BookingSerializer,
@@ -445,16 +445,8 @@ def my_listings(request):
 
     Returns: List of listings owned by the current seller
     """
-    try:
-        seller = SellerProfile.objects.get(user=request.user)
-    except SellerProfile.DoesNotExist:
-        return Response(
-            {"detail": "You do not have a seller profile", "listings": []},
-            status=status.HTTP_200_OK
-        )
-
-    # Get all listings for this seller
-    listings = Listing.objects.filter(seller=seller).select_related('category', 'subcategory')
+    # Get all listings for this user (owner)
+    listings = Listing.objects.filter(owner=request.user).select_related('category', 'subcategory').prefetch_related('images')
 
     # Filter by status
     status_filter = request.query_params.get('status')
@@ -685,8 +677,14 @@ class ListingViewSet(viewsets.ModelViewSet):
         return queryset
     
     def perform_create(self, serializer):
-        """Set owner to current user when creating"""
-        serializer.save(owner=self.request.user)
+        """Set owner and bridge domain-specific records when necessary."""
+        listing = serializer.save(owner=self.request.user)
+        try:
+            self._maybe_bridge_real_estate(listing)
+        except Exception:
+            # Non-fatal: log and continue without breaking listing creation
+            import logging
+            logging.getLogger(__name__).exception("Failed to bridge real_estate record for listing %s", listing.id)
     
     def perform_update(self, serializer):
         """Ensure user can only update their own listings"""
@@ -718,6 +716,140 @@ class ListingViewSet(viewsets.ModelViewSet):
         
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='upload-image', permission_classes=[permissions.IsAuthenticated])
+    def upload_image(self, request, pk=None):
+        """Upload a single image for a listing.
+
+        Expects multipart with key 'image'. Returns the created image record.
+        """
+        listing = self.get_object()
+        if listing.owner != request.user and not request.user.is_staff:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("You can only upload images for your own listings")
+
+        image_file = request.FILES.get('image')
+        if not image_file:
+            return Response({"error": "No image provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+        img = ListingImage.objects.create(listing=listing, image=image_file)
+        from .serializers import ListingImageSerializer
+        return Response(ListingImageSerializer(img).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'], url_path='duplicate', permission_classes=[permissions.IsAuthenticated])
+    def duplicate(self, request, pk=None):
+        """Create a draft copy of the listing for quick duplication."""
+        src = self.get_object()
+        if src.owner != request.user and not request.user.is_staff:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("You can only duplicate your own listings")
+
+        dup = Listing.objects.create(
+            owner=request.user,
+            category=src.category,
+            subcategory=src.subcategory,
+            domain=src.domain,
+            title=f"Copy of {src.title}",
+            description=src.description,
+            price=src.price,
+            currency=src.currency,
+            location=src.location,
+            latitude=src.latitude,
+            longitude=src.longitude,
+            dynamic_fields=src.dynamic_fields,
+            listing_kind=src.listing_kind,
+            transaction_type=src.transaction_type,
+            status='draft',
+            is_featured=False,
+        )
+
+        # Optionally bridge for domain models as needed
+        try:
+            self._maybe_bridge_real_estate(dup)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception("Failed to bridge duplicated real_estate record for listing %s", dup.id)
+
+        serializer = self.get_serializer(dup)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    # --- Helpers ---
+    def _maybe_bridge_real_estate(self, listing: Listing) -> None:
+        """If listing belongs to real_estate category, ensure a corresponding
+        real_estate.Listing exists and is linked for dashboard views.
+        """
+        if not listing.category or listing.category.slug not in {'real_estate', 'real-estate', 'accommodation'}:
+            return
+        # real_estate app may be optional; guard imports
+        if REListing is None:
+            return
+        # If already bridged, nothing to do
+        if REListing.objects.filter(listing=listing).exists():
+            return
+
+        # Map fields
+        dyn = listing.dynamic_fields or {}
+        rent_type = dyn.get('rental_term')
+        if rent_type not in ('short_term', 'long_term', 'both'):
+            # Derive from transaction_type when possible
+            rent_type = 'short_term' if listing.transaction_type == 'rent_short' else (
+                'long_term' if listing.transaction_type in ('rent_long', 'sale', 'project') else 'both'
+            )
+        property_type = (getattr(listing.subcategory, 'slug', None) or 'apartment')
+        bedrooms = int(dyn.get('bedrooms') or 0)
+        try:
+            from decimal import Decimal
+            bathrooms_val = dyn.get('bathrooms')
+            bathrooms = Decimal(str(bathrooms_val)) if bathrooms_val is not None else Decimal('1.0')
+        except Exception:
+            from decimal import Decimal
+            bathrooms = Decimal('1.0')
+
+        # Create RE property and link to generic listing
+        prop = REListing(
+            owner=listing.owner,
+            title=listing.title,
+            description=listing.description or '',
+            city=listing.location or '',
+            district='',
+            lat=listing.latitude,
+            lng=listing.longitude,
+            bedrooms=bedrooms,
+            bathrooms=bathrooms,
+            property_type=property_type,
+            rent_type=rent_type,
+            currency=(listing.currency or 'EUR')[:3],
+            monthly_price=int(listing.price or 0) if rent_type in ('long_term', 'both') else None,
+            nightly_price=int(listing.price or 0) if rent_type == 'short_term' else None,
+            listing=listing,
+        )
+        # Optional extended fields from dynamic_fields
+        try:
+            from datetime import date as _date
+            af = dyn.get('available_from')
+            if isinstance(af, str) and len(af) >= 10:
+                prop.available_from = _date.fromisoformat(af[:10])
+        except Exception:
+            pass
+        try:
+            mt = dyn.get('min_term_months')
+            if mt is not None:
+                prop.min_term_months = int(mt)
+        except Exception:
+            pass
+        try:
+            dep = dyn.get('deposit')
+            if dep is not None:
+                prop.deposit = int(dep)
+        except Exception:
+            pass
+        try:
+            mn = dyn.get('min_nights')
+            if mn is not None:
+                prop.min_nights = int(mn)
+        except Exception:
+            pass
+        prop.save()
 
 
 class DomainViewSet(viewsets.ReadOnlyModelViewSet):
@@ -861,6 +993,8 @@ class RealEstateDashboardViewSet(viewsets.ViewSet):
             occ = round((occupied_nights_map.get(p.id, 0) / 30) * 100.0, 1)
             items.append({
                 'id': p.id,
+                # Expose generic listing UUID for client-side actions (edit/delete)
+                'listing_id': getattr(p, 'listing_id', None),
                 'title': p.title,
                 'property_type': p.property_type,
                 'city': p.city,
@@ -963,11 +1097,97 @@ class RealEstateDashboardViewSet(viewsets.ViewSet):
     # Stubs for later deep-dive sections (return empty shapes to avoid 404s)
     @action(detail=False, methods=['get'])
     def occupancy(self, request):
-        return Response({'timeline': [], 'vacancy': [], 'seasonality': [], 'forecast': {}})
+        now = timezone.now()
+        props = self._get_user_properties(request)
+        # Build last 6 months occupancy timeline
+        timeline = []
+        for i in range(5, -1, -1):
+            month = (now - timezone.timedelta(days=30 * i))
+            month_start = month.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            # crude month end
+            next_month = (month_start + timezone.timedelta(days=32)).replace(day=1)
+            month_end = next_month
+            days = (month_end - month_start).days or 30
+            total_nights = max(props.count() * days, 1)
+            occupied_nights = 0
+            qs = self._get_user_bookings(request, props).filter(
+                status__in=['confirmed', 'in_progress'],
+                start_date__lt=month_end,
+                end_date__gt=month_start,
+            )
+            for b in qs:
+                s = max(b.start_date, month_start)
+                e = min(b.end_date or month_end, month_end)
+                delta = (e - s).days
+                if delta > 0:
+                    occupied_nights += delta
+            rate = round((occupied_nights / total_nights) * 100.0, 2) if total_nights else 0.0
+            timeline.append({
+                'label': month_start.strftime('%Y-%m'),
+                'occupancy_rate': rate,
+                'occupied_nights': occupied_nights,
+                'total_nights': total_nights,
+            })
+
+        vacancy = [{
+            'status': 'vacant',
+            'count': props.count() - self._get_user_bookings(request, props).filter(
+                status__in=['confirmed', 'in_progress'],
+                start_date__lte=now,
+                end_date__gte=now,
+            ).values('listing_id').distinct().count()
+        }]
+
+        return Response({'timeline': timeline, 'vacancy': vacancy, 'seasonality': [], 'forecast': {}})
 
     @action(detail=False, methods=['get'])
     def earnings(self, request):
-        return Response({'summary': {}, 'by_property': [], 'payouts': [], 'top_performers': []})
+        now = timezone.now()
+        props = self._get_user_properties(request)
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        ytd_start = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        from decimal import Decimal
+
+        month_bookings = self._get_user_bookings(request, props).filter(
+            status__in=['confirmed', 'completed'],
+            start_date__gte=month_start,
+        )
+        ytd_bookings = self._get_user_bookings(request, props).filter(
+            status__in=['confirmed', 'completed'],
+            start_date__gte=ytd_start,
+        )
+
+        total_month = sum((b.total_price or Decimal('0.00')) for b in month_bookings)
+        total_ytd = sum((b.total_price or Decimal('0.00')) for b in ytd_bookings)
+
+        # By property breakdown (month)
+        by_property_map = {}
+        for p in props:
+            by_property_map[p.id] = {
+                'id': p.id,
+                'title': p.title,
+                'monthly_revenue': Decimal('0.00'),
+                'ytd_revenue': Decimal('0.00'),
+            }
+        for b in month_bookings:
+            prop = props.filter(listing_id=b.listing_id).first()
+            if prop:
+                by_property_map[prop.id]['monthly_revenue'] += (b.total_price or Decimal('0.00'))
+        for b in ytd_bookings:
+            prop = props.filter(listing_id=b.listing_id).first()
+            if prop:
+                by_property_map[prop.id]['ytd_revenue'] += (b.total_price or Decimal('0.00'))
+
+        by_property = list(by_property_map.values())
+        top_performers = sorted(by_property, key=lambda x: x['monthly_revenue'], reverse=True)[:5]
+
+        summary = {
+            'month_total': total_month,
+            'ytd_total': total_ytd,
+            'currency': 'EUR',
+        }
+
+        return Response({'summary': summary, 'by_property': by_property, 'payouts': [], 'top_performers': top_performers})
 
     @action(detail=False, methods=['get'], url_path='sales-pipeline')
     def sales_pipeline(self, request):
@@ -975,7 +1195,46 @@ class RealEstateDashboardViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['get'])
     def location(self, request):
-        return Response({'areas': [], 'insights': [], 'opportunities': []})
+        now = timezone.now()
+        start_range = now - timezone.timedelta(days=30)
+        props = self._get_user_properties(request)
+        areas = []
+        # Group by city
+        cities = props.values_list('city', flat=True).distinct()
+        for city in cities:
+            city_props = props.filter(city=city)
+            total_units = city_props.count()
+            total_nights = max(total_units * 30, 1)
+            # occupancy
+            bookings = self._get_user_bookings(request, city_props).filter(
+                status__in=['confirmed', 'in_progress'],
+                start_date__lt=now,
+                end_date__gt=start_range,
+            )
+            occupied_nights = 0
+            from decimal import Decimal
+            revenue = Decimal('0.00')
+            for b in bookings:
+                s = max(b.start_date, start_range)
+                e = min(b.end_date or now, now)
+                delta = (e - s).days
+                if delta > 0:
+                    occupied_nights += delta
+                revenue += (b.total_price or Decimal('0.00'))
+            occ_rate = round((occupied_nights / total_nights) * 100.0, 2) if total_nights else 0.0
+            areas.append({
+                'city': city or 'Unknown',
+                'units': total_units,
+                'occupancy_rate': occ_rate,
+                'monthly_revenue': revenue,
+            })
+
+        insights = []
+        if areas:
+            best = max(areas, key=lambda a: a['occupancy_rate'])
+            insights.append({'type': 'info', 'text': f"Highest occupancy in {best['city']} ({best['occupancy_rate']}%)"})
+
+        return Response({'areas': areas, 'insights': insights, 'opportunities': []})
 
     @action(detail=False, methods=['get'])
     def maintenance(self, request):

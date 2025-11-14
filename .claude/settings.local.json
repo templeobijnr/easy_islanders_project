@@ -18,7 +18,9 @@
       "Bash(mkdir:*)",
       "Bash(git checkout:*)",
       "Bash(chmod:*)",
-      "Bash(export PGPASSWORD=easy_pass:*)"
+      "Bash(export PGPASSWORD=easy_pass:*)",
+      "Bash(npm install:*)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []

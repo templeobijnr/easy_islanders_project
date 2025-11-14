@@ -20,6 +20,7 @@ import {
   UtensilsCrossed,
   Waves,
   Wrench,
+  HeartPulse,
 } from "lucide-react";
 import axios from "axios";
 import { useAuth } from "../shared/context/AuthContext";
@@ -101,6 +102,11 @@ const CreateListingPage = () => {
     miscellaneous: ShoppingBag,
     real_estate: Building2,
     general: ShoppingBag,
+    // Canonical slugs (taxonomy)
+    cars: Car,
+    events: Sparkles,
+    restaurants: UtensilsCrossed,
+    health_beauty: HeartPulse,
   };
 
   // --- Fetch Categories ---

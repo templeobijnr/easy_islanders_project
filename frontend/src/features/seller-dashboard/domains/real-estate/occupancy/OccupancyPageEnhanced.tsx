@@ -60,12 +60,20 @@ export const OccupancyPageEnhanced = () => {
 
   // Find peak and low months
   const peakMonth = timeline.reduce(
-    (max: { occupancy_rate?: number } | undefined, item: { occupancy_rate?: number }) => (item.occupancy_rate > (max?.occupancy_rate || 0) ? item : max),
-    timeline[0]
+    (max: { occupancy_rate?: number } | undefined, item: { occupancy_rate?: number }) => {
+      const occ = item?.occupancy_rate ?? 0;
+      const maxOcc = max?.occupancy_rate ?? 0;
+      return occ > maxOcc ? item : max;
+    },
+    timeline[0] || { occupancy_rate: 0 } as any
   );
   const lowMonth = timeline.reduce(
-    (min: { occupancy_rate?: number } | undefined, item: { occupancy_rate?: number }) => (item.occupancy_rate < (min?.occupancy_rate || 100) ? item : min),
-    timeline[0]
+    (min: { occupancy_rate?: number } | undefined, item: { occupancy_rate?: number }) => {
+      const occ = item?.occupancy_rate ?? 0;
+      const minOcc = min?.occupancy_rate ?? 100;
+      return occ < minOcc ? item : min;
+    },
+    timeline[0] || { occupancy_rate: 100 } as any
   );
 
   return (

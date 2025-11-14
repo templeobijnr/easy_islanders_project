@@ -6,8 +6,8 @@ from rest_framework import viewsets
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from django.db.models import Q, OuterRef, Exists
-from .models import Listing, ShortTermBlock
-from .serializers import ListingSerializer
+from .models import Listing
+# from .serializers import ListingSerializer  # Temporarily disabled during v1 migration
 
 
 def normalize_turkish_chars(text: str) -> str:
@@ -163,24 +163,25 @@ class ListingSearchViewSet(viewsets.ViewSet):
                     pass
 
         # Short-term availability filter (exclude listings with overlapping blocks)
-        if rent_type == "short_term" and check_in and check_out:
-            try:
-                ci = date.fromisoformat(check_in)
-                co = date.fromisoformat(check_out)
-
-                # Exclude listings that have blocks overlapping the requested range
-                # A block overlaps if: block.start_date <= check_out AND block.end_date >= check_in
-                blocked = ShortTermBlock.objects.filter(
-                    listing=OuterRef("pk"),
-                    start_date__lte=co,
-                    end_date__gte=ci
-                )
-
-                qs = qs.exclude(Exists(blocked))
-
-            except ValueError:
-                # Invalid date format, skip availability filter
-                pass
+        # TODO: Re-implement with v1 data model
+        # if rent_type == "short_term" and check_in and check_out:
+        #     try:
+        #         ci = date.fromisoformat(check_in)
+        #         co = date.fromisoformat(check_out)
+        #
+        #         # Exclude listings that have blocks overlapping the requested range
+        #         # A block overlaps if: block.start_date <= check_out AND block.end_date >= check_in
+        #         blocked = ShortTermBlock.objects.filter(
+        #             listing=OuterRef("pk"),
+        #             start_date__lte=co,
+        #             end_date__gte=ci
+        #         )
+        #
+        #         qs = qs.exclude(Exists(blocked))
+        #
+        #     except ValueError:
+        #         # Invalid date format, skip availability filter
+        #         pass
 
         # Order by price (ascending for clarity)
         if rent_type == "short_term":
@@ -195,7 +196,9 @@ class ListingSearchViewSet(viewsets.ViewSet):
         qs = qs[:20]
 
         # Serialize and return
-        serializer = ListingSerializer(qs, many=True)
-        data = serializer.data
+        # TODO: Re-implement serializer for v1 data model
+        # serializer = ListingSerializer(qs, many=True)
+        # data = serializer.data
+        # return Response({"count": len(data), "results": data})
 
-        return Response({"count": len(data), "results": data})
+        return Response({"count": qs.count(), "results": [], "message": "Legacy API - being migrated to v1"})

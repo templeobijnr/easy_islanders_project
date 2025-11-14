@@ -16,24 +16,10 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../
 import { DateRange } from 'react-day-picker';
 import axios from 'axios';
 import { format } from 'date-fns';
+import { RecItem } from '../../../types/recItem';
 
 interface ShortTermRecommendationCardProps {
-  item: {
-    id: string | number;
-    title: string;
-    description?: string;
-    area?: string;
-    location?: string;
-    price: string;
-    imageUrl?: string;
-    photos?: string[];
-    amenities?: string[];
-    contactInfo?: {
-      phone?: string;
-      email?: string;
-      website?: string;
-    };
-  };
+  item: RecItem;
 }
 
 export const ShortTermRecommendationCard: React.FC<ShortTermRecommendationCardProps> = ({ item }) => {
@@ -45,6 +31,13 @@ export const ShortTermRecommendationCard: React.FC<ShortTermRecommendationCardPr
   const [availabilityChecked, setAvailabilityChecked] = useState(false);
   const [isAvailable, setIsAvailable] = useState(true);
 
+  // Map fields from RecItem metadata
+  const description = item.metadata?.description;
+  const amenities = item.metadata?.amenities || [];
+  const contactInfo = item.metadata?.contactInfo;
+  const location = item.area || item.metadata?.location || 'North Cyprus';
+  const photos = item.galleryImages || (item.imageUrl ? [item.imageUrl] : []);
+
   const handleCheckAvailability = async () => {
     if (!dateRange || !dateRange.from || !dateRange.to) {
       alert('Please select check-in and check-out dates');
@@ -52,7 +45,8 @@ export const ShortTermRecommendationCard: React.FC<ShortTermRecommendationCardPr
     }
 
     try {
-      const response = await axios.post('/api/shortterm/check-availability/', {
+      // Use v1 real estate endpoint
+      const response = await axios.post('/api/v1/real_estate/availability/check/', {
         listing_id: item.id,
         check_in: format(dateRange.from, 'yyyy-MM-dd'),
         check_out: format(dateRange.to, 'yyyy-MM-dd'),
@@ -88,7 +82,8 @@ export const ShortTermRecommendationCard: React.FC<ShortTermRecommendationCardPr
 
     setIsBooking(true);
     try {
-      const response = await axios.post('/api/shortterm/bookings/', {
+      // Use v1 real estate endpoint
+      const response = await axios.post('/api/v1/real_estate/bookings/', {
         listing_id: item.id,
         check_in: format(dateRange.from, 'yyyy-MM-dd'),
         check_out: format(dateRange.to, 'yyyy-MM-dd'),
@@ -134,9 +129,11 @@ export const ShortTermRecommendationCard: React.FC<ShortTermRecommendationCardPr
             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
               <ImageIcon className="w-8 h-8 text-white" />
             </div>
-            <Badge variant="premium" className="absolute top-3 right-3">
-              {item.price}
-            </Badge>
+            {item.price && (
+              <Badge variant="premium" className="absolute top-3 right-3">
+                {item.price}
+              </Badge>
+            )}
           </div>
 
           {/* CONTENT */}
@@ -146,7 +143,7 @@ export const ShortTermRecommendationCard: React.FC<ShortTermRecommendationCardPr
             </h3>
             <p className="text-sm text-muted-foreground flex items-center gap-1">
               <MapPin className="w-3 h-3" />
-              {item.area || item.location || 'North Cyprus'}
+              {location}
             </p>
 
             {dateRange?.from && dateRange?.to && (
@@ -250,8 +247,8 @@ export const ShortTermRecommendationCard: React.FC<ShortTermRecommendationCardPr
             <DialogTitle>{item.title} — Photos</DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-2 max-h-[600px] overflow-y-auto">
-            {item.photos && item.photos.length > 0 ? (
-              item.photos.map((src, i) => (
+            {photos.length > 0 ? (
+              photos.map((src, i) => (
                 <div key={i} className="rounded-lg overflow-hidden">
                   <motion.div
                     whileHover={{ scale: 1.05 }}
@@ -281,22 +278,22 @@ export const ShortTermRecommendationCard: React.FC<ShortTermRecommendationCardPr
           <DialogHeader>
             <DialogTitle>{item.title}</DialogTitle>
             <DialogDescription>
-              {item.area || item.location}
+              {location}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
               <h4 className="font-semibold mb-2">Description</h4>
               <p className="text-sm text-muted-foreground">
-                {item.description || 'No description available.'}
+                {description || 'No description available.'}
               </p>
             </div>
 
-            {item.amenities && item.amenities.length > 0 && (
+            {amenities.length > 0 && (
               <div>
                 <h4 className="font-semibold mb-2">Amenities</h4>
                 <div className="flex flex-wrap gap-2">
-                  {item.amenities.map((amenity, i) => (
+                  {amenities.map((amenity, i) => (
                     <Badge key={i} variant="secondary">
                       {amenity}
                     </Badge>
@@ -305,39 +302,65 @@ export const ShortTermRecommendationCard: React.FC<ShortTermRecommendationCardPr
               </div>
             )}
 
-            <div>
-              <h4 className="font-semibold mb-2">Price</h4>
-              <p className="text-lg font-bold text-primary">{item.price}</p>
-            </div>
+            {item.metadata?.bedrooms && (
+              <div>
+                <h4 className="font-semibold mb-2">Property Details</h4>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-muted-foreground">Bedrooms</p>
+                    <p className="font-semibold">{item.metadata.bedrooms}</p>
+                  </div>
+                  {item.metadata.bathrooms && (
+                    <div>
+                      <p className="text-muted-foreground">Bathrooms</p>
+                      <p className="font-semibold">{item.metadata.bathrooms}</p>
+                    </div>
+                  )}
+                  {item.metadata.sqm && (
+                    <div>
+                      <p className="text-muted-foreground">Area</p>
+                      <p className="font-semibold">{item.metadata.sqm} m²</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
-            {item.contactInfo && (
+            {item.price && (
+              <div>
+                <h4 className="font-semibold mb-2">Price</h4>
+                <p className="text-lg font-bold text-primary">{item.price}</p>
+              </div>
+            )}
+
+            {contactInfo && (
               <div>
                 <h4 className="font-semibold mb-2">Contact</h4>
                 <div className="flex flex-wrap gap-3">
-                  {item.contactInfo.phone && (
-                    <a href={`tel:${item.contactInfo.phone}`} className="flex items-center gap-1 text-sm text-primary hover:text-primary/90">
+                  {contactInfo.phone && (
+                    <a href={`tel:${contactInfo.phone}`} className="flex items-center gap-1 text-sm text-primary hover:text-primary/90">
                       <motion.div
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                       >
                         <Phone className="w-4 h-4" />
-                        {item.contactInfo.phone}
+                        {contactInfo.phone}
                       </motion.div>
                     </a>
                   )}
-                  {item.contactInfo.email && (
-                    <a href={`mailto:${item.contactInfo.email}`} className="flex items-center gap-1 text-sm text-primary hover:text-primary/90">
+                  {contactInfo.email && (
+                    <a href={`mailto:${contactInfo.email}`} className="flex items-center gap-1 text-sm text-primary hover:text-primary/90">
                       <motion.div
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                       >
                         <Mail className="w-4 h-4" />
-                        {item.contactInfo.email}
+                        {contactInfo.email}
                       </motion.div>
                     </a>
                   )}
-                  {item.contactInfo.website && (
-                    <a href={item.contactInfo.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm text-primary hover:text-primary/90">
+                  {contactInfo.website && (
+                    <a href={contactInfo.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm text-primary hover:text-primary/90">
                       <motion.div
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}

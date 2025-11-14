@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus } from 'lucide-react';
 import { useAuth } from '@/shared/context/AuthContext';
-import RealEstatePropertyUploadEnhanced from '../overview/RealEstatePropertyUploadEnhanced';
+import RealEstatePropertyUploadEnhanced from '@features/seller-dashboard/domains/real-estate/overview/RealEstatePropertyUploadEnhanced';
 import axios from 'axios';
 import config from '@/config';
 import { useQueryClient } from '@tanstack/react-query';

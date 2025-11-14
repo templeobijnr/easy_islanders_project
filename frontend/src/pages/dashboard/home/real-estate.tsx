@@ -1,7 +1,7 @@
 import React from 'react';
 import { DomainProvider } from '../../../features/seller-dashboard/context/DomainContext';
 import DashboardLayout from '../../../features/seller-dashboard/layout/DashboardLayout';
-import { RealEstateOverviewPage } from '../../../features/seller-dashboard/domains/real-estate/overview/RealEstateOverviewPage';
+import { RealEstateOverviewPage } from '@features/seller-dashboard/domains/real-estate/overview/RealEstateOverviewPage';
 
 /**
  * Real Estate Domain Home Page

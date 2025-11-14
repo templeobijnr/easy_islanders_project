@@ -273,7 +273,7 @@ export const RealEstatePropertyUploadEnhanced: React.FC<Props> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[95vw] sm:max-w-4xl p-0 max-h-[90vh] grid grid-rows-[auto_1fr_auto] !grid-cols-1 overflow-hidden">
+      <DialogContent className="w-[95vw] sm:max-w-4xl p-0 h-[85vh] max-h-[90vh] grid grid-rows-[auto_1fr_auto] !grid-cols-1 overflow-hidden">
         <DialogHeader className="flex-shrink-0 px-6 py-4 border-b bg-background/95 backdrop-blur">
           <DialogTitle>Create New Property</DialogTitle>
         </DialogHeader>

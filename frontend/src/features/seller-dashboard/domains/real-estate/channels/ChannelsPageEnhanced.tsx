@@ -365,7 +365,7 @@ export const ChannelsPageEnhanced = () => {
                       cx="50%"
                       cy="50%"
                       labelLine={false}
-                      label={(entry) => `${entry.name}: ${((entry.revenue / totalRevenue) * 100).toFixed(1)}%`}
+                      label={(entry: any) => `${entry.name}: ${(((entry?.revenue || 0) / (totalRevenue || 1)) * 100).toFixed(1)}%`}
                       outerRadius={80}
                       fill="#8884d8"
                       dataKey="revenue"

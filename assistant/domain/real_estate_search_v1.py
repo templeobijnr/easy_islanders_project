@@ -17,7 +17,12 @@ import json
 from django.conf import settings
 from django.core.cache import cache
 from assistant.brain.circuit_breaker import get_backend_search_breaker, CircuitBreakerOpen, CircuitBreakerConfig
-from assistant.brain.metrics import record_search_duration, record_error, set_circuit_breaker_state
+from assistant.brain.metrics import (
+    record_search_duration,
+    record_error,
+    set_circuit_breaker_state,
+    record_card_generated,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -348,14 +353,24 @@ def search_listings_v1(
 
 def format_v1_listing_for_card(listing: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Format a v1 listing object into a recommendation card item.
+    Format a v1 listing object into a RecItem recommendation card.
+
+    This function returns a dict matching the RecItem TypedDict schema,
+    which is the canonical format for all real estate recommendation cards.
 
     Args:
         listing: Raw listing dict from v1 API (vw_listings_search view)
 
     Returns:
-        Dict formatted for CardItem schema (camelCase for frontend compatibility)
+        Dict formatted as RecItem (camelCase for frontend compatibility)
     """
+    listing_id = listing.get("listing_id", "UNKNOWN")
+    listing_type_code = listing.get("listing_type_code", "")
+
+    logger.debug(
+        f"[format_v1_listing_for_card] Formatting listing_id={listing_id}, type={listing_type_code}"
+    )
+
     # Build subtitle from location
     subtitle_parts = []
     if listing.get("city"):
@@ -380,10 +395,12 @@ def format_v1_listing_for_card(listing: Dict[str, Any]) -> Dict[str, Any]:
         }.get(price_period, "")
         price_str = f"{currency_symbol}{base_price}{period_suffix}"
 
-    # Generate badges from features
+    # Generate badges from features (3-6 curated items)
     badges = []
     if listing.get("has_wifi"):
         badges.append("WiFi")
+    if listing.get("has_kitchen"):
+        badges.append("Kitchen")
     if listing.get("has_private_pool"):
         badges.append("Private Pool")
     elif listing.get("has_shared_pool"):
@@ -392,36 +409,100 @@ def format_v1_listing_for_card(listing: Dict[str, Any]) -> Dict[str, Any]:
         badges.append("Sea View")
     if listing.get("has_parking"):
         badges.append("Parking")
-    badges = badges[:3]  # Limit to 3 badges
+    if listing.get("furnished_status") == "FULLY_FURNISHED":
+        badges.append("Furnished")
+    badges = badges[:6]  # Limit to 6 badges
 
-    # Build metadata
+    # Build full amenities list for metadata
+    amenities = []
+    if listing.get("has_wifi"):
+        amenities.append("WiFi")
+    if listing.get("has_kitchen"):
+        amenities.append("Kitchen")
+    if listing.get("has_private_pool"):
+        amenities.append("Private Pool")
+    if listing.get("has_shared_pool"):
+        amenities.append("Shared Pool")
+    if listing.get("has_parking"):
+        amenities.append("Parking")
+    if listing.get("has_air_conditioning"):
+        amenities.append("Air Conditioning")
+    if listing.get("view_sea"):
+        amenities.append("Sea View")
+    if listing.get("view_mountain"):
+        amenities.append("Mountain View")
+    if listing.get("has_gym"):
+        amenities.append("Gym")
+    if listing.get("has_sauna"):
+        amenities.append("Sauna")
+    if listing.get("has_balcony"):
+        amenities.append("Balcony")
+    if listing.get("has_terrace"):
+        amenities.append("Terrace")
+
+    # Map listing_type_code to rent_type
+    rent_type_map = {
+        "DAILY_RENTAL": "daily",
+        "LONG_TERM_RENTAL": "long_term",
+        "SALE": "sale",
+        "PROJECT": "project",
+    }
+    rent_type = rent_type_map.get(listing_type_code, "long_term")
+
+    # Build RecItemMetadata
     metadata = {
         "bedrooms": listing.get("bedrooms"),
         "bathrooms": listing.get("bathrooms"),
         "sqm": listing.get("total_area_sqm") or listing.get("net_area_sqm"),
-        "listing_type": listing.get("listing_type_code"),
-        "property_type": listing.get("property_type_label"),
-        "furnished_status": listing.get("furnished_status"),
-        "features": {
-            "wifi": listing.get("has_wifi"),
-            "kitchen": listing.get("has_kitchen"),
-            "private_pool": listing.get("has_private_pool"),
-            "shared_pool": listing.get("has_shared_pool"),
-            "parking": listing.get("has_parking"),
-            "air_conditioning": listing.get("has_air_conditioning"),
-            "sea_view": listing.get("view_sea"),
-            "mountain_view": listing.get("view_mountain"),
-        }
+        "description": listing.get("description", ""),
+        "amenities": amenities,
+        "rent_type": rent_type,
     }
 
-    return {
+    # Add contact info if available (optional)
+    # TODO: Wire this up when contact data is available in the view
+    # if listing.get("contact_phone") or listing.get("contact_email"):
+    #     metadata["contactInfo"] = {
+    #         "phone": listing.get("contact_phone"),
+    #         "email": listing.get("contact_email"),
+    #     }
+
+    # Build gallery images array
+    gallery_images = []
+    # TODO: Add image URLs when image storage is implemented
+    # For now, use placeholder or hero image if available
+    hero_image_url = listing.get("hero_image_url")
+    if hero_image_url:
+        gallery_images.append(hero_image_url)
+
+    # Build RecItem dict
+    rec_item = {
         "id": str(listing.get("listing_id", "")),
         "title": listing.get("title", ""),
         "subtitle": subtitle,
         "price": price_str,
-        "imageUrl": None,  # TODO: Add image handling when implemented
-        "rating": None,  # TODO: Add rating when available
+        "imageUrl": hero_image_url,  # Hero image
         "area": listing.get("area"),
         "badges": badges,
-        "metadata": metadata
+        "galleryImages": gallery_images,
+        "metadata": metadata,
     }
+
+    # Record metrics
+    has_image = bool(hero_image_url)
+    record_card_generated(rent_type=rent_type, has_image=has_image)
+
+    # Log card generation
+    if not has_image:
+        logger.warning(
+            f"[format_v1_listing_for_card] Card generated without image: "
+            f"listing_id={listing_id}, rent_type={rent_type}, title={rec_item['title']}"
+        )
+    else:
+        logger.debug(
+            f"[format_v1_listing_for_card] Card generated successfully: "
+            f"listing_id={listing_id}, rent_type={rent_type}, badges_count={len(badges)}, "
+            f"amenities_count={len(amenities)}"
+        )
+
+    return rec_item

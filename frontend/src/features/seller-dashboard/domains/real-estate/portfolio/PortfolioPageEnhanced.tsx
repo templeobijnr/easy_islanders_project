@@ -183,8 +183,9 @@ export const PortfolioPageEnhanced: React.FC = () => {
     link.click();
     document.body.removeChild(link);
 
-    // Show success toast
-    success('Portfolio data exported successfully');
+    // Show success toast with count
+    const exportedCount = listingsData.results.length;
+    success(`Exported ${exportedCount} ${exportedCount === 1 ? 'listing' : 'listings'} to CSV`);
   };
 
   const handleBulkEdit = () => {

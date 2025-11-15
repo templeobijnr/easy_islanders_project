@@ -38,7 +38,15 @@ export const ListingsTab: React.FC<ListingsTabProps> = ({
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [searchInput, setSearchInput] = useState(filters.search || '');
+  const [showBulkHint, setShowBulkHint] = useState(() => {
+    return localStorage.getItem('portfolio-bulk-hint-dismissed') !== 'true';
+  });
   const advancedFiltersRef = React.useRef<HTMLDivElement>(null);
+
+  const handleDismissBulkHint = () => {
+    setShowBulkHint(false);
+    localStorage.setItem('portfolio-bulk-hint-dismissed', 'true');
+  };
 
   // Debounced search (300ms)
   useEffect(() => {
@@ -303,6 +311,31 @@ export const ListingsTab: React.FC<ListingsTabProps> = ({
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Bulk Select Discovery Hint */}
+      {showBulkHint && total > 10 && selectedIds.length === 0 && (
+        <div className="bg-sky-50 border border-sky-200 rounded-xl p-4 flex items-start gap-3">
+          <div className="flex-shrink-0 mt-0.5">
+            <svg className="h-5 w-5 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-slate-900">
+              <strong>Tip:</strong> Select multiple listings to change status or adjust prices in bulk.
+            </p>
+          </div>
+          <button
+            onClick={handleDismissBulkHint}
+            className="flex-shrink-0 text-slate-400 hover:text-slate-600 transition-colors"
+            aria-label="Dismiss hint"
+          >
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
       )}
 
       {/* Listings Table or Empty State */}

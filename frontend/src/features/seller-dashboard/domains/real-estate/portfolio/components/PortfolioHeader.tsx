@@ -69,10 +69,10 @@ export const PortfolioHeader: React.FC<PortfolioHeaderProps> = ({
 
           {/* Right: Actions & Time Period */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3 lg:flex-shrink-0">
-            {/* Time Period Selector */}
+            {/* Time Period Selector - subtle, for context only */}
             <div className="flex items-center">
               <Select value={timePeriod} onValueChange={(value: any) => onTimePeriodChange(value)}>
-                <SelectTrigger className="w-full sm:w-[160px] h-10 bg-white/90 border-slate-200 text-slate-900">
+                <SelectTrigger className="w-full sm:w-[140px] h-9 bg-white/60 border-slate-200/60 text-slate-700 text-sm hover:bg-white/90 hover:border-slate-300 transition-colors">
                   <SelectValue placeholder="Select period" />
                 </SelectTrigger>
                 <SelectContent>
@@ -90,7 +90,7 @@ export const PortfolioHeader: React.FC<PortfolioHeaderProps> = ({
                 size="sm"
                 onClick={onExportData}
                 className="h-10 bg-white/90 border-slate-200 text-slate-900 hover:bg-white px-4"
-                title="Exports current filters"
+                title="Exports current filtered view as CSV"
               >
                 <Download className="h-4 w-4 mr-2 flex-shrink-0" />
                 <span className="hidden sm:inline">Export CSV</span>

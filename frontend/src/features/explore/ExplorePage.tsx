@@ -60,7 +60,7 @@ const ExplorePage: React.FC = () => {
         {/* Content */}
         <div className="relative backdrop-blur-sm bg-white/10 p-6 md:p-8">
           <div className="flex items-center gap-4 mb-3">
-            <div className="flex items-center justify-center w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-lime-600 shadow-lg">
+            <div className="flex items-center justify-center w-14 h-14 md:w-16 md:h-16">
               <span className="text-3xl md:text-4xl">🌴</span>
             </div>
             <div>

@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import LocationMapPicker from '@/components/ui/LocationMapPicker';
 import ImageUploadWithPreview from '@/components/ui/ImageUploadWithPreview';
 import { Home, MapPin, DollarSign, Image as ImageIcon, Info } from 'lucide-react';
@@ -64,6 +65,77 @@ const FURNISHED_STATUS_OPTIONS = [
   { value: 'FULLY_FURNISHED', label: 'Fully Furnished' },
 ];
 
+type FeatureOption = {
+  code: string;
+  label: string;
+};
+
+const BEDROOM_OPTIONS = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+const LIVING_ROOM_OPTIONS = [0, 1, 2, 3];
+const BATHROOM_OPTIONS = [0, 1, 2, 3, 4, 5];
+
+const FLOOR_NUMBER_OPTIONS = [
+  { value: '-1', label: 'Basement (-1)' },
+  { value: '0', label: 'Ground Floor' },
+  { value: '1', label: '1st Floor' },
+  { value: '2', label: '2nd Floor' },
+  { value: '3', label: '3rd Floor' },
+  { value: '4', label: '4th Floor' },
+  { value: '5', label: '5th Floor' },
+  { value: '6', label: '6th Floor' },
+  { value: '7', label: '7th Floor' },
+  { value: '8', label: '8th Floor' },
+  { value: '9', label: '9th Floor' },
+  { value: '10', label: '10th Floor' },
+];
+
+const LISTING_TYPE_OPTIONS = [
+  { value: 'rent_long', label: 'Long-term Rent' },
+  { value: 'rent_short', label: 'Short-term / Daily Rent' },
+  { value: 'sale', label: 'Sale' },
+  { value: 'project', label: 'Project Sale' },
+];
+
+const INSIDE_FEATURES: FeatureOption[] = [
+  { code: 'BALCONY', label: 'Balcony' },
+  { code: 'MASTER_CABINET', label: 'Master Cabinet' },
+  { code: 'ENSUITE_BATHROOM', label: 'En-suite Bathroom' },
+  { code: 'LAUNDRY_ROOM', label: 'Laundry Room' },
+  { code: 'FIREPLACE', label: 'Fireplace' },
+  { code: 'AIR_CONDITION', label: 'Air Condition' },
+  { code: 'WALK_IN_CLOSET', label: 'Walk-in Closet' },
+];
+
+const OUTSIDE_FEATURES: FeatureOption[] = [
+  { code: 'PRIVATE_POOL', label: 'Private Pool' },
+  { code: 'SHARED_POOL', label: 'Shared Pool' },
+  { code: 'PUBLIC_POOL', label: 'Public Pool' },
+  { code: 'GARDEN', label: 'Garden' },
+  { code: 'CLOSED_PARK', label: 'Closed Park' },
+  { code: 'CAR_PARK', label: 'Car Park' },
+  { code: 'ELEVATOR', label: 'Elevator' },
+  { code: 'BBQ', label: 'Barbecue' },
+  { code: 'TERRACE', label: 'Terrace' },
+  { code: 'SECURITY_CAM', label: 'Security Cam' },
+  { code: 'GENERATOR', label: 'Generator' },
+];
+
+const LOCATION_FEATURES: FeatureOption[] = [
+  { code: 'SEA_VIEW', label: 'Sea View' },
+  { code: 'MOUNTAIN_VIEW', label: 'Mountain View' },
+  { code: 'CITY_VIEW', label: 'City View' },
+  { code: 'GARDEN_VIEW', label: 'Nature / Green View' },
+  { code: 'POOL_VIEW', label: 'Pool View' },
+];
+
+const TITLE_DEED_OPTIONS = [
+  { value: 'TURKISH', label: 'Turkish Title Deed' },
+  { value: 'EXCHANGE', label: 'Exchange Title Deed' },
+  { value: 'KOCAN', label: 'Koçan (Long-term Lease)' },
+  { value: 'TRNC', label: 'TRNC Title Deed' },
+  { value: 'BRITISH', label: 'British Title Deed' },
+];
+
 export const RealEstatePropertyUploadEnhanced: React.FC<Props> = ({
   open,
   onOpenChange,
@@ -99,10 +171,11 @@ export const RealEstatePropertyUploadEnhanced: React.FC<Props> = ({
   // Features - Changed furnished from boolean to enum
   const [furnishedStatus, setFurnishedStatus] = useState<string>('NOT_SPECIFIED');
   const [petFriendly, setPetFriendly] = useState<boolean | null>(null);
-  const [hasPool, setHasPool] = useState<boolean>(false);
-  const [hasGym, setHasGym] = useState<boolean>(false);
-  const [hasSeaView, setHasSeaView] = useState<boolean>(false);
-  const [hasParkingAmenity, setHasParkingAmenity] = useState<boolean>(false);
+  const [selectedFeatureCodes, setSelectedFeatureCodes] = useState<string[]>([]);
+
+  // Listing-level extras
+  const [titleDeedTypeCode, setTitleDeedTypeCode] = useState<string>('');
+  const [isSwapPossible, setIsSwapPossible] = useState<boolean>(false);
 
   // Location
   const [city, setCity] = useState('');
@@ -110,9 +183,8 @@ export const RealEstatePropertyUploadEnhanced: React.FC<Props> = ({
   const [lat, setLat] = useState<string>('');
   const [lng, setLng] = useState<string>('');
 
-  // Transaction Type
-  const [isForSale, setIsForSale] = useState(false);
-  const [rentType, setRentType] = useState<'short_term' | 'long_term' | 'both'>('long_term');
+  // Listing Type / Transaction classifier (rent_long | rent_short | sale | project)
+  const [listingType, setListingType] = useState<'rent_long' | 'rent_short' | 'sale' | 'project'>('rent_long');
 
   // Pricing
   const [currency, setCurrency] = useState('EUR');
@@ -173,16 +245,14 @@ export const RealEstatePropertyUploadEnhanced: React.FC<Props> = ({
     setIsGatedCommunity(false);
     setFurnishedStatus('NOT_SPECIFIED');
     setPetFriendly(null);
-    setHasPool(false);
-    setHasGym(false);
-    setHasSeaView(false);
-    setHasParkingAmenity(false);
+    setSelectedFeatureCodes([]);
+    setTitleDeedTypeCode('');
+    setIsSwapPossible(false);
     setCity('');
     setDistrict('');
     setLat('');
     setLng('');
-    setIsForSale(false);
-    setRentType('long_term');
+    setListingType('rent_long');
     setCurrency('EUR');
     setSalePrice('');
     setNightlyPrice('');
@@ -217,6 +287,14 @@ export const RealEstatePropertyUploadEnhanced: React.FC<Props> = ({
     return typeObj?.backendCode || 'APARTMENT';
   };
 
+  const toggleFeatureCode = (code: string) => {
+    setSelectedFeatureCodes((prev) =>
+      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]
+    );
+  };
+
+  const isFeatureSelected = (code: string) => selectedFeatureCodes.includes(code);
+
   const onSubmit = async () => {
     if (categoriesLoading) {
       setError('Categories are still loading. Please wait...');
@@ -236,28 +314,23 @@ export const RealEstatePropertyUploadEnhanced: React.FC<Props> = ({
     try {
       const token = localStorage.getItem('token');
 
-      // Determine base price and transaction type for backend
+      // Determine base price and transaction type for backend based on listingType
       let basePrice: number | null = null;
       let transactionType: 'rent_long' | 'rent_short' | 'sale' = 'rent_long';
 
-      if (isForSale) {
-        basePrice = Number(salePrice || 0);
-        transactionType = 'sale';
+      if (listingType === 'rent_short') {
+        transactionType = 'rent_short';
+        basePrice = Number(nightlyPrice || 0);
+      } else if (listingType === 'rent_long') {
+        transactionType = 'rent_long';
+        basePrice = Number(monthlyPrice || 0);
       } else {
-        if (rentType === 'short_term') {
-          basePrice = Number(nightlyPrice || 0);
-          transactionType = 'rent_short';
-        } else {
-          basePrice = Number(monthlyPrice || 0);
-          transactionType = 'rent_long';
-        }
+        // sale or project
+        transactionType = 'sale';
+        basePrice = Number(salePrice || 0);
       }
 
-      const featureCodes: string[] = [];
-      if (hasPool) featureCodes.push('pool_shared');
-      if (hasGym) featureCodes.push('gym');
-      if (hasSeaView) featureCodes.push('sea_view');
-      if (hasParkingAmenity) featureCodes.push('open_parking');
+      const featureCodes: string[] = selectedFeatureCodes;
 
       const payload: any = {
         title,
@@ -285,6 +358,7 @@ export const RealEstatePropertyUploadEnhanced: React.FC<Props> = ({
           is_gated_community: isGatedCommunity,
           furnished_status:
             furnishedStatus && furnishedStatus !== 'NOT_SPECIFIED' ? furnishedStatus : undefined,
+          title_deed_type_code: titleDeedTypeCode || undefined,
         },
         features: {
           feature_codes: featureCodes,
@@ -294,14 +368,26 @@ export const RealEstatePropertyUploadEnhanced: React.FC<Props> = ({
           transaction_type: transactionType,
           base_price: basePrice !== null && isFinite(basePrice) ? basePrice : null,
           currency,
-          rental_kind: !isForSale
-            ? (rentType === 'short_term' ? 'DAILY' : 'LONG_TERM')
-            : undefined,
+          rental_kind:
+            listingType === 'rent_short'
+              ? 'DAILY'
+              : listingType === 'rent_long'
+                ? 'LONG_TERM'
+                : undefined,
           min_term_months:
-            !isForSale && minTermMonths ? Number(minTermMonths) : undefined,
-          available_from: !isForSale && availableFrom ? availableFrom : undefined,
-          deposit: !isForSale && deposit ? Number(deposit) : undefined,
-          min_nights: !isForSale && minNights ? Number(minNights) : undefined,
+            listingType === 'rent_long' && minTermMonths ? Number(minTermMonths) : undefined,
+          available_from:
+            (listingType === 'rent_long' || listingType === 'rent_short') && availableFrom
+              ? availableFrom
+              : undefined,
+          deposit:
+            (listingType === 'rent_long' || listingType === 'rent_short') && deposit
+              ? Number(deposit)
+              : undefined,
+          min_nights:
+            listingType === 'rent_short' && minNights ? Number(minNights) : undefined,
+          swap_possible:
+            (listingType === 'sale' || listingType === 'project') ? isSwapPossible : undefined,
         },
       };
 
@@ -455,34 +541,81 @@ export const RealEstatePropertyUploadEnhanced: React.FC<Props> = ({
                   </div>
 
                   <div className="space-y-2">
+                    <Label>Listing Type</Label>
+                    <Select
+                      value={listingType}
+                      onValueChange={(v) =>
+                        setListingType(v as 'rent_long' | 'rent_short' | 'sale' | 'project')
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select listing type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {LISTING_TYPE_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
                     <Label>Bedrooms</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={bedrooms}
-                      onChange={(e) => setBedrooms(Number(e.target.value || 0))}
-                    />
+                    <Select
+                      value={String(bedrooms)}
+                      onValueChange={(v) => setBedrooms(Number(v))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select bedrooms" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {BEDROOM_OPTIONS.map((opt) => (
+                          <SelectItem key={opt} value={String(opt)}>
+                            {opt}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <div className="space-y-2">
                     <Label>Bathrooms</Label>
-                    <Input
-                      type="number"
-                      step="0.5"
-                      min={0}
-                      value={bathrooms}
-                      onChange={(e) => setBathrooms(Number(e.target.value || 0))}
-                    />
+                    <Select
+                      value={String(bathrooms)}
+                      onValueChange={(v) => setBathrooms(Number(v))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select bathrooms" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {BATHROOM_OPTIONS.map((opt) => (
+                          <SelectItem key={opt} value={String(opt)}>
+                            {opt}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <div className="space-y-2">
                     <Label>Living Rooms</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={livingRooms}
-                      onChange={(e) => setLivingRooms(Number(e.target.value || 1))}
-                    />
+                    <Select
+                      value={String(livingRooms)}
+                      onValueChange={(v) => setLivingRooms(Number(v))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select living rooms" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {LIVING_ROOM_OPTIONS.map((opt) => (
+                          <SelectItem key={opt} value={String(opt)}>
+                            {opt}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <div className="space-y-2">
@@ -517,14 +650,21 @@ export const RealEstatePropertyUploadEnhanced: React.FC<Props> = ({
 
                   <div className="space-y-2">
                     <Label htmlFor="floor-number">Floor Number</Label>
-                    <Input
-                      id="floor-number"
-                      type="number"
-                      min={-1}
+                    <Select
                       value={floorNumber}
-                      onChange={(e) => setFloorNumber(e.target.value)}
-                      placeholder="3"
-                    />
+                      onValueChange={setFloorNumber}
+                    >
+                      <SelectTrigger id="floor-number">
+                        <SelectValue placeholder="Select floor" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {FLOOR_NUMBER_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <div className="space-y-2">
@@ -592,6 +732,27 @@ export const RealEstatePropertyUploadEnhanced: React.FC<Props> = ({
                     </Select>
                   </div>
 
+                  {(listingType === 'sale' || listingType === 'project') && (
+                    <div className="space-y-2">
+                      <Label>Title Deed</Label>
+                      <Select
+                        value={titleDeedTypeCode}
+                        onValueChange={setTitleDeedTypeCode}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select title deed" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TITLE_DEED_OPTIONS.map((opt) => (
+                            <SelectItem key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
                   <div className="flex items-center space-x-2">
                     <Switch
                       id="gated-community"
@@ -614,48 +775,65 @@ export const RealEstatePropertyUploadEnhanced: React.FC<Props> = ({
                     </Label>
                   </div>
 
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="has-pool"
-                      checked={hasPool}
-                      onCheckedChange={setHasPool}
-                    />
-                    <Label htmlFor="has-pool" className="cursor-pointer">
-                      Pool
-                    </Label>
-                  </div>
+                  {(listingType === 'sale' || listingType === 'project') && (
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id="swap-possible"
+                        checked={isSwapPossible}
+                        onCheckedChange={setIsSwapPossible}
+                      />
+                      <Label htmlFor="swap-possible" className="cursor-pointer">
+                        Swap Option
+                      </Label>
+                    </div>
+                  )}
 
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="has-gym"
-                      checked={hasGym}
-                      onCheckedChange={setHasGym}
-                    />
-                    <Label htmlFor="has-gym" className="cursor-pointer">
-                      Gym
-                    </Label>
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="has-sea-view"
-                      checked={hasSeaView}
-                      onCheckedChange={setHasSeaView}
-                    />
-                    <Label htmlFor="has-sea-view" className="cursor-pointer">
-                      Sea View
-                    </Label>
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="has-parking-amenity"
-                      checked={hasParkingAmenity}
-                      onCheckedChange={setHasParkingAmenity}
-                    />
-                    <Label htmlFor="has-parking-amenity" className="cursor-pointer">
-                      Dedicated Parking
-                    </Label>
+                  <div className="md:col-span-2 space-y-2">
+                    <Label>Features</Label>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <div className="text-sm font-medium mb-2">Inside</div>
+                        <div className="space-y-1">
+                          {INSIDE_FEATURES.map((feature) => (
+                            <label key={feature.code} className="flex items-center space-x-2">
+                              <Checkbox
+                                checked={isFeatureSelected(feature.code)}
+                                onCheckedChange={() => toggleFeatureCode(feature.code)}
+                              />
+                              <span className="text-sm">{feature.label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium mb-2">Outside</div>
+                        <div className="space-y-1">
+                          {OUTSIDE_FEATURES.map((feature) => (
+                            <label key={feature.code} className="flex items-center space-x-2">
+                              <Checkbox
+                                checked={isFeatureSelected(feature.code)}
+                                onCheckedChange={() => toggleFeatureCode(feature.code)}
+                              />
+                              <span className="text-sm">{feature.label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium mb-2">Location</div>
+                        <div className="space-y-1">
+                          {LOCATION_FEATURES.map((feature) => (
+                            <label key={feature.code} className="flex items-center space-x-2">
+                              <Checkbox
+                                checked={isFeatureSelected(feature.code)}
+                                onCheckedChange={() => toggleFeatureCode(feature.code)}
+                              />
+                              <span className="text-sm">{feature.label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -743,17 +921,6 @@ export const RealEstatePropertyUploadEnhanced: React.FC<Props> = ({
 
             {/* Pricing Tab */}
             <TabsContent value="pricing" className="space-y-4 mt-4">
-              <div className="flex items-center space-x-2 p-4 rounded-lg border bg-muted/50">
-                <Switch
-                  id="is-for-sale"
-                  checked={isForSale}
-                  onCheckedChange={setIsForSale}
-                />
-                <Label htmlFor="is-for-sale" className="cursor-pointer font-medium">
-                  For Sale (instead of rent)
-                </Label>
-              </div>
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Currency</Label>
@@ -771,7 +938,81 @@ export const RealEstatePropertyUploadEnhanced: React.FC<Props> = ({
                   </Select>
                 </div>
 
-                {isForSale ? (
+                {(listingType === 'rent_short') && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="nightly-price">Nightly Price</Label>
+                      <Input
+                        id="nightly-price"
+                        type="number"
+                        min={0}
+                        value={nightlyPrice}
+                        onChange={(e) => setNightlyPrice(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="min-nights">Minimum Nights</Label>
+                      <Input
+                        id="min-nights"
+                        type="number"
+                        min={0}
+                        value={minNights}
+                        onChange={(e) => setMinNights(e.target.value)}
+                      />
+                    </div>
+                  </>
+                )}
+
+                {listingType === 'rent_long' && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="monthly-price">Monthly Price</Label>
+                      <Input
+                        id="monthly-price"
+                        type="number"
+                        min={0}
+                        value={monthlyPrice}
+                        onChange={(e) => setMonthlyPrice(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="min-term-months">Minimum Term (months)</Label>
+                      <Input
+                        id="min-term-months"
+                        type="number"
+                        min={0}
+                        value={minTermMonths}
+                        onChange={(e) => setMinTermMonths(e.target.value)}
+                      />
+                    </div>
+                  </>
+                )}
+
+                {(listingType === 'rent_long' || listingType === 'rent_short') && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="available-from">Available From</Label>
+                      <Input
+                        id="available-from"
+                        type="date"
+                        value={availableFrom}
+                        onChange={(e) => setAvailableFrom(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="deposit">Deposit</Label>
+                      <Input
+                        id="deposit"
+                        type="number"
+                        min={0}
+                        value={deposit}
+                        onChange={(e) => setDeposit(e.target.value)}
+                      />
+                    </div>
+                  </>
+                )}
+
+                {(listingType === 'sale' || listingType === 'project') && (
                   <div className="space-y-2">
                     <Label htmlFor="sale-price">Sale Price</Label>
                     <Input
@@ -783,91 +1024,6 @@ export const RealEstatePropertyUploadEnhanced: React.FC<Props> = ({
                       placeholder="350000"
                     />
                   </div>
-                ) : (
-                  <>
-                    <div className="space-y-2">
-                      <Label>Rent Type</Label>
-                      <Select value={rentType} onValueChange={(v) => setRentType(v as any)}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="short_term">Short-term</SelectItem>
-                          <SelectItem value="long_term">Long-term</SelectItem>
-                          <SelectItem value="both">Both</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {(rentType === 'short_term' || rentType === 'both') && (
-                      <>
-                        <div className="space-y-2">
-                          <Label htmlFor="nightly-price">Nightly Price</Label>
-                          <Input
-                            id="nightly-price"
-                            type="number"
-                            min={0}
-                            value={nightlyPrice}
-                            onChange={(e) => setNightlyPrice(e.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="min-nights">Minimum Nights</Label>
-                          <Input
-                            id="min-nights"
-                            type="number"
-                            min={0}
-                            value={minNights}
-                            onChange={(e) => setMinNights(e.target.value)}
-                          />
-                        </div>
-                      </>
-                    )}
-
-                    {(rentType === 'long_term' || rentType === 'both') && (
-                      <>
-                        <div className="space-y-2">
-                          <Label htmlFor="monthly-price">Monthly Price</Label>
-                          <Input
-                            id="monthly-price"
-                            type="number"
-                            min={0}
-                            value={monthlyPrice}
-                            onChange={(e) => setMonthlyPrice(e.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="available-from">Available From</Label>
-                          <Input
-                            id="available-from"
-                            type="date"
-                            value={availableFrom}
-                            onChange={(e) => setAvailableFrom(e.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="min-term">Minimum Term (months)</Label>
-                          <Input
-                            id="min-term"
-                            type="number"
-                            min={0}
-                            value={minTermMonths}
-                            onChange={(e) => setMinTermMonths(e.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="deposit">Deposit</Label>
-                          <Input
-                            id="deposit"
-                            type="number"
-                            min={0}
-                            value={deposit}
-                            onChange={(e) => setDeposit(e.target.value)}
-                          />
-                        </div>
-                      </>
-                    )}
-                  </>
                 )}
               </div>
             </TabsContent>

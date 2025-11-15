@@ -50,7 +50,7 @@ export const RealEstateOverviewPage = () => {
     {
       icon: Gem,
       title: 'Portfolio',
-      description: 'View and manage your property portfolio',
+      description: 'View and manage all your properties in one place',
       to: '/dashboard/home/real-estate/portfolio',
       stats: overview ? [
         { label: 'Total Units', value: overview.total_units },

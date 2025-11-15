@@ -62,6 +62,8 @@ from real_estate.models import (
     Feature,
     Listing,
     ListingType,
+    TitleDeedType,
+    SaleDetails,
 )
 
 
@@ -178,6 +180,16 @@ class PropertyCreateView(APIView):
             if furnished_status:
                 prop.furnished_status = furnished_status
 
+            # Optional title deed type (only relevant for sale/project listings on UI).
+            title_deed_type_code = structure_payload.get("title_deed_type_code")
+            if title_deed_type_code:
+                try:
+                    prop.title_deed_type = TitleDeedType.objects.get(code=title_deed_type_code)
+                except TitleDeedType.DoesNotExist:
+                    # If an unknown code is provided we simply ignore it to keep
+                    # the endpoint backwards compatible and avoid hard failures.
+                    pass
+
             # Attributes bucket (long tail)
             attributes: Dict[str, Any] = {}
             if structure_payload.get("parking_spaces") is not None:
@@ -211,6 +223,18 @@ class PropertyCreateView(APIView):
                 price_period="PER_MONTH" if listing_type_code == "LONG_TERM_RENTAL" else "PER_DAY",
                 status="ACTIVE",
             )
+
+            # For sale / project style listings, persist swap option into SaleDetails.
+            # We deliberately keep this lightweight and only create a SaleDetails
+            # row when the flag is explicitly enabled in the payload.
+            if listing_type_code == "SALE":
+                swap_possible = listing_payload.get("swap_possible")
+                if swap_possible:
+                    SaleDetails.objects.create(
+                        listing=listing,
+                        is_swap_possible=bool(swap_possible),
+                        negotiable=True,
+                    )
 
         return Response(
             {"property_id": prop.id, "listing_id": listing.id},

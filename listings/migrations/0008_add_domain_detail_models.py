@@ -66,7 +66,10 @@ class Migration(migrations.Migration):
                 ('max_group_size', models.PositiveIntegerField(blank=True, null=True)),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('updated_at', models.DateTimeField(auto_now=True)),
-                ('service_subcategory', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.PROTECT, related_name='service_listings', to='listings.subcategory')),
+                # NOTE: db_constraint=False to avoid FK type mismatch in legacy DBs where
+                # SubCategory primary key type changed after this migration was generated.
+                # This keeps the column while skipping the problematic FK constraint.
+                ('service_subcategory', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.PROTECT, related_name='service_listings', to='listings.subcategory', db_constraint=False)),
             ],
         ),
     ]

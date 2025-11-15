@@ -16,10 +16,21 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../
 import { DateRange } from 'react-day-picker';
 import axios from 'axios';
 import { format } from 'date-fns';
-import { RecItem } from '../../../types/recItem';
+import type { RecItem } from './RecommendationCard';
+
+type ExtendedRecItem = RecItem & {
+  metadata?: (RecItem['metadata'] & {
+    contactInfo?: {
+      phone?: string;
+      email?: string;
+      website?: string;
+    };
+    location?: string;
+  }) | undefined;
+};
 
 interface ShortTermRecommendationCardProps {
-  item: RecItem;
+  item: ExtendedRecItem;
 }
 
 export const ShortTermRecommendationCard: React.FC<ShortTermRecommendationCardProps> = ({ item }) => {
@@ -33,10 +44,10 @@ export const ShortTermRecommendationCard: React.FC<ShortTermRecommendationCardPr
 
   // Map fields from RecItem metadata
   const description = item.metadata?.description;
-  const amenities = item.metadata?.amenities || [];
+  const amenities: string[] = item.metadata?.amenities || [];
   const contactInfo = item.metadata?.contactInfo;
   const location = item.area || item.metadata?.location || 'North Cyprus';
-  const photos = item.galleryImages || (item.imageUrl ? [item.imageUrl] : []);
+  const photos: string[] = item.galleryImages || (item.imageUrl ? [item.imageUrl] : []);
 
   const handleCheckAvailability = async () => {
     if (!dateRange || !dateRange.from || !dateRange.to) {

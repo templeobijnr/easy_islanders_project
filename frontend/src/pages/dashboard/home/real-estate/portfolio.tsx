@@ -1,7 +1,7 @@
 import React from 'react';
-import { DomainProvider } from '../../../../features/seller-dashboard/context/DomainContext';
-import DashboardLayout from '../../../../features/seller-dashboard/layout/DashboardLayout';
-import { PortfolioPageEnhanced } from '../../../../features/seller-dashboard/domains/real-estate/portfolio/PortfolioPageEnhanced';
+import { DomainProvider } from '@features/seller-dashboard/context/DomainContext';
+import DashboardLayout from '@features/seller-dashboard/layout/DashboardLayout';
+import { PortfolioPageEnhanced } from '@features/seller-dashboard/domains/real-estate/portfolio/PortfolioPageEnhanced';
 
 /**
  * Real Estate Portfolio Page - Enhanced Version

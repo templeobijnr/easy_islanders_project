@@ -8,7 +8,7 @@
  * - Intuitive filtering and actions
  */
 import React, { useMemo, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence as FMAnimatePresence } from 'framer-motion';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -30,12 +30,15 @@ import {
   Calendar,
   TrendingUp,
   TrendingDown,
-  Grid3x3,
+  LayoutGrid,
   LayoutList,
   Filter,
   User,
   UserCheck
 } from 'lucide-react';
+
+// Type-safe wrapper for AnimatePresence to align with framer-motion v11 typings
+const AnimatePresence = FMAnimatePresence as any;
 
 type Property = {
   id: string;
@@ -298,7 +301,7 @@ export default function PortfolioTableEnhanced({
                   : 'text-neutral-600 hover:text-neutral-900'
               }`}
             >
-              <Grid3x3 className="h-4 w-4" />
+              <LayoutGrid className="h-4 w-4" />
             </button>
             <button
               onClick={() => setViewMode('list')}

@@ -315,5 +315,22 @@ module.exports = {
       },
     },
   },
-  plugins: [lineClamp, animate, heroui()],
+  plugins: [
+    lineClamp,
+    animate,
+    heroui(),
+    // Custom plugin for hiding scrollbars
+    function ({ addUtilities }) {
+      addUtilities({
+        '.scrollbar-hide': {
+          /* Firefox */
+          'scrollbar-width': 'none',
+          /* Safari and Chrome */
+          '&::-webkit-scrollbar': {
+            display: 'none',
+          },
+        },
+      });
+    },
+  ],
 }

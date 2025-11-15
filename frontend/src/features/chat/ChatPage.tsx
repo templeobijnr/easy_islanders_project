@@ -5,7 +5,7 @@ import InlineRecsCarousel from './components/InlineRecsCarousel';
 import Composer from './components/Composer';
 import TypingDots from './components/TypingDots';
 import ConnectionStatus from './components/ConnectionStatus';
-import FeaturedPane from '../featured/FeaturedPane';
+import { ExplorePage } from '../explore';
 import { useUi } from '../../shared/context/UiContext';
 import { useChat } from '../../shared/context/ChatContext';
 import { useChatSocket } from '@/shared/hooks/useChatSocket';
@@ -201,11 +201,9 @@ const ChatPage: React.FC = () => {
         </section>
       </AnimatedWrapper>
 
-      {/* FEATURED/EXPLORE SECTION - Below chat in same column */}
+      {/* EXPLORE NORTH CYPRUS SECTION - Below chat in same column */}
       <AnimatedWrapper animation="fadeInUp" delay={0.2}>
-        <section className="bg-white/90 backdrop-blur rounded-2xl border border-border overflow-hidden">
-          <FeaturedPane />
-        </section>
+        <ExplorePage />
       </AnimatedWrapper>
     </AnimatedWrapper>
   );

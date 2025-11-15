@@ -16,18 +16,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../
 import { DateRange } from 'react-day-picker';
 import axios from 'axios';
 import { format } from 'date-fns';
-import type { RecItem } from './RecommendationCard';
+import type { RecItem } from '../../../types/recItem';
 
-type ExtendedRecItem = RecItem & {
-  metadata?: (RecItem['metadata'] & {
-    contactInfo?: {
-      phone?: string;
-      email?: string;
-      website?: string;
-    };
-    location?: string;
-  }) | undefined;
-};
+type ExtendedRecItem = RecItem;
 
 interface ShortTermRecommendationCardProps {
   item: ExtendedRecItem;

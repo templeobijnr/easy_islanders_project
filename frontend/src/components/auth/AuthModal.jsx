@@ -126,7 +126,7 @@ const AuthModal = () => {
                 <button
                   type="submit"
                   disabled={authLoading}
-                  className="w-full bg-primary text-white py-3.5 px-4 rounded-xl hover:bg-primary/90 transition-all font-semibold disabled:opacity-50 flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
+                  className="w-full bg-gradient-to-r from-brand-500 to-cyan-500 text-white py-3.5 px-4 rounded-xl hover:shadow-xl transition-all font-semibold disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg"
                 >
                   {authLoading && <Loader className="w-4 h-4 animate-spin" />}
                   {authMode === 'login' ? 'Sign In' : 'Create Account'}

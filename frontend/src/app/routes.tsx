@@ -19,6 +19,7 @@ import DashboardHelpPage from '../pages/dashboard/HelpPage';
 // Domain-specific home pages
 import RealEstateHomePage from '../pages/dashboard/home/real-estate';
 import RealEstatePortfolioPage from '../pages/dashboard/home/real-estate/portfolio';
+import ListingDetailPage from '../pages/dashboard/home/real-estate/listing-detail';
 import RealEstateLocationPage from '../pages/dashboard/home/real-estate/location';
 import RealEstateOccupancyPage from '../pages/dashboard/home/real-estate/occupancy';
 import RealEstateEarningsPage from '../pages/dashboard/home/real-estate/earnings';
@@ -71,6 +72,7 @@ const AppRoutes: React.FC = () => (
 
     {/* Domain-specific home pages */}
     <Route path="/dashboard/home/real-estate" element={<RealEstateHomePage />} />
+    <Route path="/dashboard/home/real-estate/portfolio/listing/:id" element={<ListingDetailPage />} />
     <Route path="/dashboard/home/real-estate/portfolio" element={<RealEstatePortfolioPage />} />
     <Route path="/dashboard/home/real-estate/location" element={<RealEstateLocationPage />} />
     <Route path="/dashboard/home/real-estate/occupancy" element={<RealEstateOccupancyPage />} />

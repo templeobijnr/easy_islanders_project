@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence as FMAnimatePresence } from 'framer-motion';
 import { Check, Loader2, Sparkles } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog';
 import { Button } from '../ui/button';
@@ -42,6 +42,10 @@ interface BookingModalProps {
   onSubmit?: (data: any) => void | Promise<void>;
   success?: boolean;
 }
+
+// Framer Motion v11 typing workaround for React 18 JSX.Element
+// Using an alias cast avoids TS2786 in some environments
+const AnimatePresence = FMAnimatePresence as any;
 
 const BookingModal: React.FC<BookingModalProps> = ({
   isOpen = false,

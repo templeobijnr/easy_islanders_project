@@ -8,30 +8,29 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { PortfolioListing, ListingUpdatePayload, PricePeriod, ListingStatus } from '../types';
+import { Listing } from '../types/realEstateModels';
+import { useUpdateListing } from '../hooks/useRealEstateData';
 
 interface EditListingModalProps {
-  listing: PortfolioListing | null;
+  listing: Listing | null;
   isOpen: boolean;
   onClose: () => void;
-  onSave: (id: number, payload: ListingUpdatePayload) => Promise<void>;
-  isSaving?: boolean;
 }
 
 export const EditListingModal: React.FC<EditListingModalProps> = ({
   listing,
   isOpen,
   onClose,
-  onSave,
-  isSaving = false,
 }) => {
-  const [formData, setFormData] = useState<ListingUpdatePayload>({});
+  const updateListingMutation = useUpdateListing();
+
+  const [formData, setFormData] = useState<Partial<Listing>>({});
 
   useEffect(() => {
     if (listing) {
       setFormData({
         title: listing.title,
-        base_price: parseFloat(listing.base_price),
+        base_price: listing.base_price,
         currency: listing.currency,
         price_period: listing.price_period,
         status: listing.status,
@@ -44,9 +43,27 @@ export const EditListingModal: React.FC<EditListingModalProps> = ({
   const handleSubmit = async () => {
     if (!listing) return;
 
-    await onSave(listing.id, formData);
-    onClose();
+    try {
+      await updateListingMutation.mutateAsync({
+        id: listing.id,
+        data: formData,
+      });
+      onClose();
+    } catch (error) {
+      console.error('Failed to update listing:', error);
+      // Error is handled by React Query and will be shown in UI
+    }
   };
+
+  const isDirty = listing && JSON.stringify(formData) !== JSON.stringify({
+    title: listing.title,
+    base_price: listing.base_price,
+    currency: listing.currency,
+    price_period: listing.price_period,
+    status: listing.status,
+    available_from: listing.available_from || undefined,
+    available_to: listing.available_to || undefined,
+  });
 
   if (!listing) return null;
 
@@ -71,9 +88,10 @@ export const EditListingModal: React.FC<EditListingModalProps> = ({
               <Label>Base Price</Label>
               <Input
                 type="number"
+                step="0.01"
                 value={formData.base_price || ''}
                 onChange={(e) =>
-                  setFormData({ ...formData, base_price: parseFloat(e.target.value) })
+                  setFormData({ ...formData, base_price: e.target.value })
                 }
                 placeholder="Enter price"
               />
@@ -99,7 +117,7 @@ export const EditListingModal: React.FC<EditListingModalProps> = ({
                 <select
                   value={formData.price_period || 'TOTAL'}
                   onChange={(e) =>
-                    setFormData({ ...formData, price_period: e.target.value as PricePeriod })
+                    setFormData({ ...formData, price_period: e.target.value as Listing['price_period'] })
                   }
                   className="w-full px-3 py-2 border border-slate-300 rounded-md"
                 >
@@ -111,11 +129,11 @@ export const EditListingModal: React.FC<EditListingModalProps> = ({
               </div>
             </div>
 
-            <div className="p-4 rounded-lg bg-blue-50 border border-blue-200">
-              <div className="font-semibold text-sm text-blue-900 mb-1">Preview</div>
-              <div className="text-lg font-bold text-blue-700">
+            <div className="p-4 rounded-lg bg-gradient-to-r from-lime-50 to-emerald-50 border border-lime-200">
+              <div className="font-semibold text-sm text-lime-900 mb-1">Preview</div>
+              <div className="text-lg font-bold text-lime-700">
                 {formData.price_period === 'STARTING_FROM' && 'From '}
-                {formData.currency} {formData.base_price?.toLocaleString()}
+                {formData.currency} {formData.base_price ? parseFloat(formData.base_price).toLocaleString() : '0'}
                 {formData.price_period === 'PER_DAY' && '/day'}
                 {formData.price_period === 'PER_MONTH' && '/month'}
               </div>
@@ -152,9 +170,17 @@ export const EditListingModal: React.FC<EditListingModalProps> = ({
               </p>
             </div>
 
-            <div className="p-4 rounded-lg bg-green-50 border border-green-200">
-              <div className="font-semibold text-sm text-green-900 mb-1">Current Status</div>
-              <div className="text-sm text-green-700">{listing.availability_label}</div>
+            <div className="p-4 rounded-lg bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200">
+              <div className="font-semibold text-sm text-emerald-900 mb-1">Current Availability</div>
+              <div className="text-sm text-emerald-700">
+                {listing.available_from && listing.available_to
+                  ? `${new Date(listing.available_from).toLocaleDateString()} - ${new Date(listing.available_to).toLocaleDateString()}`
+                  : listing.available_from
+                  ? `From ${new Date(listing.available_from).toLocaleDateString()}`
+                  : listing.available_to
+                  ? `Until ${new Date(listing.available_to).toLocaleDateString()}`
+                  : 'Available now'}
+              </div>
             </div>
           </TabsContent>
 
@@ -165,7 +191,7 @@ export const EditListingModal: React.FC<EditListingModalProps> = ({
               <select
                 value={formData.status || 'DRAFT'}
                 onChange={(e) =>
-                  setFormData({ ...formData, status: e.target.value as ListingStatus })
+                  setFormData({ ...formData, status: e.target.value as Listing['status'] })
                 }
                 className="w-full px-3 py-2 border border-slate-300 rounded-md"
               >
@@ -220,14 +246,36 @@ export const EditListingModal: React.FC<EditListingModalProps> = ({
         </Tabs>
 
         {/* Action Buttons */}
-        <div className="flex justify-end gap-2 mt-6 pt-4 border-t">
-          <Button variant="outline" onClick={onClose} disabled={isSaving}>
-            Cancel
-          </Button>
-          <Button onClick={handleSubmit} disabled={isSaving}>
-            {isSaving ? 'Saving...' : 'Save Changes'}
-          </Button>
+        <div className="flex justify-between items-center mt-6 pt-4 border-t">
+          <div className="text-sm text-slate-600">
+            {isDirty && (
+              <span className="text-amber-600 font-medium">
+                ⚠️ You have unsaved changes
+              </span>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onClose} disabled={updateListingMutation.isPending}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmit}
+              disabled={updateListingMutation.isPending || !isDirty}
+              className="bg-gradient-to-r from-lime-500 to-emerald-500 hover:from-lime-600 hover:to-emerald-600"
+            >
+              {updateListingMutation.isPending ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </div>
         </div>
+
+        {/* Error Display */}
+        {updateListingMutation.isError && (
+          <div className="mt-4 p-4 rounded-lg bg-red-50 border border-red-200">
+            <div className="text-sm text-red-700">
+              <strong>Error:</strong> {updateListingMutation.error instanceof Error ? updateListingMutation.error.message : 'Failed to update listing'}
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

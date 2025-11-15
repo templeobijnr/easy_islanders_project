@@ -1,23 +1,25 @@
 import React from 'react';
 import { DomainProvider } from '@features/seller-dashboard/context/DomainContext';
 import DashboardLayout from '@features/seller-dashboard/layout/DashboardLayout';
-import { PortfolioPageEnhanced } from '@features/seller-dashboard/domains/real-estate/portfolio/PortfolioPageEnhanced';
+import { PortfolioManagementPage } from '@features/seller-dashboard/domains/real-estate/portfolio/PortfolioManagementPage';
 
 /**
- * Real Estate Portfolio Page - Enhanced Version
+ * Real Estate Portfolio Page - Simplified Management Version
  * Route: /dashboard/home/real-estate/portfolio
  *
  * Features:
- * - Premium KPI cards with trend indicators
- * - Navigation tabs (Overview, Listings, Analytics, Activity)
- * - Advanced filters and search
- * - Data visualizations and charts
- * - Real backend integration
+ * - Tab-based organization by listing type (Daily Rental, Long-term, Sale, Projects)
+ * - At-a-glance metrics on each card
+ * - Quick communication via slide-over panels (Messages, Requests, Bookings)
+ * - Calendar management (block dates, custom pricing)
+ * - Search & filter functionality
+ * - Activity tracking
+ * - Practical action-focused interface
  */
 const RealEstatePortfolioRoute: React.FC = () => (
   <DomainProvider domainId="real_estate">
     <DashboardLayout>
-      <PortfolioPageEnhanced />
+      <PortfolioManagementPage />
     </DashboardLayout>
   </DomainProvider>
 );

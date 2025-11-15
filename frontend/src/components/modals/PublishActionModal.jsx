@@ -121,11 +121,11 @@ const PublishActionModal = ({ listing, isOpen, onClose, onPublish }) => {
             <button
               onClick={handlePublish}
               className={`
-                flex items-center gap-2 px-6 py-2 rounded-lg text-white
-                transition-colors font-medium disabled:opacity-50
+                flex items-center gap-2 px-6 py-2 rounded-xl text-white
+                transition-all font-semibold disabled:opacity-50 shadow-lg hover:shadow-xl
                 ${isPublished
                   ? 'bg-gray-600 hover:bg-gray-700'
-                  : 'bg-green-600 hover:bg-green-700'
+                  : 'bg-gradient-to-r from-brand-500 to-cyan-500'
                 }
               `}
               disabled={loading}

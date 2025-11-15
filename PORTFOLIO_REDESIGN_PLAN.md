@@ -9,7 +9,7 @@
 ✅ **Layout**: Tabs (Daily Rental, Long-term Rent, Sale, Projects)
 ✅ **Summary**: One-line summary per listing type
 ✅ **Card Content**: Messages, requests, pricing, performance metrics visible
-✅ **Communication**: Slide-over panel (Option C) for messages & requests
+✅ **Communication**: Slide-over panel (Option C) for messages, requests & bookings
 ✅ **Calendar**: Modal overlay
 ✅ **Empty State**: "Add your first listing to be able to manage listings and get bookings or sales"
 ✅ **Search/Filter**: Yes, include both
@@ -70,6 +70,7 @@ State:
 - sortBy: 'recent' | 'price-high' | 'price-low' | 'bookings'
 - selectedListingForMessages: string | null  // For slide-over
 - selectedListingForRequests: string | null
+- selectedListingForBookings: string | null  // NEW - For bookings slide-over
 - selectedListingForCalendar: string | null
 ```
 
@@ -107,6 +108,7 @@ interface BaseListingCardProps {
   type: ListingType;
   onMessageClick: () => void;
   onRequestClick: () => void;
+  onBookingsClick: () => void;  // NEW - Show bookings modal
   onCalendarClick: () => void;
   onPricingClick: () => void;
   onViewDetails: () => void;
@@ -123,9 +125,10 @@ Card Layout:
 │ €120/night              │
 │                         │
 │ ● Available             │ ← Status badge
-│ 💬 3 new messages       │ ← Clickable
-│ 📩 2 booking requests   │ ← Clickable
-│ 📊 12 bookings | 45 viw │ ← Performance
+│ 💬 3 new messages       │ ← Clickable → Messages slide-over
+│ 📩 2 booking requests   │ ← Clickable → Requests slide-over
+│ 📊 12 bookings          │ ← Clickable → Bookings slide-over
+│ 👁 45 views             │
 │ 📅 Next: Dec 15-20      │
 │                         │
 │ [📅 Calendar] [💰 Price]│ ← Primary actions
@@ -266,7 +269,61 @@ Layout (Booking Request):
 └────────────────────────────────┘
 ```
 
-### 3.6 Calendar Modal
+### 3.6 Bookings Slide-over Panel
+**File**: `BookingsSlideOver.tsx` (NEW)
+
+```typescript
+interface BookingsSlideOverProps {
+  listingId: string;
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+Layout:
+┌────────────────────────────────┐
+│ ← Back   Bookings (12)         │
+├────────────────────────────────┤
+│                                │
+│ ┌──────────────────────────┐  │
+│ │ ● Upcoming                │  │
+│ │ Sarah Johnson            │  │
+│ │ Dec 15-20, 2024 (5 nts)  │  │
+│ │ 4 guests • €600          │  │
+│ │ Status: Confirmed        │  │
+│ │ [View Details] [Message] │  │
+│ └──────────────────────────┘  │
+│                                │
+│ ┌──────────────────────────┐  │
+│ │ ● Current                 │  │
+│ │ Mike Davis               │  │
+│ │ Nov 10-17, 2024 (7 nts)  │  │
+│ │ 2 guests • €840          │  │
+│ │ Status: Checked-in       │  │
+│ │ [View Details] [Message] │  │
+│ └──────────────────────────┘  │
+│                                │
+│ ┌──────────────────────────┐  │
+│ │ ● Past                    │  │
+│ │ Emma Wilson              │  │
+│ │ Oct 1-5, 2024 (4 nts)    │  │
+│ │ 3 guests • €480          │  │
+│ │ Status: Completed        │  │
+│ │ [View Details]           │  │
+│ └──────────────────────────┘  │
+│                                │
+│ [Filter: All▼] [Sort: Date▼]  │
+└────────────────────────────────┘
+
+Features:
+- Shows all bookings (past, current, upcoming)
+- Grouped by status
+- Quick message guest option
+- View booking details
+- Filter by status
+- Sort by date/guest name
+```
+
+### 3.7 Calendar Modal
 **File**: `CalendarModal.tsx`
 
 ```typescript
@@ -317,7 +374,7 @@ Layout (Long-term):
 └─────────────────────────────────────┘
 ```
 
-### 3.7 Activity Tab
+### 3.8 Activity Tab
 **File**: `ActivityTab.tsx` (keep existing, simplify)
 
 ```typescript
@@ -500,6 +557,46 @@ Response:
 }
 ```
 
+#### GET /api/v1/bookings/?listing_id={id}
+```typescript
+Query Params:
+- listing_id: string
+- status?: 'upcoming' | 'current' | 'past' | 'all'
+- page?: number
+- page_size?: number
+
+Response:
+{
+  "bookings": [
+    {
+      "id": "booking-123",
+      "listing_id": "listing-123",
+      "guest": {
+        "name": "Sarah Johnson",
+        "email": "sarah@example.com",
+        "phone": "+90...",
+        "avatar": "https://..."
+      },
+      "check_in": "2024-12-15",
+      "check_out": "2024-12-20",
+      "nights": 5,
+      "guests": {
+        "adults": 4,
+        "children": 0
+      },
+      "total_price": 600,
+      "status": "confirmed" | "checked-in" | "completed" | "cancelled",
+      "booked_at": "2024-11-14T15:20:00Z",
+      "special_requests": "Late check-in needed",
+      "payment_status": "paid" | "pending" | "refunded"
+    }
+  ],
+  "total": 12,
+  "page": 1,
+  "page_size": 20
+}
+```
+
 #### GET /api/v1/real_estate/listing/{id}/calendar/
 ```typescript
 Query Params:
@@ -576,6 +673,7 @@ frontend/src/features/seller-dashboard/domains/real-estate/portfolio/
 │   │   └── ProjectCard.tsx              (NEW)
 │   ├── MessagesSlideOver.tsx            (NEW)
 │   ├── RequestsSlideOver.tsx            (NEW)
+│   ├── BookingsSlideOver.tsx            (NEW)
 │   ├── CalendarModal.tsx                (NEW)
 │   ├── ActivityTab.tsx                  (KEEP - simplify)
 │   ├── EmptyState.tsx                   (KEEP - reuse)
@@ -585,6 +683,7 @@ frontend/src/features/seller-dashboard/domains/real-estate/portfolio/
 │   ├── useTypeSummary.ts                (NEW)
 │   ├── useMessages.ts                   (NEW)
 │   ├── useRequests.ts                   (NEW)
+│   ├── useBookings.ts                   (NEW)
 │   └── useCalendar.ts                   (NEW)
 └── types.ts                              (UPDATE)
 ```
@@ -610,8 +709,10 @@ frontend/src/features/seller-dashboard/domains/real-estate/portfolio/
 ### Phase 3: Communication (Day 3)
 - ✅ Create MessagesSlideOver.tsx
 - ✅ Create RequestsSlideOver.tsx
+- ✅ Create BookingsSlideOver.tsx
 - ✅ Wire up message fetching
 - ✅ Wire up request fetching
+- ✅ Wire up bookings fetching
 - ✅ Add reply functionality
 
 ### Phase 4: Calendar & Actions (Day 4)

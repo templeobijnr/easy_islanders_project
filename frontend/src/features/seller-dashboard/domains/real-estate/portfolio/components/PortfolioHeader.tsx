@@ -8,6 +8,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Download, Edit, TrendingUp } from 'lucide-react';
+import { PurposeSubtitle } from './PurposeSubtitle';
 
 interface PortfolioHeaderProps {
   totalValue: number;
@@ -44,14 +45,17 @@ export const PortfolioHeader: React.FC<PortfolioHeaderProps> = ({
           {/* Left: Portfolio Title & Value */}
           <div className="flex-1 min-w-0">
             {/* Title Row */}
-            <div className="flex items-center gap-3 mb-3 flex-wrap">
-              <h1 className="text-3xl lg:text-4xl font-bold font-display text-slate-900 leading-tight">
-                My Portfolio
-              </h1>
-              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-lime-600 rounded-full text-sm font-medium text-white shadow-inner whitespace-nowrap">
-                <TrendingUp className="h-4 w-4 flex-shrink-0" />
-                <span>{activeListings} Active</span>
+            <div className="mb-3">
+              <div className="flex items-center gap-3 flex-wrap">
+                <h1 className="text-3xl lg:text-4xl font-bold font-display text-slate-900 leading-tight">
+                  My Portfolio
+                </h1>
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-lime-600 rounded-full text-sm font-medium text-white shadow-inner whitespace-nowrap">
+                  <TrendingUp className="h-4 w-4 flex-shrink-0" />
+                  <span>{activeListings} Active</span>
+                </div>
               </div>
+              <PurposeSubtitle />
             </div>
 
             {/* Value Section */}
@@ -86,9 +90,11 @@ export const PortfolioHeader: React.FC<PortfolioHeaderProps> = ({
                 size="sm"
                 onClick={onExportData}
                 className="h-10 bg-white/90 border-slate-200 text-slate-900 hover:bg-white px-4"
+                title="Exports current filters"
               >
                 <Download className="h-4 w-4 mr-2 flex-shrink-0" />
-                <span className="hidden sm:inline">Export</span>
+                <span className="hidden sm:inline">Export CSV</span>
+                <span className="sm:hidden">Export</span>
               </Button>
 
               <Button
@@ -98,7 +104,8 @@ export const PortfolioHeader: React.FC<PortfolioHeaderProps> = ({
                 className="h-10 bg-white/90 border-slate-200 text-slate-900 hover:bg-white px-4"
               >
                 <Edit className="h-4 w-4 mr-2 flex-shrink-0" />
-                <span className="hidden sm:inline">Bulk Edit</span>
+                <span className="hidden sm:inline">Bulk select</span>
+                <span className="sm:hidden">Select</span>
               </Button>
 
               <Button
@@ -107,7 +114,7 @@ export const PortfolioHeader: React.FC<PortfolioHeaderProps> = ({
                 className="h-10 bg-lime-600 text-white hover:bg-lime-700 font-semibold shadow-sm px-4"
               >
                 <Plus className="h-4 w-4 mr-2 flex-shrink-0" />
-                <span className="hidden sm:inline">Add Property</span>
+                <span className="hidden sm:inline">Add listing</span>
                 <span className="sm:hidden">Add</span>
               </Button>
             </div>

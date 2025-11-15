@@ -16,6 +16,7 @@ import {
   Target,
   Activity,
 } from 'lucide-react';
+import { TimeScopeIndicator } from './TimeScopeIndicator';
 
 interface KPICard {
   title: string;
@@ -36,6 +37,7 @@ interface KPICardsGridProps {
   occupancyRate: number;
   avgDailyRate: number;
   conversionRate: number;
+  timePeriod: '30d' | '90d' | '1y';
   isLoading?: boolean;
 }
 
@@ -46,6 +48,7 @@ export const KPICardsGrid: React.FC<KPICardsGridProps> = ({
   occupancyRate,
   avgDailyRate,
   conversionRate,
+  timePeriod,
   isLoading = false,
 }) => {
   const formatCurrency = (value: number) => {
@@ -127,8 +130,14 @@ export const KPICardsGrid: React.FC<KPICardsGridProps> = ({
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
-      {cards.map((card, index) => (
+    <div>
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-slate-900">Key Metrics</h2>
+        <TimeScopeIndicator timePeriod={timePeriod} />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
+        {cards.map((card, index) => (
         <Card
           key={index}
           className="relative overflow-hidden hover:shadow-lg transition-all duration-300 border border-slate-200 bg-gradient-to-r from-lime-200 via-emerald-200 to-sky-200 rounded-2xl"
@@ -172,6 +181,7 @@ export const KPICardsGrid: React.FC<KPICardsGridProps> = ({
           </CardContent>
         </Card>
       ))}
+      </div>
     </div>
   );
 };

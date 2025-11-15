@@ -52,8 +52,18 @@ export async function fetchPortfolioListings(
 /**
  * Fetch portfolio summary (aggregated stats by listing type)
  */
-export async function fetchPortfolioSummary(): Promise<PortfolioSummaryResponse> {
-  const response = await api.get('/v1/real_estate/portfolio/summary/');
+export async function fetchPortfolioSummary(
+  timePeriod?: '30d' | '90d' | '1y'
+): Promise<PortfolioSummaryResponse> {
+  const params: Record<string, any> = {};
+
+  if (timePeriod) {
+    params.time_period = timePeriod;
+  }
+
+  const response = await api.get('/v1/real_estate/portfolio/summary/', {
+    params,
+  });
   return response.data;
 }
 

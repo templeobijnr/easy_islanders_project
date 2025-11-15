@@ -4,15 +4,18 @@
  * Enhanced listing management with advanced filters, search, and table
  */
 
-import React, { useState } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Filter, ChevronLeft, ChevronRight, FileText } from 'lucide-react';
 import { PortfolioFilters, PortfolioListing } from '../types';
 import { PortfolioListingsTable } from './PortfolioListingsTable';
 import { PortfolioFiltersBar } from './PortfolioFiltersBar';
+import { FilterChips } from './FilterChips';
+import { BulkActionsBar } from './BulkActionsBar';
+import { EmptyState } from './EmptyState';
 
 interface ListingsTabProps {
   filters: PortfolioFilters;
@@ -33,10 +36,46 @@ export const ListingsTab: React.FC<ListingsTabProps> = ({
 }) => {
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [searchInput, setSearchInput] = useState(filters.search || '');
 
-  const handleSearch = (search: string) => {
-    onFiltersChange({ ...filters, search, page: 1 });
-  };
+  // Debounced search (300ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchInput !== filters.search) {
+        onFiltersChange({ ...filters, search: searchInput, page: 1 });
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  const handleRemoveFilter = useCallback((key: keyof PortfolioFilters) => {
+    const newFilters = { ...filters, page: 1 };
+    if (key === 'listing_type' || key === 'status') {
+      newFilters[key] = 'ALL' as any;
+    } else {
+      newFilters[key] = '' as any;
+    }
+    onFiltersChange(newFilters);
+
+    // Clear search input if search filter is removed
+    if (key === 'search') {
+      setSearchInput('');
+    }
+  }, [filters, onFiltersChange]);
+
+  const handleClearAllFilters = useCallback(() => {
+    setSearchInput('');
+    onFiltersChange({
+      listing_type: 'ALL',
+      status: 'ALL',
+      city: '',
+      area: '',
+      search: '',
+      page: 1,
+      page_size: filters.page_size,
+    });
+  }, [filters.page_size, onFiltersChange]);
 
   const handlePageChange = (newPage: number) => {
     onFiltersChange({ ...filters, page: newPage });
@@ -56,11 +95,16 @@ export const ListingsTab: React.FC<ListingsTabProps> = ({
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search by title, reference code, or location..."
-                  value={filters.search || ''}
-                  onChange={(e) => handleSearch(e.target.value)}
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
                   className="pl-10"
                 />
               </div>
+              {total > 0 && (
+                <p className="text-xs text-slate-600 mt-1.5">
+                  {total} {total === 1 ? 'result' : 'results'} found
+                </p>
+              )}
             </div>
 
             {/* Quick Filters */}
@@ -153,11 +197,41 @@ export const ListingsTab: React.FC<ListingsTabProps> = ({
               </div>
             </div>
           )}
+
+          {/* Active Filter Chips */}
+          <FilterChips
+            filters={filters}
+            onRemoveFilter={handleRemoveFilter}
+            onClearAll={handleClearAllFilters}
+            className="mt-4 pt-4 border-t"
+          />
         </CardContent>
       </Card>
 
       {/* Bulk Actions Toolbar */}
-      {selectedIds.length > 0 && (
+      <BulkActionsBar
+        selectedCount={selectedIds.length}
+        onClearSelection={() => setSelectedIds([])}
+        onChangeStatus={() => {
+          // TODO: Implement bulk status change
+          console.log('Change status for:', selectedIds);
+        }}
+        onUpdatePrice={() => {
+          // TODO: Implement bulk price update
+          console.log('Update price for:', selectedIds);
+        }}
+        onSetAvailability={() => {
+          // TODO: Implement bulk availability update
+          console.log('Set availability for:', selectedIds);
+        }}
+        onDelete={() => {
+          // TODO: Implement bulk delete
+          console.log('Delete:', selectedIds);
+        }}
+      />
+
+      {/* Legacy Bulk Actions (remove this after testing) */}
+      {false && selectedIds.length > 0 && (
         <Card className="bg-lime-50 border-lime-200">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -192,18 +266,37 @@ export const ListingsTab: React.FC<ListingsTabProps> = ({
         </Card>
       )}
 
-      {/* Listings Table */}
+      {/* Listings Table or Empty State */}
       <Card>
         <CardContent className="p-0">
-          <PortfolioListingsTable
-            listings={listings}
-            selectedIds={selectedIds}
-            onSelectionChange={setSelectedIds}
-            onEdit={(listing) => {
-              // TODO: Implement edit functionality
-              console.log('Edit listing:', listing);
-            }}
-          />
+          {!isLoading && listings.length === 0 ? (
+            <EmptyState
+              icon={FileText}
+              title="No listings found"
+              message="No listings match your current filters. Try adjusting your search criteria or add a new listing."
+              primaryAction={{
+                label: "Add listing",
+                onClick: () => {
+                  // TODO: Open create listing modal
+                  window.location.href = '/dashboard/home/real-estate/upload';
+                },
+              }}
+              secondaryAction={{
+                label: "Clear filters",
+                onClick: handleClearAllFilters,
+              }}
+            />
+          ) : (
+            <PortfolioListingsTable
+              listings={listings}
+              selectedIds={selectedIds}
+              onSelectionChange={setSelectedIds}
+              onEdit={(listing) => {
+                // TODO: Implement edit functionality
+                console.log('Edit listing:', listing);
+              }}
+            />
+          )}
         </CardContent>
       </Card>
 

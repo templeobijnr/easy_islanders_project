@@ -9,28 +9,53 @@
  * - Bulk operations and inline editing
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Plus, Download, Settings, BarChart3, List, Activity, LayoutDashboard } from 'lucide-react';
 
+// Import toast system
+import { useToast } from './components/use-toast';
+import { ToastContainer } from './components/Toast';
+
 // Import existing components
 import { fetchPortfolioListings, fetchPortfolioSummary, updateListing } from './api';
 import { PortfolioFilters, PortfolioListing, ListingUpdatePayload } from './types';
 
-// Import new components (to be created)
+// Import new components
 import { PortfolioHeader } from './components/PortfolioHeader';
 import { KPICardsGrid } from './components/KPICardsGrid';
 import { OverviewTab } from './components/OverviewTab';
 import { ListingsTab } from './components/ListingsTab';
-import { AnalyticsTab } from './components/AnalyticsTab';
-import { ActivityTab } from './components/ActivityTab';
+
+// Lazy load heavy tabs for better performance
+const AnalyticsTab = lazy(() => import('./components/AnalyticsTab').then(m => ({ default: m.AnalyticsTab })));
+const ActivityTab = lazy(() => import('./components/ActivityTab').then(m => ({ default: m.ActivityTab })));
+
+// Loading skeleton for lazy tabs
+const TabLoadingSkeleton = () => (
+  <div className="space-y-6">
+    <div className="animate-pulse bg-slate-200 h-64 rounded-2xl" />
+    <div className="animate-pulse bg-slate-200 h-64 rounded-2xl" />
+  </div>
+);
 
 export const PortfolioPageEnhanced: React.FC = () => {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState('overview');
+  const { toasts, toast, success, error, dismiss } = useToast();
+
+  // Default to 'listings' tab and persist to localStorage
+  const [activeTab, setActiveTab] = useState(() => {
+    return localStorage.getItem('portfolio-active-tab') || 'listings';
+  });
+
   const [timePeriod, setTimePeriod] = useState<'30d' | '90d' | '1y'>('30d');
+
+  // Persist active tab to localStorage
+  useEffect(() => {
+    localStorage.setItem('portfolio-active-tab', activeTab);
+  }, [activeTab]);
 
   const [filters, setFilters] = useState<PortfolioFilters>({
     listing_type: 'ALL',
@@ -45,7 +70,7 @@ export const PortfolioPageEnhanced: React.FC = () => {
   // Fetch portfolio summary
   const { data: summary, isLoading: summaryLoading } = useQuery({
     queryKey: ['portfolioSummary', timePeriod],
-    queryFn: fetchPortfolioSummary,
+    queryFn: () => fetchPortfolioSummary(timePeriod),
   });
 
   // Fetch portfolio listings
@@ -100,7 +125,7 @@ export const PortfolioPageEnhanced: React.FC = () => {
   const handleExportData = () => {
     // Export portfolio summary and listings data to CSV
     if (!summary || !listingsData) {
-      alert('No data available to export');
+      error('No data available to export');
       return;
     }
 
@@ -157,6 +182,9 @@ export const PortfolioPageEnhanced: React.FC = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+
+    // Show success toast
+    success('Portfolio data exported successfully');
   };
 
   const handleBulkEdit = () => {
@@ -186,27 +214,32 @@ export const PortfolioPageEnhanced: React.FC = () => {
           occupancyRate={kpis.occupancyRate}
           avgDailyRate={kpis.avgDailyRate}
           conversionRate={kpis.conversionRate}
+          timePeriod={timePeriod}
           isLoading={summaryLoading}
         />
 
         {/* Navigation Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-8">
           <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid bg-white shadow-sm border">
-            <TabsTrigger value="overview" className="gap-2">
-              <LayoutDashboard className="h-4 w-4" />
+            <TabsTrigger value="overview" className="gap-2" aria-label="Portfolio overview">
+              <LayoutDashboard className="h-4 w-4" aria-hidden="true" />
               <span className="hidden sm:inline">Overview</span>
+              <span className="sm:hidden sr-only">Overview</span>
             </TabsTrigger>
-            <TabsTrigger value="listings" className="gap-2">
-              <List className="h-4 w-4" />
+            <TabsTrigger value="listings" className="gap-2" aria-label="Property listings">
+              <List className="h-4 w-4" aria-hidden="true" />
               <span className="hidden sm:inline">Listings</span>
+              <span className="sm:hidden sr-only">Listings</span>
             </TabsTrigger>
-            <TabsTrigger value="analytics" className="gap-2">
-              <BarChart3 className="h-4 w-4" />
+            <TabsTrigger value="analytics" className="gap-2" aria-label="Analytics and charts">
+              <BarChart3 className="h-4 w-4" aria-hidden="true" />
               <span className="hidden sm:inline">Analytics</span>
+              <span className="sm:hidden sr-only">Analytics</span>
             </TabsTrigger>
-            <TabsTrigger value="activity" className="gap-2">
-              <Activity className="h-4 w-4" />
+            <TabsTrigger value="activity" className="gap-2" aria-label="Activity feed">
+              <Activity className="h-4 w-4" aria-hidden="true" />
               <span className="hidden sm:inline">Activity</span>
+              <span className="sm:hidden sr-only">Activity</span>
             </TabsTrigger>
           </TabsList>
 
@@ -231,21 +264,28 @@ export const PortfolioPageEnhanced: React.FC = () => {
             />
           </TabsContent>
 
-          {/* Analytics Tab */}
+          {/* Analytics Tab (Lazy Loaded) */}
           <TabsContent value="analytics" className="mt-6">
-            <AnalyticsTab
-              summary={summary}
-              timePeriod={timePeriod}
-              isLoading={summaryLoading}
-            />
+            <Suspense fallback={<TabLoadingSkeleton />}>
+              <AnalyticsTab
+                summary={summary}
+                timePeriod={timePeriod}
+                isLoading={summaryLoading}
+              />
+            </Suspense>
           </TabsContent>
 
-          {/* Activity Tab */}
+          {/* Activity Tab (Lazy Loaded) */}
           <TabsContent value="activity" className="mt-6">
-            <ActivityTab timePeriod={timePeriod} />
+            <Suspense fallback={<TabLoadingSkeleton />}>
+              <ActivityTab timePeriod={timePeriod} />
+            </Suspense>
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Toast Notifications */}
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   );
 };

@@ -97,3 +97,67 @@ export interface ListingUpdatePayload {
   available_from?: string | null;
   available_to?: string | null;
 }
+
+// Extended listing data for cards (includes metrics)
+export interface PortfolioListingExtended extends PortfolioListing {
+  // Daily Rental metrics
+  new_messages?: number;
+  booking_requests?: number;
+  bookings_this_month?: number;
+  occupancy_rate?: number;
+  next_booking?: {
+    check_in: string;
+    check_out: string;
+    guest_name?: string;
+  };
+
+  // Long-term metrics
+  applications?: number;
+  current_tenant?: {
+    name: string;
+    lease_until: string;
+  };
+
+  // Sale metrics
+  offers_received?: number;
+  viewing_requests?: number;
+  price_history?: {
+    original: number;
+    current: number;
+    reduced_count: number;
+  };
+
+  // Project metrics
+  total_units?: number;
+  available_units?: number;
+  enquiries?: number;
+  brochure_downloads?: number;
+}
+
+// Type summary data
+export interface TypeSummaryData {
+  type: ListingTypeCode;
+  active: number;
+  total: number;
+  inactive: number;
+
+  // Daily Rental specific
+  booked_this_month?: number;
+  pending_requests?: number;
+  total_revenue_this_month?: number;
+  avg_occupancy?: number;
+
+  // Long-term specific
+  rented?: number;
+  pending_applications?: number;
+
+  // Sale specific
+  under_offer?: number;
+  offers_received?: number;
+  viewing_requests?: number;
+
+  // Project specific
+  total_units?: number;
+  available_units?: number;
+  enquiries?: number;
+}

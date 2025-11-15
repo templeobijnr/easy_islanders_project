@@ -219,7 +219,7 @@ export const PortfolioPageEnhanced: React.FC = () => {
         />
 
         {/* Navigation Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-8">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-12">
           <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid bg-white shadow-sm border">
             <TabsTrigger value="overview" className="gap-2" aria-label="Portfolio overview">
               <LayoutDashboard className="h-4 w-4" aria-hidden="true" />
@@ -244,7 +244,7 @@ export const PortfolioPageEnhanced: React.FC = () => {
           </TabsList>
 
           {/* Overview Tab */}
-          <TabsContent value="overview" className="mt-6">
+          <TabsContent value="overview" className="mt-4">
             <OverviewTab
               summary={summary}
               timePeriod={timePeriod}
@@ -253,7 +253,7 @@ export const PortfolioPageEnhanced: React.FC = () => {
           </TabsContent>
 
           {/* Listings Tab */}
-          <TabsContent value="listings" className="mt-6">
+          <TabsContent value="listings" className="mt-4">
             <ListingsTab
               filters={filters}
               onFiltersChange={setFilters}
@@ -265,7 +265,7 @@ export const PortfolioPageEnhanced: React.FC = () => {
           </TabsContent>
 
           {/* Analytics Tab (Lazy Loaded) */}
-          <TabsContent value="analytics" className="mt-6">
+          <TabsContent value="analytics" className="mt-4">
             <Suspense fallback={<TabLoadingSkeleton />}>
               <AnalyticsTab
                 summary={summary}
@@ -276,7 +276,7 @@ export const PortfolioPageEnhanced: React.FC = () => {
           </TabsContent>
 
           {/* Activity Tab (Lazy Loaded) */}
-          <TabsContent value="activity" className="mt-6">
+          <TabsContent value="activity" className="mt-4">
             <Suspense fallback={<TabLoadingSkeleton />}>
               <ActivityTab timePeriod={timePeriod} />
             </Suspense>

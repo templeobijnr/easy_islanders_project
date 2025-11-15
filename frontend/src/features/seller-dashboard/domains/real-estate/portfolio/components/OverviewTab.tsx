@@ -8,6 +8,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PortfolioSummaryResponse } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { TabContextHeader } from './TabContextHeader';
 
 interface OverviewTabProps {
   summary: PortfolioSummaryResponse | undefined;
@@ -68,6 +69,13 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 
   return (
     <div className="space-y-6">
+      <TabContextHeader
+        title="Portfolio Overview"
+        description="Summary of your portfolio composition and performance."
+        timePeriod={timePeriod}
+        showTimePeriod={true}
+      />
+
       {/* Portfolio Summary Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Portfolio Composition */}

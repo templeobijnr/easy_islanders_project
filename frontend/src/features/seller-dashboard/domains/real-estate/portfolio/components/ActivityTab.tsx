@@ -8,6 +8,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Calendar, Clock, User, FileText, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { TabContextHeader } from './TabContextHeader';
 
 interface ActivityTabProps {
   timePeriod: '30d' | '90d' | '1y';
@@ -103,6 +104,13 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({ timePeriod }) => {
 
   return (
     <div className="space-y-6">
+      <TabContextHeader
+        title="Activity Feed"
+        description="Recent changes, bookings, enquiries, and events across your portfolio."
+        timePeriod={timePeriod}
+        showTimePeriod={true}
+      />
+
       <Card>
         <CardHeader>
           <CardTitle>Recent Activity</CardTitle>

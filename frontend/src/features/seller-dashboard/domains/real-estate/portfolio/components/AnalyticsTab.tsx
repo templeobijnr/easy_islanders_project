@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { PortfolioSummaryResponse } from '../types';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { TrendingUp, TrendingDown, DollarSign, Calendar, Users, Home } from 'lucide-react';
+import { TabContextHeader } from './TabContextHeader';
 
 interface AnalyticsTabProps {
   summary: PortfolioSummaryResponse | undefined;
@@ -71,6 +72,13 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
 
   return (
     <div className="space-y-6">
+      <TabContextHeader
+        title="Performance Analytics"
+        description="Detailed metrics, trends, and insights into your portfolio's performance over time."
+        timePeriod={timePeriod}
+        showTimePeriod={true}
+      />
+
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>

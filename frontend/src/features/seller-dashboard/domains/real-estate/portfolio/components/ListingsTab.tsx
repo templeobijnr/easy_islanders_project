@@ -16,6 +16,7 @@ import { PortfolioFiltersBar } from './PortfolioFiltersBar';
 import { FilterChips } from './FilterChips';
 import { BulkActionsBar } from './BulkActionsBar';
 import { EmptyState } from './EmptyState';
+import { TabContextHeader } from './TabContextHeader';
 
 interface ListingsTabProps {
   filters: PortfolioFilters;
@@ -37,6 +38,7 @@ export const ListingsTab: React.FC<ListingsTabProps> = ({
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [searchInput, setSearchInput] = useState(filters.search || '');
+  const advancedFiltersRef = React.useRef<HTMLDivElement>(null);
 
   // Debounced search (300ms)
   useEffect(() => {
@@ -81,10 +83,50 @@ export const ListingsTab: React.FC<ListingsTabProps> = ({
     onFiltersChange({ ...filters, page: newPage });
   };
 
+  const handleToggleAdvancedFilters = () => {
+    setShowAdvancedFilters(!showAdvancedFilters);
+
+    // Scroll advanced filters into view when opening
+    if (!showAdvancedFilters) {
+      setTimeout(() => {
+        advancedFiltersRef.current?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest'
+        });
+      }, 100);
+    }
+  };
+
   const totalPages = Math.ceil(total / (filters.page_size || 20));
+
+  // Count active filters for microcopy
+  const activeFilterCount = [
+    filters.listing_type !== 'ALL' ? 1 : 0,
+    filters.status !== 'ALL' ? 1 : 0,
+    filters.city ? 1 : 0,
+    filters.area ? 1 : 0,
+    filters.search ? 1 : 0,
+  ].reduce((sum, val) => sum + val, 0);
 
   return (
     <div className="space-y-6">
+      <TabContextHeader
+        title="Property Listings"
+        description="All your properties. Use filters to narrow results and bulk select to edit multiple listings at once."
+      />
+
+      {/* Filter Summary */}
+      {total > 0 && (
+        <div className="flex items-center justify-between text-sm text-slate-600">
+          <span>
+            Showing <strong className="text-slate-900">{total}</strong> {total === 1 ? 'listing' : 'listings'}
+            {activeFilterCount > 0 && (
+              <span> · <strong className="text-slate-900">{activeFilterCount}</strong> {activeFilterCount === 1 ? 'filter' : 'filters'} active</span>
+            )}
+          </span>
+        </div>
+      )}
+
       {/* Search and Filters Bar */}
       <Card>
         <CardContent className="p-6">
@@ -100,11 +142,6 @@ export const ListingsTab: React.FC<ListingsTabProps> = ({
                   className="pl-10"
                 />
               </div>
-              {total > 0 && (
-                <p className="text-xs text-slate-600 mt-1.5">
-                  {total} {total === 1 ? 'result' : 'results'} found
-                </p>
-              )}
             </div>
 
             {/* Quick Filters */}
@@ -150,7 +187,9 @@ export const ListingsTab: React.FC<ListingsTabProps> = ({
               <Button
                 variant="outline"
                 size="icon"
-                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                onClick={handleToggleAdvancedFilters}
+                title="Advanced filters"
+                aria-label="Toggle advanced filters"
               >
                 <Filter className="h-4 w-4" />
               </Button>
@@ -159,7 +198,7 @@ export const ListingsTab: React.FC<ListingsTabProps> = ({
 
           {/* Advanced Filters (Collapsible) */}
           {showAdvancedFilters && (
-            <div className="mt-4 pt-4 border-t grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div ref={advancedFiltersRef} className="mt-4 pt-4 border-t grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="text-sm font-medium mb-2 block">City</label>
                 <Input

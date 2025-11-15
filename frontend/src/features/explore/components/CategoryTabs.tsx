@@ -1,6 +1,5 @@
 /**
- * CategoryTabs - Horizontal category navigation
- * Desktop-first, responsive design
+ * CategoryTabs - Horizontal category navigation with glass morphism
  */
 
 import React from 'react';
@@ -25,8 +24,8 @@ const CategoryTabs: React.FC<CategoryTabsProps> = ({
         {[1, 2, 3, 4, 5, 6].map((i) => (
           <div
             key={i}
-            className="flex-shrink-0 px-6 py-3 rounded-full bg-slate-200 animate-pulse"
-            style={{ width: '120px', height: '44px' }}
+            className="flex-shrink-0 px-6 py-3 rounded-2xl bg-white/40 backdrop-blur-sm animate-pulse border border-white/60"
+            style={{ width: '140px', height: '52px' }}
           />
         ))}
       </div>
@@ -35,7 +34,7 @@ const CategoryTabs: React.FC<CategoryTabsProps> = ({
 
   return (
     <div className="w-full overflow-x-auto scrollbar-hide">
-      <div className="flex gap-2 md:gap-3 pb-2">
+      <div className="flex gap-3 pb-2">
         {categories.map((category) => {
           const isActive = activeCategory === category.slug;
 
@@ -44,21 +43,18 @@ const CategoryTabs: React.FC<CategoryTabsProps> = ({
               key={category.id}
               onClick={() => onCategoryChange(category.slug)}
               className={`
-                flex-shrink-0 flex items-center gap-2 px-4 md:px-6 py-2.5 md:py-3
-                rounded-full font-medium text-sm md:text-base
-                transition-all duration-200
+                flex-shrink-0 flex items-center gap-3 px-5 md:px-7 py-3 md:py-3.5
+                rounded-2xl font-semibold text-sm md:text-base
+                transition-all duration-300 shadow-lg
                 ${
                   isActive
-                    ? 'bg-lime-600 text-white shadow-lg shadow-lime-600/30 scale-105'
-                    : 'bg-white text-slate-700 border border-slate-200 hover:border-lime-600 hover:text-lime-600 hover:shadow-md'
+                    ? 'bg-gradient-to-r from-lime-200 via-emerald-200 to-sky-200 text-slate-900 scale-105 shadow-xl border-2 border-white'
+                    : 'backdrop-blur-sm bg-white/70 text-slate-700 border border-white/60 hover:bg-white/90 hover:scale-105 hover:shadow-xl'
                 }
               `}
-              style={{
-                backgroundColor: isActive ? category.color : undefined,
-              }}
             >
-              <span className="text-lg md:text-xl">{category.icon}</span>
-              <span className="whitespace-nowrap">{category.name}</span>
+              <span className="text-xl md:text-2xl">{category.icon}</span>
+              <span className="whitespace-nowrap font-bold">{category.name}</span>
             </button>
           );
         })}

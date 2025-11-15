@@ -33,9 +33,9 @@ const ListingCard: React.FC<ListingCardProps> = ({ listing, onClick, compact = f
   return (
     <div
       className={`
-        group relative bg-white rounded-2xl border border-slate-200 overflow-hidden
-        transition-all duration-300 cursor-pointer
-        hover:shadow-2xl hover:scale-[1.02] hover:-translate-y-1 hover:border-lime-600
+        group relative backdrop-blur-sm bg-white/80 rounded-3xl border border-white/60 overflow-hidden
+        transition-all duration-300 cursor-pointer shadow-lg
+        hover:shadow-2xl hover:scale-[1.03] hover:-translate-y-2 hover:bg-white/95 hover:border-lime-600/40
         ${compact ? 'w-64' : 'w-full'}
       `}
       onClick={handleClick}
@@ -126,11 +126,11 @@ const ListingCard: React.FC<ListingCardProps> = ({ listing, onClick, compact = f
 
         {/* Features/Amenities */}
         {features.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-2">
             {features.map((feature, idx) => (
               <span
                 key={idx}
-                className="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-medium border border-slate-200"
+                className="inline-flex items-center px-3 py-1.5 rounded-xl backdrop-blur-sm bg-white/70 text-slate-700 text-xs font-semibold border border-white/60 shadow-sm"
               >
                 {feature}
               </span>
@@ -147,7 +147,7 @@ const ListingCard: React.FC<ListingCardProps> = ({ listing, onClick, compact = f
 
         {/* CTA */}
         <div className="pt-2">
-          <button className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-50 text-lime-600 font-semibold text-sm hover:bg-lime-50 hover:text-lime-700 transition-colors border border-transparent hover:border-lime-600 group-hover:bg-lime-600 group-hover:text-white">
+          <button className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl backdrop-blur-sm bg-lime-600/10 text-lime-600 font-bold text-sm hover:bg-lime-600 hover:text-white transition-all duration-300 border border-lime-600/30 hover:border-lime-600 shadow-md hover:shadow-xl">
             View Details
             <svg
               xmlns="http://www.w3.org/2000/svg"

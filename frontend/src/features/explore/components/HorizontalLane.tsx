@@ -56,7 +56,7 @@ const HorizontalLane: React.FC<HorizontalLaneProps> = ({
           <div className="hidden md:flex gap-2">
             <button
               onClick={scrollLeft}
-              className="p-2 rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-lime-600 transition-all"
+              className="p-2 rounded-xl backdrop-blur-sm bg-white/70 text-slate-700 hover:bg-white hover:text-lime-600 transition-all shadow-lg border border-white/60"
               aria-label="Scroll left"
             >
               <svg
@@ -71,7 +71,7 @@ const HorizontalLane: React.FC<HorizontalLaneProps> = ({
             </button>
             <button
               onClick={scrollRight}
-              className="p-2 rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-lime-600 transition-all"
+              className="p-2 rounded-xl backdrop-blur-sm bg-white/70 text-slate-700 hover:bg-white hover:text-lime-600 transition-all shadow-lg border border-white/60"
               aria-label="Scroll right"
             >
               <svg

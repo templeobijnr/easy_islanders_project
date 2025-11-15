@@ -25,18 +25,18 @@ const SubcategoryChips: React.FC<SubcategoryChipsProps> = ({
 
   return (
     <div className="w-full overflow-x-auto scrollbar-hide">
-      <div className="flex gap-2 pb-2">
+      <div className="flex gap-3 pb-2">
         {/* "All" chip */}
         <button
           onClick={() => onSubcategoryChange(null)}
           className={`
-            flex-shrink-0 px-4 md:px-5 py-2 md:py-2.5
-            rounded-full text-sm md:text-base font-medium
-            transition-all duration-200
+            flex-shrink-0 px-5 md:px-6 py-2.5 md:py-3
+            rounded-xl text-sm md:text-base font-semibold
+            transition-all duration-300 shadow-lg
             ${
               activeSubcategory === null
-                ? 'bg-lime-600 text-white shadow-md'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
+                ? 'bg-lime-600 text-white shadow-xl scale-105'
+                : 'backdrop-blur-sm bg-white/70 text-slate-700 border border-white/60 hover:bg-white/90 hover:scale-105'
             }
           `}
         >
@@ -52,13 +52,13 @@ const SubcategoryChips: React.FC<SubcategoryChipsProps> = ({
               key={subcat.id}
               onClick={() => onSubcategoryChange(subcat.slug)}
               className={`
-                flex-shrink-0 px-4 md:px-5 py-2 md:py-2.5
-                rounded-full text-sm md:text-base font-medium whitespace-nowrap
-                transition-all duration-200
+                flex-shrink-0 px-5 md:px-6 py-2.5 md:py-3
+                rounded-xl text-sm md:text-base font-semibold whitespace-nowrap
+                transition-all duration-300 shadow-lg
                 ${
                   isActive
-                    ? 'bg-lime-600 text-white shadow-md'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
+                    ? 'bg-lime-600 text-white shadow-xl scale-105'
+                    : 'backdrop-blur-sm bg-white/70 text-slate-700 border border-white/60 hover:bg-white/90 hover:scale-105'
                 }
               `}
             >

@@ -1,198 +1,201 @@
 /**
- * ExploreSpotlight - Auto-rotating carousel for featured listings
- * Desktop-first, with manual navigation controls
+ * ExploreSpotlight - Horizontal scrollable carousel for featured listings
+ * Glass morphism design, fits whole screen
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useRef } from 'react';
 import { Listing } from '../types';
 import { formatPrice, getPlaceholderImage } from '../constants';
 
 interface ExploreSpotlightProps {
   listings: Listing[];
-  intervalMs?: number;
   onListingClick?: (listing: Listing) => void;
 }
 
 const ExploreSpotlight: React.FC<ExploreSpotlightProps> = ({
   listings,
-  intervalMs = 4000,
   onListingClick,
 }) => {
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Auto-rotate effect
-  useEffect(() => {
-    if (!listings || listings.length === 0) return;
-
-    const timer = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % listings.length);
-    }, intervalMs);
-
-    return () => clearInterval(timer);
-  }, [listings, intervalMs]);
-
-  // Handle manual navigation
-  const goToPrevious = () => {
-    setCurrentIndex((prev) => (prev - 1 + listings.length) % listings.length);
+  // Scroll functions
+  const scrollLeft = () => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollBy({ left: -600, behavior: 'smooth' });
+    }
   };
 
-  const goToNext = () => {
-    setCurrentIndex((prev) => (prev + 1) % listings.length);
-  };
-
-  const goToSlide = (index: number) => {
-    setCurrentIndex(index);
+  const scrollRight = () => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollBy({ left: 600, behavior: 'smooth' });
+    }
   };
 
   if (!listings || listings.length === 0) {
     return null;
   }
 
-  const currentListing = listings[currentIndex];
-  const imageUrl =
-    currentListing.images && currentListing.images.length > 0
-      ? currentListing.images[0].image
-      : getPlaceholderImage(currentListing.category.slug, parseInt(currentListing.id.slice(-2), 16));
-
   return (
-    <div className="relative w-full rounded-2xl md:rounded-3xl overflow-hidden shadow-2xl bg-gradient-to-r from-lime-50 to-emerald-50 border border-slate-200">
-      {/* Main content */}
-      <div className="relative flex flex-col md:flex-row items-center gap-4 md:gap-6 p-6 md:p-8">
-        {/* Left: Text content */}
-        <div className="flex-1 space-y-3 md:space-y-4 text-center md:text-left">
-          {/* Badge */}
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-lime-600 text-white text-sm font-semibold shadow-lg">
+    <div className="relative w-full backdrop-blur-sm bg-white/50 rounded-3xl border border-white/60 shadow-2xl p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+          <span className="text-3xl">⭐</span>
+          Featured Listings
+        </h2>
+
+        {/* Navigation buttons */}
+        <div className="hidden md:flex gap-2">
+          <button
+            onClick={scrollLeft}
+            className="p-2 rounded-xl backdrop-blur-sm bg-white/70 text-slate-700 hover:bg-white hover:text-lime-600 transition-all shadow-lg border border-white/60"
+            aria-label="Scroll left"
+          >
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              className="h-4 w-4"
-              fill="currentColor"
-              viewBox="0 0 20 20"
+              className="h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
             >
-              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
-            Featured Listing
-          </div>
-
-          {/* Title */}
-          <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold text-slate-900 line-clamp-2">
-            {currentListing.title}
-          </h2>
-
-          {/* Description */}
-          <p className="text-slate-600 text-sm md:text-base line-clamp-3">
-            {currentListing.description}
-          </p>
-
-          {/* Features row */}
-          <div className="flex flex-wrap justify-center md:justify-start gap-3 text-sm text-slate-700">
-            {currentListing.location && (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/80 backdrop-blur-sm border border-slate-200">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                  />
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                  />
-                </svg>
-                <span className="font-medium">{currentListing.location}</span>
-              </div>
-            )}
-
-            {currentListing.subcategory && (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/80 backdrop-blur-sm border border-slate-200">
-                <span className="font-medium">{currentListing.subcategory.name}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Price and CTA */}
-          <div className="flex flex-col sm:flex-row items-center gap-4 pt-2">
-            <div className="text-3xl md:text-4xl font-bold text-lime-600">
-              {formatPrice(currentListing.price, currentListing.currency)}
-            </div>
-
-            <button
-              onClick={() => onListingClick && onListingClick(currentListing)}
-              className="px-6 md:px-8 py-3 md:py-3.5 rounded-xl bg-lime-600 text-white font-semibold text-sm md:text-base hover:bg-lime-700 transition-all shadow-lg hover:shadow-xl hover:scale-105 active:scale-95"
+          </button>
+          <button
+            onClick={scrollRight}
+            className="p-2 rounded-xl backdrop-blur-sm bg-white/70 text-slate-700 hover:bg-white hover:text-lime-600 transition-all shadow-lg border border-white/60"
+            aria-label="Scroll right"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
             >
-              View Details →
-            </button>
-          </div>
-        </div>
-
-        {/* Right: Image */}
-        <div className="relative w-full md:w-96 lg:w-1/3 h-64 md:h-80 flex-shrink-0 rounded-2xl overflow-hidden shadow-2xl border-4 border-white">
-          <img
-            src={imageUrl}
-            alt={currentListing.title}
-            className="w-full h-full object-cover"
-          />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
         </div>
       </div>
 
-      {/* Navigation controls */}
-      <div className="absolute top-4 right-4 flex gap-2 z-10">
-        <button
-          onClick={goToPrevious}
-          className="p-2 rounded-full bg-white/90 backdrop-blur-sm text-slate-700 hover:bg-white hover:text-lime-600 transition-all shadow-lg hover:shadow-xl"
-          aria-label="Previous"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
+      {/* Scrollable container */}
+      <div
+        ref={scrollRef}
+        className="flex gap-6 overflow-x-auto scrollbar-hide scroll-smooth pb-2"
+      >
+        {listings.map((listing) => {
+          const imageUrl =
+            listing.images && listing.images.length > 0
+              ? listing.images[0].image
+              : getPlaceholderImage(listing.category.slug, parseInt(listing.id.slice(-2), 16));
 
-        <button
-          onClick={goToNext}
-          className="p-2 rounded-full bg-white/90 backdrop-blur-sm text-slate-700 hover:bg-white hover:text-lime-600 transition-all shadow-lg hover:shadow-xl"
-          aria-label="Next"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
+          return (
+            <div
+              key={listing.id}
+              className="flex-shrink-0 w-full md:w-[500px] lg:w-[600px] backdrop-blur-sm bg-gradient-to-r from-lime-200/40 via-emerald-200/40 to-sky-200/40 rounded-2xl border border-white overflow-hidden shadow-xl hover:shadow-2xl transition-all duration-300 cursor-pointer hover:scale-[1.02]"
+              onClick={() => onListingClick && onListingClick(listing)}
+            >
+              <div className="flex flex-col md:flex-row">
+                {/* Image */}
+                <div className="relative w-full md:w-1/2 h-64 md:h-auto overflow-hidden">
+                  <img
+                    src={imageUrl}
+                    alt={listing.title}
+                    className="w-full h-full object-cover"
+                  />
+                  {/* Featured badge */}
+                  <div className="absolute top-3 left-3">
+                    <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-lime-600 text-white text-xs font-bold shadow-lg">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-3 w-3"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                      </svg>
+                      Featured
+                    </span>
+                  </div>
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 p-6 flex flex-col justify-between backdrop-blur-sm bg-white/60">
+                  <div className="space-y-3">
+                    {/* Category */}
+                    <div className="inline-flex items-center px-3 py-1 rounded-lg bg-white/70 text-slate-700 text-xs font-semibold border border-white/60">
+                      {listing.category.name}
+                    </div>
+
+                    {/* Title */}
+                    <h3 className="text-xl md:text-2xl font-bold text-slate-900 line-clamp-2">
+                      {listing.title}
+                    </h3>
+
+                    {/* Description */}
+                    <p className="text-sm text-slate-700 line-clamp-2">
+                      {listing.description}
+                    </p>
+
+                    {/* Location & Subcategory */}
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      {listing.location && (
+                        <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/60 text-slate-700 font-semibold">
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-3 w-3"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                            />
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                            />
+                          </svg>
+                          {listing.location}
+                        </div>
+                      )}
+                      {listing.subcategory && (
+                        <div className="px-2 py-1 rounded-lg bg-white/60 text-slate-700 font-semibold">
+                          {listing.subcategory.name}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Price & CTA */}
+                  <div className="mt-4 flex items-center justify-between">
+                    <div>
+                      <div className="text-3xl font-bold text-lime-600">
+                        {formatPrice(listing.price, listing.currency)}
+                      </div>
+                      {listing.transaction_type === 'rent_short' && (
+                        <span className="text-xs text-slate-600">/night</span>
+                      )}
+                      {listing.transaction_type === 'rent_long' && (
+                        <span className="text-xs text-slate-600">/month</span>
+                      )}
+                    </div>
+
+                    <button className="px-6 py-3 rounded-xl bg-lime-600 text-white font-bold hover:bg-lime-700 transition-all shadow-lg hover:shadow-xl">
+                      View →
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
-
-      {/* Dot indicators */}
-      {listings.length > 1 && (
-        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2 z-10">
-          {listings.map((_, idx) => (
-            <button
-              key={idx}
-              onClick={() => goToSlide(idx)}
-              className={`h-2 rounded-full transition-all ${
-                idx === currentIndex ? 'w-8 bg-lime-600' : 'w-2 bg-slate-300 hover:bg-slate-400'
-              }`}
-              aria-label={`Go to slide ${idx + 1}`}
-            />
-          ))}
-        </div>
-      )}
     </div>
   );
 };

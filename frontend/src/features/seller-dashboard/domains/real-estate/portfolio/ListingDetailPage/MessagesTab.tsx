@@ -2,8 +2,10 @@
  * MessagesTab - Full-page messaging interface for a listing
  */
 
-import React, { useState } from 'react';
-import { Search, Send, User, MoreVertical, Archive, Trash2, Flag } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Search, Send, User, MoreVertical, Loader2 } from 'lucide-react';
+import { useListingMessages } from '../hooks/useRealEstateData';
+import type { Message as APIMessage } from '../services/realEstateApi';
 
 interface Message {
   id: string;
@@ -29,13 +31,82 @@ interface MessageThread {
 
 interface MessagesTabProps {
   listingId: string;
-  threads?: MessageThread[];
 }
 
-export const MessagesTab: React.FC<MessagesTabProps> = ({ listingId, threads = [] }) => {
-  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(threads[0]?.id || null);
+export const MessagesTab: React.FC<MessagesTabProps> = ({ listingId }) => {
+  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Fetch messages from API
+  const {
+    data: messagesData,
+    isLoading,
+    error,
+  } = useListingMessages(listingId ? parseInt(listingId) : undefined);
+
+  // Transform API messages into threads
+  const threads = useMemo(() => {
+    if (!messagesData?.results) return [];
+
+    // Group messages by thread_id
+    const threadMap = new Map<string, APIMessage[]>();
+    messagesData.results.forEach((msg) => {
+      const threadId = msg.thread_id;
+      if (!threadMap.has(threadId)) {
+        threadMap.set(threadId, []);
+      }
+      threadMap.get(threadId)!.push(msg);
+    });
+
+    // Convert to MessageThread format
+    const transformedThreads: MessageThread[] = [];
+    threadMap.forEach((msgs, threadId) => {
+      // Sort messages by date
+      const sortedMsgs = msgs.sort((a, b) =>
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      );
+
+      const lastMessage = sortedMsgs[sortedMsgs.length - 1];
+      const unreadCount = msgs.filter((m) => !m.is_read).length;
+
+      transformedThreads.push({
+        id: threadId,
+        user: {
+          name: `${lastMessage.sender.first_name} ${lastMessage.sender.last_name}`.trim() || 'Unknown User',
+          email: lastMessage.sender.email,
+        },
+        last_message: {
+          id: String(lastMessage.id),
+          text: lastMessage.content,
+          sender: 'user', // Assuming messages from API are from users
+          sender_name: `${lastMessage.sender.first_name} ${lastMessage.sender.last_name}`.trim(),
+          timestamp: lastMessage.created_at,
+          is_read: lastMessage.is_read,
+        },
+        unread_count: unreadCount,
+        messages: sortedMsgs.map((m) => ({
+          id: String(m.id),
+          text: m.content,
+          sender: 'user' as const, // Assuming messages from API are from users
+          sender_name: `${m.sender.first_name} ${m.sender.last_name}`.trim(),
+          timestamp: m.created_at,
+          is_read: m.is_read,
+        })),
+      });
+    });
+
+    return transformedThreads.sort((a, b) =>
+      new Date(b.last_message.timestamp).getTime() - new Date(a.last_message.timestamp).getTime()
+    );
+  }, [messagesData]);
+
+  // Auto-select first thread when data loads
+  React.useEffect(() => {
+    if (threads.length > 0 && !selectedThreadId) {
+      setSelectedThreadId(threads[0].id);
+    }
+  }, [threads, selectedThreadId]);
 
   const selectedThread = threads.find(t => t.id === selectedThreadId);
 
@@ -58,79 +129,43 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({ listingId, threads = [
 
   const handleSendMessage = () => {
     if (!replyText.trim()) return;
+    // TODO: Implement send message API call
     console.log('Sending message:', replyText);
     setReplyText('');
   };
 
-  // Mock data if no threads provided
-  const displayThreads = threads.length > 0 ? threads : [
-    {
-      id: 'thread-1',
-      user: { name: 'John Doe', email: 'john@example.com' },
-      last_message: {
-        id: 'msg-1',
-        text: 'Is this property available for December?',
-        sender: 'user' as const,
-        sender_name: 'John Doe',
-        timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-        is_read: false,
-      },
-      unread_count: 1,
-      messages: [
-        {
-          id: 'msg-1',
-          text: 'Is this property available for December?',
-          sender: 'user' as const,
-          sender_name: 'John Doe',
-          timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-          is_read: false,
-        },
-      ],
-    },
-    {
-      id: 'thread-2',
-      user: { name: 'Sarah Johnson', email: 'sarah@example.com' },
-      last_message: {
-        id: 'msg-2',
-        text: 'Thank you for the quick response!',
-        sender: 'user' as const,
-        sender_name: 'Sarah Johnson',
-        timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-        is_read: true,
-      },
-      unread_count: 0,
-      messages: [
-        {
-          id: 'msg-2a',
-          text: 'What are the payment terms?',
-          sender: 'user' as const,
-          sender_name: 'Sarah Johnson',
-          timestamp: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
-          is_read: true,
-        },
-        {
-          id: 'msg-2b',
-          text: 'We require 50% deposit and 50% on arrival.',
-          sender: 'owner' as const,
-          sender_name: 'You',
-          timestamp: new Date(Date.now() - 5.5 * 60 * 60 * 1000).toISOString(),
-          is_read: true,
-        },
-        {
-          id: 'msg-2c',
-          text: 'Thank you for the quick response!',
-          sender: 'user' as const,
-          sender_name: 'Sarah Johnson',
-          timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-          is_read: true,
-        },
-      ],
-    },
-  ];
-
-  const filteredThreads = displayThreads.filter(thread =>
+  const filteredThreads = threads.filter(thread =>
     thread.user.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 animate-spin text-lime-600 mx-auto" />
+          <p className="mt-4 text-slate-700 font-medium">Loading messages...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="max-w-md text-center p-8 bg-white rounded-2xl border border-red-200">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <span className="text-3xl">⚠️</span>
+          </div>
+          <h3 className="text-lg font-bold text-slate-900 mb-2">Failed to Load Messages</h3>
+          <p className="text-slate-600 text-sm">
+            {error instanceof Error ? error.message : 'An error occurred while loading messages.'}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-350px)]">
@@ -145,7 +180,7 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({ listingId, threads = [
               placeholder="Search conversations..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+              className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent"
             />
           </div>
         </div>
@@ -166,7 +201,7 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({ listingId, threads = [
                 key={thread.id}
                 onClick={() => setSelectedThreadId(thread.id)}
                 className={`w-full p-4 border-b border-slate-100 hover:bg-slate-50 transition-colors text-left ${
-                  selectedThreadId === thread.id ? 'bg-brand-50 border-l-4 border-l-brand-600' : ''
+                  selectedThreadId === thread.id ? 'bg-lime-50 border-l-4 border-l-lime-600' : ''
                 }`}
               >
                 <div className="flex items-start gap-3">
@@ -181,7 +216,7 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({ listingId, threads = [
                     <div className="flex items-center justify-between mb-1">
                       <h3 className="font-semibold text-sm text-slate-900 truncate">{thread.user.name}</h3>
                       {thread.unread_count > 0 && (
-                        <span className="px-2 py-0.5 bg-brand-600 text-white text-xs font-semibold rounded-full">
+                        <span className="px-2 py-0.5 bg-lime-600 text-white text-xs font-semibold rounded-full">
                           {thread.unread_count}
                         </span>
                       )}
@@ -201,7 +236,7 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({ listingId, threads = [
         {selectedThread ? (
           <>
             {/* Thread Header */}
-            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-brand-50 to-emerald-50">
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-lime-50 to-emerald-50">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center">
                   {selectedThread.user.avatar ? (
@@ -241,7 +276,7 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({ listingId, threads = [
                     <div
                       className={`px-4 py-2.5 rounded-2xl ${
                         message.sender === 'owner'
-                          ? 'bg-brand-600 text-white'
+                          ? 'bg-gradient-to-r from-lime-600 to-emerald-600 text-white'
                           : 'bg-slate-100 text-slate-900'
                       }`}
                     >

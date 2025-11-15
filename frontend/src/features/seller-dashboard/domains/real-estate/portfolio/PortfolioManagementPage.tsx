@@ -7,10 +7,12 @@
 
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { ListingTypeCode } from './types';
 import { TypeSummary } from './components/TypeSummary';
 import { usePortfolioStats, useListingSummaries } from './hooks/useRealEstateData';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Plus } from 'lucide-react';
+import RealEstatePropertyUploadEnhanced from '../overview/RealEstatePropertyUploadEnhanced';
 
 // Tab definitions
 type TabValue = 'daily-rental' | 'long-term' | 'sale' | 'projects' | 'activity';
@@ -34,6 +36,7 @@ type StatusFilter = 'all' | 'active' | 'inactive' | 'draft';
 
 export const PortfolioManagementPage: React.FC = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   // Tab & filter state
   const [activeTab, setActiveTab] = useState<TabValue>('daily-rental');
@@ -46,6 +49,9 @@ export const PortfolioManagementPage: React.FC = () => {
   const [selectedListingForRequests, setSelectedListingForRequests] = useState<string | null>(null);
   const [selectedListingForBookings, setSelectedListingForBookings] = useState<string | null>(null);
   const [selectedListingForCalendar, setSelectedListingForCalendar] = useState<string | null>(null);
+
+  // Create listing modal state
+  const [showCreateListingModal, setShowCreateListingModal] = useState(false);
 
   // Get current listing type from active tab
   const currentListingType = TABS.find(tab => tab.value === activeTab)?.listingType;
@@ -99,6 +105,14 @@ export const PortfolioManagementPage: React.FC = () => {
     };
   };
 
+  // Handle successful listing creation
+  const handleListingCreated = () => {
+    // Invalidate all portfolio queries to refresh data
+    queryClient.invalidateQueries({ queryKey: ['portfolio', 'stats'] });
+    queryClient.invalidateQueries({ queryKey: ['listings', 'summaries'] });
+    setShowCreateListingModal(false);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header - Matching seller-dashboard card style with rounded edges */}
@@ -108,9 +122,20 @@ export const PortfolioManagementPage: React.FC = () => {
           <div className="absolute -bottom-8 -right-8 h-24 w-24 rounded-full bg-white/40" />
           
           <div className="relative z-10 px-6 py-4">
-            <div className="mb-4">
-              <h1 className="text-2xl font-bold text-slate-900">Portfolio Management</h1>
-              <p className="text-sm text-slate-700 mt-1">Manage your listings by type</p>
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h1 className="text-2xl font-bold text-slate-900">Portfolio Management</h1>
+                <p className="text-sm text-slate-700 mt-1">Manage your listings by type</p>
+              </div>
+
+              {/* Create Listing Button */}
+              <button
+                onClick={() => setShowCreateListingModal(true)}
+                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-lime-500 to-emerald-500 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all hover:scale-105"
+              >
+                <Plus className="h-5 w-5" />
+                Create Listing
+              </button>
             </div>
 
             {/* Tabs */}
@@ -385,6 +410,13 @@ export const PortfolioManagementPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Create Listing Modal */}
+      <RealEstatePropertyUploadEnhanced
+        open={showCreateListingModal}
+        onOpenChange={setShowCreateListingModal}
+        onSuccess={handleListingCreated}
+      />
     </div>
   );
 };

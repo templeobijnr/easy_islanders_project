@@ -6,6 +6,7 @@
  */
 
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ListingTypeCode } from './types';
 
 // Tab definitions
@@ -29,6 +30,8 @@ type SortOption = 'recent' | 'price-high' | 'price-low' | 'bookings';
 type StatusFilter = 'all' | 'active' | 'inactive' | 'draft';
 
 export const PortfolioManagementPage: React.FC = () => {
+  const navigate = useNavigate();
+
   // Tab & filter state
   const [activeTab, setActiveTab] = useState<TabValue>('daily-rental');
   const [searchQuery, setSearchQuery] = useState('');
@@ -43,6 +46,11 @@ export const PortfolioManagementPage: React.FC = () => {
 
   // Get current listing type from active tab
   const currentListingType = TABS.find(tab => tab.value === activeTab)?.listingType;
+
+  // Navigate to listing detail page
+  const handleCardClick = (listingId: string) => {
+    navigate(`/dashboard/home/real-estate/portfolio/listing/${listingId}`);
+  };
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -140,57 +148,42 @@ export const PortfolioManagementPage: React.FC = () => {
 
             {/* Listing Grid - Will display listing cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {/* Placeholder cards - will be replaced with actual listing cards */}
+              {/* Placeholder cards - click any card to see the full management page */}
               {[1, 2, 3].map((i) => (
                 <div
                   key={i}
-                  className="bg-white rounded-lg border border-slate-200 overflow-hidden hover:shadow-lg transition-shadow"
+                  onClick={() => handleCardClick(`listing-${i}`)}
+                  className="bg-white rounded-lg border border-slate-200 overflow-hidden hover:shadow-lg transition-shadow cursor-pointer"
                 >
                   {/* Image placeholder */}
                   <div className="aspect-video bg-gradient-to-br from-slate-200 to-slate-300 flex items-center justify-center">
-                    <span className="text-slate-500 text-sm">Listing Card {i}</span>
+                    <span className="text-slate-500 text-sm">Click to open listing {i}</span>
                   </div>
 
                   {/* Card content */}
                   <div className="p-4">
-                    <h3 className="font-semibold text-slate-900">Listing Title</h3>
+                    <h3 className="font-semibold text-slate-900">Sample Listing {i}</h3>
                     <p className="text-lg font-bold text-lime-600 mt-1">€120/night</p>
 
                     <div className="mt-4 space-y-2 text-sm">
                       <div className="flex items-center gap-2 text-slate-700">
                         <span>● Active</span>
                       </div>
-                      <button
-                        onClick={() => setSelectedListingForMessages(`listing-${i}`)}
-                        className="w-full text-left hover:text-lime-600 transition-colors"
-                      >
+                      <div className="text-slate-700">
                         💬 3 new messages
-                      </button>
-                      <button
-                        onClick={() => setSelectedListingForRequests(`listing-${i}`)}
-                        className="w-full text-left hover:text-lime-600 transition-colors"
-                      >
+                      </div>
+                      <div className="text-slate-700">
                         📩 2 booking requests
-                      </button>
-                      <button
-                        onClick={() => setSelectedListingForBookings(`listing-${i}`)}
-                        className="w-full text-left hover:text-lime-600 transition-colors"
-                      >
+                      </div>
+                      <div className="text-slate-700">
                         📊 12 bookings
-                      </button>
+                      </div>
                     </div>
 
-                    {/* Action buttons */}
-                    <div className="mt-4 flex gap-2">
-                      <button
-                        onClick={() => setSelectedListingForCalendar(`listing-${i}`)}
-                        className="flex-1 px-3 py-2 bg-lime-600 text-white text-sm font-medium rounded-lg hover:bg-lime-700 transition-colors"
-                      >
-                        📅 Calendar
-                      </button>
-                      <button className="flex-1 px-3 py-2 bg-slate-100 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-200 transition-colors">
-                        💰 Pricing
-                      </button>
+                    <div className="mt-4 p-3 bg-lime-50 border border-lime-200 rounded-lg">
+                      <p className="text-xs font-medium text-lime-800">
+                        Click this card to see full management suite →
+                      </p>
                     </div>
                   </div>
                 </div>

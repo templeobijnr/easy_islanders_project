@@ -34,6 +34,7 @@ interface DailyRentalData {
 
 interface DailyRentalCardProps {
   listing: DailyRentalData;
+  onCardClick?: () => void; // Navigate to listing detail page
   onMessageClick: () => void;
   onRequestClick: () => void;
   onBookingsClick: () => void;
@@ -48,6 +49,7 @@ interface DailyRentalCardProps {
 
 export const DailyRentalCard: React.FC<DailyRentalCardProps> = ({
   listing,
+  onCardClick,
   onMessageClick,
   onRequestClick,
   onBookingsClick,
@@ -200,6 +202,7 @@ export const DailyRentalCard: React.FC<DailyRentalCardProps> = ({
       metrics={metrics}
       primaryActions={primaryActions}
       menuActions={menuActions}
+      onCardClick={onCardClick}
     />
   );
 };

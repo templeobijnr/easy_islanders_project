@@ -52,6 +52,9 @@ export interface ListingCardProps {
   // Menu actions (dropdown)
   menuActions: ListingCardAction[];
 
+  // Card click handler (navigates to detail page)
+  onCardClick?: () => void;
+
   // Additional content
   children?: React.ReactNode;
 }
@@ -67,6 +70,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
   metrics,
   primaryActions,
   menuActions,
+  onCardClick,
   children,
 }) => {
   const getStatusColor = (variant: string) => {
@@ -98,7 +102,14 @@ export const ListingCard: React.FC<ListingCardProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-lg border border-slate-200 overflow-hidden hover:shadow-lg transition-all duration-300 group">
+    <div
+      className={`bg-white rounded-lg border border-slate-200 overflow-hidden hover:shadow-lg transition-all duration-300 group ${onCardClick ? 'cursor-pointer' : ''}`}
+      onClick={onCardClick ? (e) => {
+        // Only trigger if clicking on the card itself, not on buttons/metrics
+        if ((e.target as HTMLElement).closest('button, a')) return;
+        onCardClick();
+      } : undefined}
+    >
       {/* Image */}
       <div className="relative aspect-video bg-gradient-to-br from-slate-100 to-slate-200">
         {imageUrl ? (

@@ -40,7 +40,7 @@ interface TypeSummaryProps {
 export const TypeSummary: React.FC<TypeSummaryProps> = ({ type, data, isLoading = false }) => {
   if (isLoading) {
     return (
-      <div className="bg-white rounded-lg border border-slate-200 p-4">
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-lg">
         <div className="h-6 bg-slate-200 rounded animate-pulse w-3/4" />
       </div>
     );
@@ -117,7 +117,7 @@ export const TypeSummary: React.FC<TypeSummaryProps> = ({ type, data, isLoading 
   };
 
   return (
-    <div className="bg-gradient-to-r from-lime-50 to-emerald-50 border border-lime-200 rounded-lg p-4">
+    <div className="bg-gradient-to-r from-lime-50 to-emerald-50 border border-lime-200 rounded-2xl p-4 shadow-lg">
       <div className="flex items-center gap-3">
         <span className="text-2xl">{getIcon()}</span>
         <p className="text-sm font-medium text-slate-700">

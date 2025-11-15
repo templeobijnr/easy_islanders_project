@@ -34,5 +34,12 @@
     "src/**/*.tsx",
     "src/**/*.ts",
     "src/**/*.js"
+  ],
+  "exclude": [
+    "src/features/seller-dashboard/domains/real-estate/portfolio/__archive__",
+    "src/**/__tests__/**",
+    "src/**/*.test.*",
+    "src/**/*.spec.*",
+    "src/e2e/**"
   ]
 }

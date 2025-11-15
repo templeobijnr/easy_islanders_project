@@ -636,14 +636,12 @@ const BookingWizard: React.FC<BookingWizardProps> = ({
               <Button
                 onClick={handleSubmit}
                 disabled={isSubmitting}
-                className="bg-lime-600 hover:bg-lime-700"
               >
                 {isSubmitting ? 'Creating Booking...' : 'Confirm Booking'}
               </Button>
             ) : (
               <Button
                 onClick={handleNext}
-                className="bg-lime-600 hover:bg-lime-700"
               >
                 Next
               </Button>

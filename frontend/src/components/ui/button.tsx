@@ -23,14 +23,14 @@ export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 export function buttonVariants({ variant, size, className }: { variant?: Variant; size?: Size; className?: string } = {}) {
   const base = 'inline-flex items-center justify-center rounded-xl text-sm font-semibold transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none'
   const v = {
-    default: 'bg-primary text-white hover:opacity-90 shadow-md hover:shadow-lg',
+    default: 'bg-gradient-to-r from-brand-500 to-cyan-500 text-white hover:shadow-xl transition-shadow shadow-lg',
     destructive: 'bg-red-600 text-white hover:bg-red-700 shadow-md hover:shadow-lg',
     outline: 'border-2 border-neutral-300 text-neutral-700 hover:bg-neutral-50 hover:border-neutral-400',
     secondary: 'bg-neutral-100 text-neutral-900 hover:bg-neutral-200 shadow-sm',
     ghost: 'bg-transparent hover:bg-neutral-100 text-neutral-700',
     link: 'text-primary underline-offset-4 hover:underline',
-    premium: 'bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg hover:shadow-xl hover:scale-105',
-    luxury: 'bg-gradient-to-r from-lime-500 to-emerald-500 text-white shadow-lg hover:shadow-xl hover:scale-105 font-bold',
+    premium: 'bg-gradient-to-r from-brand-500 to-cyan-500 text-white shadow-lg hover:shadow-xl hover:scale-105',
+    luxury: 'bg-gradient-to-r from-brand-500 to-cyan-500 text-white shadow-lg hover:shadow-xl hover:scale-105 font-bold',
     glass: 'bg-white/20 backdrop-blur-lg border-2 border-white/30 text-white hover:bg-white/30 shadow-xl',
   } as Record<Variant, string>
   const s = {

@@ -93,7 +93,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
   const getActionVariantClass = (variant?: string) => {
     switch (variant) {
       case 'primary':
-        return 'bg-lime-600 text-white hover:bg-lime-700';
+        return 'bg-gradient-to-r from-brand-500 to-cyan-500 text-white shadow-lg hover:shadow-xl';
       case 'danger':
         return 'bg-rose-100 text-rose-700 hover:bg-rose-200';
       default:

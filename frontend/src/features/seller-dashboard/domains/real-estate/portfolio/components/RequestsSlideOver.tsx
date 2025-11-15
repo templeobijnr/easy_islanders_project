@@ -224,7 +224,7 @@ export const RequestsSlideOver: React.FC<RequestsSlideOverProps> = ({
               <button
                 onClick={() => handleApprove(request.id)}
                 disabled={processingId === request.id}
-                className="flex-1 px-3 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 disabled:bg-slate-300 transition-colors flex items-center justify-center gap-2"
+                className="flex-1 px-3 py-2 bg-gradient-to-r from-brand-500 to-cyan-500 text-white rounded-xl shadow-lg hover:shadow-xl disabled:bg-slate-300 disabled:opacity-50 transition-all font-semibold flex items-center justify-center gap-2"
               >
                 <Check className="h-4 w-4" />
                 {processingId === request.id ? 'Approving...' : 'Approve'}

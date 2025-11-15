@@ -94,7 +94,7 @@ export const ListingDetailPage: React.FC = () => {
                 <BarChart3 className="h-4 w-4" />
                 Report
               </button>
-              <button className="px-4 py-2 bg-lime-600 text-white text-sm font-medium rounded-lg hover:bg-lime-700 transition-colors flex items-center gap-2">
+              <button className="px-4 py-2 bg-gradient-to-r from-brand-500 to-cyan-500 text-white text-sm font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2">
                 <Edit className="h-4 w-4" />
                 Edit Listing
               </button>

@@ -213,7 +213,7 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
               >
                 Cancel
               </button>
-              <button className="flex-1 px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 transition-colors">
+              <button className="flex-1 px-4 py-2 bg-gradient-to-r from-brand-500 to-cyan-500 text-white rounded-xl shadow-lg hover:shadow-xl transition-all font-semibold">
                 Save
               </button>
             </div>
@@ -370,7 +370,7 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
                 </button>
                 <button
                   onClick={handleBlockDates}
-                  className="flex-1 px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 transition-colors"
+                  className="flex-1 px-4 py-2 bg-gradient-to-r from-brand-500 to-cyan-500 text-white rounded-xl shadow-lg hover:shadow-xl transition-all font-semibold"
                 >
                   Block Dates
                 </button>
@@ -403,7 +403,7 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
                 </button>
                 <button
                   onClick={handleSetPricing}
-                  className="flex-1 px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 transition-colors"
+                  className="flex-1 px-4 py-2 bg-gradient-to-r from-brand-500 to-cyan-500 text-white rounded-xl shadow-lg hover:shadow-xl transition-all font-semibold"
                 >
                   Set Price
                 </button>

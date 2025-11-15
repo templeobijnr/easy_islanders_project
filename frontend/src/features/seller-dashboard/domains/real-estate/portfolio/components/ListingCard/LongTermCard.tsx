@@ -102,6 +102,7 @@ export const LongTermCard: React.FC<LongTermCardProps> = ({
         icon: '👤',
         label: `Tenant: ${listing.current_tenant.name}`,
         onClick: onViewTenant,
+        highlight: false,
       });
     } else {
       metrics.push({

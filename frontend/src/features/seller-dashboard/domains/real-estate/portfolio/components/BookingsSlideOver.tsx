@@ -215,7 +215,7 @@ export const BookingsSlideOver: React.FC<BookingsSlideOverProps> = ({
           {onMessageGuest && booking.status !== 'cancelled' && (
             <button
               onClick={() => onMessageGuest(booking.id)}
-              className="flex-1 px-3 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 transition-colors flex items-center justify-center gap-2 text-sm"
+              className="flex-1 px-3 py-2 bg-gradient-to-r from-brand-500 to-cyan-500 text-white rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 text-sm font-semibold"
             >
               <MessageSquare className="h-4 w-4" />
               Message

@@ -28,6 +28,10 @@ import { PortfolioHeader } from './components/PortfolioHeader';
 import { KPICardsGrid } from './components/KPICardsGrid';
 import { OverviewTab } from './components/OverviewTab';
 import { ListingsTab } from './components/ListingsTab';
+import { InsightsBanner, Insight } from './components/InsightsBanner';
+import { KeyboardShortcuts, Shortcut, DEFAULT_SHORTCUTS } from './components/KeyboardShortcuts';
+import { DataFreshnessIndicator } from './components/DataFreshnessIndicator';
+import { ExportTemplates, ExportTemplate, DEFAULT_EXPORT_TEMPLATES } from './components/ExportTemplates';
 
 // Lazy load heavy tabs for better performance
 const AnalyticsTab = lazy(() => import('./components/AnalyticsTab').then(m => ({ default: m.AnalyticsTab })));
@@ -66,6 +70,48 @@ export const PortfolioPageEnhanced: React.FC = () => {
     page: 1,
     page_size: 20,
   });
+
+  // Keyboard shortcuts
+  const shortcuts: Shortcut[] = DEFAULT_SHORTCUTS.map((shortcut) => ({
+    ...shortcut,
+    action: () => {
+      switch (shortcut.key) {
+        case '/':
+          // Focus search (would need ref to search input)
+          break;
+        case 'l':
+          setActiveTab('listings');
+          break;
+        case 'o':
+          setActiveTab('overview');
+          break;
+        case 'a':
+          setActiveTab('analytics');
+          break;
+        case 'n':
+          handleCreateListing();
+          break;
+        case 'b':
+          handleBulkEdit();
+          break;
+        case 'e':
+          handleExportData();
+          break;
+        case '1':
+          setActiveTab('listings');
+          break;
+        case '2':
+          setActiveTab('listings');
+          break;
+        case '3':
+          setActiveTab('listings');
+          break;
+        case 'escape':
+          // Clear selections or close dialogs
+          break;
+      }
+    },
+  }));
 
   // Fetch portfolio summary
   const { data: summary, isLoading: summaryLoading } = useQuery({
@@ -117,6 +163,46 @@ export const PortfolioPageEnhanced: React.FC = () => {
     };
   }, [summary]);
 
+  // Insights state (in production, these would be generated from backend analytics)
+  const insights: Insight[] = React.useMemo(() => {
+    if (!kpis || !listingsData) return [];
+
+    const generatedInsights: Insight[] = [];
+
+    // Check for low conversion rate
+    if (kpis.conversionRate < 10) {
+      generatedInsights.push({
+        id: 'low-conversion',
+        type: 'warning',
+        title: 'Conversion rate is below industry average',
+        description: 'Your inquiry-to-booking rate is lower than the target 15-25%. Consider reviewing pricing or listing quality.',
+        action: {
+          label: 'View low performers',
+          onClick: () => {
+            setActiveTab('listings');
+            setFilters((f: PortfolioFilters) => ({ ...f, status: 'ALL' }));
+          },
+        },
+      });
+    }
+
+    // Check for high occupancy
+    if (kpis.occupancyRate > 75) {
+      generatedInsights.push({
+        id: 'high-occupancy',
+        type: 'positive',
+        title: `Excellent occupancy rate at ${kpis.occupancyRate.toFixed(1)}%`,
+        description: 'Your properties are performing above the industry average. Consider raising prices or adding more inventory.',
+        action: {
+          label: 'View top performers',
+          onClick: () => setActiveTab('analytics'),
+        },
+      });
+    }
+
+    return generatedInsights;
+  }, [kpis, listingsData]);
+
   const handleCreateListing = () => {
     // Navigate to create listing page or open modal
     window.location.href = '/dashboard/home/real-estate/upload';
@@ -151,7 +237,7 @@ export const PortfolioPageEnhanced: React.FC = () => {
     ].join(','));
 
     // Add listings data
-    listingsData.results.forEach((listing) => {
+    listingsData.results.forEach((listing: PortfolioListing) => {
       csvRows.push([
         listing.reference_code,
         listing.listing_type,
@@ -193,8 +279,37 @@ export const PortfolioPageEnhanced: React.FC = () => {
     setActiveTab('listings');
   };
 
+  // KPI quick action handlers
+  const handleViewAnalytics = (metric: string) => {
+    setActiveTab('analytics');
+    // Could add metric-specific filtering here
+  };
+
+  const handleFilterBy = (filter: string) => {
+    setActiveTab('listings');
+    // Apply the appropriate filter
+    switch (filter) {
+      case 'active':
+        setFilters((f: PortfolioFilters) => ({ ...f, status: 'ACTIVE' }));
+        break;
+      case 'inactive':
+        setFilters((f: PortfolioFilters) => ({ ...f, status: 'INACTIVE' }));
+        break;
+      default:
+        break;
+    }
+  };
+
+  const handleExportDataByMetric = (metric: string) => {
+    // Export specific metric data
+    handleExportData();
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      {/* Keyboard Shortcuts */}
+      <KeyboardShortcuts shortcuts={shortcuts} />
+
       {/* Portfolio Header */}
       <PortfolioHeader
         totalValue={kpis.totalValue}
@@ -208,16 +323,45 @@ export const PortfolioPageEnhanced: React.FC = () => {
 
       <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* KPI Cards Grid */}
-        <KPICardsGrid
-          totalValue={kpis.totalValue}
-          activeListings={kpis.activeListings}
-          monthlyRevenue={kpis.monthlyRevenue}
-          occupancyRate={kpis.occupancyRate}
-          avgDailyRate={kpis.avgDailyRate}
-          conversionRate={kpis.conversionRate}
-          timePeriod={timePeriod}
-          isLoading={summaryLoading}
-        />
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="sr-only">Portfolio Metrics</h2>
+            <DataFreshnessIndicator
+              lastUpdated={new Date()}
+              onRefresh={() => {
+                refetchListings();
+                queryClient.invalidateQueries({ queryKey: ['portfolioSummary'] });
+              }}
+              isRefreshing={summaryLoading || listingsLoading}
+            />
+          </div>
+
+          <KPICardsGrid
+            totalValue={kpis.totalValue}
+            activeListings={kpis.activeListings}
+            monthlyRevenue={kpis.monthlyRevenue}
+            occupancyRate={kpis.occupancyRate}
+            avgDailyRate={kpis.avgDailyRate}
+            conversionRate={kpis.conversionRate}
+            timePeriod={timePeriod}
+            isLoading={summaryLoading}
+            onViewAnalytics={handleViewAnalytics}
+            onFilterBy={handleFilterBy}
+            onExportData={handleExportDataByMetric}
+          />
+        </div>
+
+        {/* Insights Banner */}
+        {insights.length > 0 && (
+          <div className="mt-6">
+            <InsightsBanner
+              insights={insights}
+              onDismiss={(id: string) => {
+                localStorage.setItem(`insight-dismissed-${id}`, 'true');
+              }}
+            />
+          </div>
+        )}
 
         {/* Navigation Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-12">

@@ -1,12 +1,18 @@
 /**
  * EmptyState Component
  *
- * Reusable empty state with icon, message, and CTAs
+ * Context-aware empty state with icon, message, CTAs, and contextual hints
  */
 
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { LucideIcon } from 'lucide-react';
+import { LucideIcon, FileText, PauseCircle } from 'lucide-react';
+
+export interface ContextHint {
+  label: string;
+  count: number;
+  onClick: () => void;
+}
 
 interface EmptyStateProps {
   icon?: LucideIcon;
@@ -20,6 +26,7 @@ interface EmptyStateProps {
     label: string;
     onClick: () => void;
   };
+  contextHints?: ContextHint[];
   className?: string;
 }
 
@@ -29,6 +36,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   message,
   primaryAction,
   secondaryAction,
+  contextHints,
   className = "",
 }) => {
   return (
@@ -47,6 +55,28 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         {message}
       </p>
 
+      {/* Context Hints - show what's available in other states */}
+      {contextHints && contextHints.length > 0 && (
+        <div className="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-lg max-w-md">
+          <p className="text-xs font-medium text-slate-700 mb-3">
+            But you have listings in other states:
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            {contextHints.map((hint, index) => (
+              <button
+                key={index}
+                onClick={hint.onClick}
+                className="px-3 py-1.5 text-sm bg-white border border-slate-200 rounded-lg hover:border-lime-300 hover:bg-lime-50 transition-colors"
+              >
+                <span className="font-medium text-slate-700">{hint.label}</span>
+                <span className="ml-1.5 text-xs text-slate-500">({hint.count})</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Primary and Secondary Actions */}
       {(primaryAction || secondaryAction) && (
         <div className="flex items-center gap-3">
           {primaryAction && (

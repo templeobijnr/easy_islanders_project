@@ -60,11 +60,13 @@ export const ListingsTab: React.FC<ListingsTabProps> = ({
   }, [searchInput]);
 
   const handleRemoveFilter = useCallback((key: keyof PortfolioFilters) => {
-    const newFilters = { ...filters, page: 1 };
-    if (key === 'listing_type' || key === 'status') {
-      newFilters[key] = 'ALL' as any;
-    } else {
-      newFilters[key] = '' as any;
+    const newFilters: PortfolioFilters = { ...filters, page: 1 };
+    if (key === 'listing_type') {
+      newFilters.listing_type = 'ALL';
+    } else if (key === 'status') {
+      newFilters.status = 'ALL';
+    } else if (key === 'city' || key === 'area' || key === 'search') {
+      newFilters[key] = '';
     }
     onFiltersChange(newFilters);
 

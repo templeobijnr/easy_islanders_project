@@ -33,7 +33,7 @@ export const PortfolioPageV1: React.FC = () => {
   // Fetch portfolio summary
   const { data: summary, isLoading: summaryLoading } = useQuery({
     queryKey: ['portfolioSummary'],
-    queryFn: fetchPortfolioSummary,
+    queryFn: () => fetchPortfolioSummary(),
   });
 
   // Fetch portfolio listings

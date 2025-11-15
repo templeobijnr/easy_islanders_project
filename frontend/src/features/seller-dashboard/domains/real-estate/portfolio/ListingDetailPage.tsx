@@ -11,6 +11,16 @@ import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Edit, Trash2, MoreVertical, Eye, Share2, BarChart3 } from 'lucide-react';
 
+// Tab components
+import { OverviewTab } from './ListingDetailPage/OverviewTab';
+import { MessagesTab } from './ListingDetailPage/MessagesTab';
+import { RequestsTab } from './ListingDetailPage/RequestsTab';
+import { BookingsTab } from './ListingDetailPage/BookingsTab';
+import { CalendarTab } from './ListingDetailPage/CalendarTab';
+import { PricingTab } from './ListingDetailPage/PricingTab';
+import { AnalyticsTab } from './ListingDetailPage/AnalyticsTab';
+import { ActivityTab } from './ListingDetailPage/ActivityTab';
+
 // Tab definitions
 type TabValue = 'overview' | 'messages' | 'requests' | 'bookings' | 'calendar' | 'pricing' | 'analytics' | 'activity';
 
@@ -174,84 +184,14 @@ export const ListingDetailPage: React.FC = () => {
 
       {/* Tab Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {activeTab === 'overview' && (
-          <div className="space-y-6">
-            <div className="bg-white rounded-lg border border-slate-200 p-6">
-              <h2 className="text-lg font-semibold text-slate-900 mb-4">Description</h2>
-              <p className="text-slate-700">{listing.description}</p>
-            </div>
-
-            <div className="bg-white rounded-lg border border-slate-200 p-6">
-              <h2 className="text-lg font-semibold text-slate-900 mb-4">Amenities</h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {['WiFi', 'Pool', 'Sea View', 'Kitchen', 'Air Conditioning', 'Parking'].map((amenity) => (
-                  <div key={amenity} className="flex items-center gap-2 text-sm text-slate-700">
-                    <span className="text-lime-600">✓</span>
-                    {amenity}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg border border-slate-200 p-6">
-              <h2 className="text-lg font-semibold text-slate-900 mb-4">Photos</h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-                  <div key={i} className="aspect-video bg-slate-200 rounded-lg" />
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'messages' && (
-          <div className="bg-white rounded-lg border border-slate-200 p-6">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">Messages</h2>
-            <p className="text-sm text-slate-600">Messages component will be integrated here</p>
-          </div>
-        )}
-
-        {activeTab === 'requests' && (
-          <div className="bg-white rounded-lg border border-slate-200 p-6">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">Booking Requests</h2>
-            <p className="text-sm text-slate-600">Requests component will be integrated here</p>
-          </div>
-        )}
-
-        {activeTab === 'bookings' && (
-          <div className="bg-white rounded-lg border border-slate-200 p-6">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">Confirmed Bookings</h2>
-            <p className="text-sm text-slate-600">Bookings list will be integrated here</p>
-          </div>
-        )}
-
-        {activeTab === 'calendar' && (
-          <div className="bg-white rounded-lg border border-slate-200 p-6">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">Availability Calendar</h2>
-            <p className="text-sm text-slate-600">Calendar component will be integrated here</p>
-          </div>
-        )}
-
-        {activeTab === 'pricing' && (
-          <div className="bg-white rounded-lg border border-slate-200 p-6">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">Pricing Management</h2>
-            <p className="text-sm text-slate-600">Pricing tools will be integrated here</p>
-          </div>
-        )}
-
-        {activeTab === 'analytics' && (
-          <div className="bg-white rounded-lg border border-slate-200 p-6">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">Performance Analytics</h2>
-            <p className="text-sm text-slate-600">Analytics charts will be integrated here</p>
-          </div>
-        )}
-
-        {activeTab === 'activity' && (
-          <div className="bg-white rounded-lg border border-slate-200 p-6">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">Activity Timeline</h2>
-            <p className="text-sm text-slate-600">Activity feed will be integrated here</p>
-          </div>
-        )}
+        {activeTab === 'overview' && <OverviewTab listing={listing} />}
+        {activeTab === 'messages' && <MessagesTab listingId={id || ''} />}
+        {activeTab === 'requests' && <RequestsTab listingId={id || ''} />}
+        {activeTab === 'bookings' && <BookingsTab listingId={id || ''} />}
+        {activeTab === 'calendar' && <CalendarTab listingId={id || ''} basePrice={listing.base_price} currency={listing.currency} />}
+        {activeTab === 'pricing' && <PricingTab listingId={id || ''} basePrice={listing.base_price} currency={listing.currency} />}
+        {activeTab === 'analytics' && <AnalyticsTab listingId={id || ''} />}
+        {activeTab === 'activity' && <ActivityTab listingId={id || ''} />}
       </div>
     </div>
   );

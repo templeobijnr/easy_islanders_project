@@ -97,11 +97,18 @@ export const LongTermCard: React.FC<LongTermCardProps> = ({
 
   // Add tenant info if rented
   if (listing.current_tenant) {
-    metrics.push({
-      icon: '👤',
-      label: `Tenant: ${listing.current_tenant.name}`,
-      onClick: onViewTenant,
-    });
+    if (onViewTenant) {
+      metrics.push({
+        icon: '👤',
+        label: `Tenant: ${listing.current_tenant.name}`,
+        onClick: onViewTenant,
+      });
+    } else {
+      metrics.push({
+        icon: '👤',
+        label: `Tenant: ${listing.current_tenant.name}`,
+      });
+    }
     metrics.push({
       icon: '📅',
       label: `Lease until ${formatLeaseEnd()}`,

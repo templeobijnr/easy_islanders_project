@@ -388,8 +388,9 @@ def format_v1_listing_for_card(listing: Dict[str, Any]) -> Dict[str, Any]:
     if base_price:
         currency_symbol = {"EUR": "€", "GBP": "£", "USD": "$", "TRY": "₺"}.get(currency, currency)
         period_suffix = {
-            "PER_DAY": "/day",
-            "PER_MONTH": "/mo",
+            "PER_NIGHT": " / night",
+            "PER_DAY": " / night",  # Legacy support
+            "PER_MONTH": " / month",
             "TOTAL": "",
             "STARTING_FROM": "+ (starting from)"
         }.get(price_period, "")
@@ -439,6 +440,10 @@ def format_v1_listing_for_card(listing: Dict[str, Any]) -> Dict[str, Any]:
         amenities.append("Balcony")
     if listing.get("has_terrace"):
         amenities.append("Terrace")
+    if listing.get("furnished_status") == "FULLY_FURNISHED":
+        amenities.append("Furnished")
+    if listing.get("has_washing_machine"):
+        amenities.append("Washing Machine")
 
     # Map listing_type_code to rent_type
     rent_type_map = {

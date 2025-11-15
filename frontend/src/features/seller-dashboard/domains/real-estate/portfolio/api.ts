@@ -2,7 +2,7 @@
  * Portfolio API service
  */
 
-import axios from 'axios';
+import { api } from '@/lib/axios';
 import {
   PortfolioFilters,
   PortfolioListingsResponse,
@@ -10,8 +10,6 @@ import {
   PortfolioListing,
   ListingUpdatePayload,
 } from './types';
-
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 
 /**
  * Fetch portfolio listings with filters
@@ -44,7 +42,7 @@ export async function fetchPortfolioListings(
     params.search = filters.search;
   }
 
-  const response = await axios.get(`${API_BASE_URL}/api/v1/real_estate/portfolio/listings/`, {
+  const response = await api.get('/v1/real_estate/portfolio/listings/', {
     params,
   });
 
@@ -55,7 +53,7 @@ export async function fetchPortfolioListings(
  * Fetch portfolio summary (aggregated stats by listing type)
  */
 export async function fetchPortfolioSummary(): Promise<PortfolioSummaryResponse> {
-  const response = await axios.get(`${API_BASE_URL}/api/v1/real_estate/portfolio/summary/`);
+  const response = await api.get('/v1/real_estate/portfolio/summary/');
   return response.data;
 }
 
@@ -66,8 +64,8 @@ export async function updateListing(
   id: number,
   payload: ListingUpdatePayload
 ): Promise<PortfolioListing> {
-  const response = await axios.patch(
-    `${API_BASE_URL}/api/v1/real_estate/listings/${id}/`,
+  const response = await api.patch(
+    `/v1/real_estate/listings/${id}/`,
     payload
   );
   return response.data;

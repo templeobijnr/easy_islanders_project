@@ -224,7 +224,7 @@ REST_FRAMEWORK = {
         'rest_framework.throttling.UserRateThrottle',
     ],
     'DEFAULT_THROTTLE_RATES': {
-        'user': '10/min',  # Matches PR C spec
+        'user': '30/min',  # Matches PR C spec
     },
 }
 

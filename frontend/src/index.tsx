@@ -8,7 +8,6 @@ import { AuthProvider } from './shared/context/AuthContext';
 import { UiProvider } from './shared/context/UiContext';
 import { ChatProvider } from './shared/context/ChatContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { HeroUIProvider } from '@heroui/react';
 import './index.css';
 
 // ✅ GLOBAL AXIOS INTERCEPTOR - Inject auth token for all requests
@@ -25,19 +24,17 @@ axios.interceptors.request.use((axiosConfig) => {
 const queryClient = new QueryClient();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <HeroUIProvider>
-    <BrowserRouter>
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <UiProvider>
-            <ChatProvider>
-              <AppShell>
-                <AppRoutes />
-              </AppShell>
-            </ChatProvider>
-          </UiProvider>
-        </AuthProvider>
-      </QueryClientProvider>
-    </BrowserRouter>
-  </HeroUIProvider>
+  <BrowserRouter>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <UiProvider>
+          <ChatProvider>
+            <AppShell>
+              <AppRoutes />
+            </AppShell>
+          </ChatProvider>
+        </UiProvider>
+      </AuthProvider>
+    </QueryClientProvider>
+  </BrowserRouter>
 );

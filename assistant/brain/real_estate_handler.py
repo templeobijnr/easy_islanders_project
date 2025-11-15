@@ -19,7 +19,10 @@ from assistant.domain.real_estate_service import (
     get_missing_slots,
     should_execute_search
 )
-from assistant.domain.real_estate_search import search_listings, format_listing_for_card
+from assistant.domain.real_estate_search_v1 import (
+    search_listings_v1,
+    format_v1_listing_for_card,
+)
 from assistant.brain.tools import RecommendationCardPayload, CardItem
 from assistant.brain.supervisor_schemas import SupervisorState
 from assistant.brain.circuit_breaker import CircuitBreakerOpen
@@ -360,9 +363,38 @@ def _handle_search_and_recommend(
         f"[{thread_id}] RE Agent: SEARCH_AND_RECOMMEND - executing search with slots={merged_slots}"
     )
 
-    # Call backend search API
+    # Call backend search API via v1 adapter
     try:
-        search_results = search_listings(filled_slots=merged_slots, max_results=20)
+        # Map merged_slots to v1 filled_slots schema
+        filled_slots: Dict[str, Any] = {}
+
+        # Rental type -> listing_type via v1 mapping (handled by adapter if passed as rental_type)
+        if "rental_type" in merged_slots and merged_slots["rental_type"]:
+            filled_slots["rental_type"] = merged_slots["rental_type"]
+
+        # Location -> city
+        if "location" in merged_slots and merged_slots["location"]:
+            filled_slots["city"] = merged_slots["location"]
+
+        # Budget
+        if "budget" in merged_slots and merged_slots["budget"]:
+            budget = merged_slots["budget"]
+            # Accept either scalar (max) or dict with min/max
+            if isinstance(budget, dict):
+                if "min" in budget:
+                    filled_slots["budget_min"] = budget["min"]
+                if "max" in budget:
+                    filled_slots["budget_max"] = budget["max"]
+            else:
+                filled_slots["budget"] = budget
+
+        # Bedrooms
+        if "bedrooms" in merged_slots and merged_slots["bedrooms"] is not None:
+            filled_slots["bedrooms"] = merged_slots["bedrooms"]
+
+        # TODO: Map additional slots (amenities, dates) to v1 flags if/when present
+
+        search_results = search_listings_v1(filled_slots=filled_slots, max_results=20)
 
         # Check for error in response
         if "error" in search_results:
@@ -410,10 +442,10 @@ def _handle_search_and_recommend(
 
         # Format listings as cards (only if recommendation cards enabled)
         if ENABLE_RECOMMEND_CARD and result_count > 0:
-            # Convert listing dicts to card format
-            card_dicts = [format_listing_for_card(listing) for listing in listings]
+            # Convert v1 listing dicts to RecItem-compatible card format
+            card_dicts = [format_v1_listing_for_card(listing) for listing in listings]
 
-            # ✅ Convert dicts to Pydantic CardItem models
+            # ✅ Convert dicts to Pydantic CardItem models (extra fields allowed)
             card_items = [CardItem(**card_dict) for card_dict in card_dicts]
 
             # Build recommendation card payload

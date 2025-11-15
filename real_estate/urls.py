@@ -21,6 +21,7 @@ from .api.dashboard_views import (
 )
 from .api.portfolio_views import PortfolioViewSet, ListingViewSet
 from .api.booking_views import AvailabilityCheckView, BookingCreateView
+from .api.property_views import PropertyCreateView
 
 # ViewSet for legacy search
 listing_search = ListingSearchViewSet.as_view({"get": "list"})
@@ -60,4 +61,7 @@ urlpatterns = [
     # Booking v1 API endpoints
     path('v1/real_estate/availability/check/', AvailabilityCheckView.as_view(), name='availability-check'),
     path('v1/real_estate/bookings/', BookingCreateView.as_view(), name='booking-create'),
+
+    # Property v1 API endpoints
+    path('v1/real_estate/properties/', PropertyCreateView.as_view(), name='real-estate-property-create'),
 ]

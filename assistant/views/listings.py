@@ -5,6 +5,7 @@ import logging
 import json
 import os
 import time
+from decimal import Decimal
 from typing import Optional, List, Dict, Any
 
 from django.conf import settings
@@ -30,7 +31,8 @@ from ..brain.config import ENABLE_LANGGRAPH
 graph_run_message = None
 graph_run_event = None
 from listings.models import Listing
-from ..models import DemandLead, ServiceProvider, KnowledgeBase, Conversation, Booking, Request
+from bookings.models import Booking, BookingType
+from ..models import DemandLead, ServiceProvider, KnowledgeBase, Conversation, Request
 
 from ..serializers import (
     ServiceProviderSerializer,
@@ -388,6 +390,111 @@ def handle_chat_event(request):
         except Exception as e:
             logger.exception('submit_contact_info failed')
             return Response({'error': 'Failed to submit contact info'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    elif event_type == 'book_property':
+        # Create a booking in the central bookings app for a selected listing
+        try:
+            if not request.user.is_authenticated:
+                return Response({'error': 'Authentication required to create a booking.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+            payload = event_data.get('data') or {}
+            listing_id = payload.get('listing_id') or listing_id
+            start_date_str = payload.get('start_date')
+            end_date_str = payload.get('end_date')
+            guests_count = payload.get('guests_count')
+
+            if not listing_id or not start_date_str or not end_date_str:
+                return Response({'error': 'listing_id, start_date and end_date are required for book_property.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Resolve listing from real_estate v1 schema
+            try:
+                from real_estate.models import Listing as REListing
+                listing = REListing.objects.select_related('property').get(id=listing_id)
+            except REListing.DoesNotExist:  # type: ignore[name-defined]
+                return Response({
+                    'response': "I couldn't find that property anymore. It may have been removed or is no longer bookable.",
+                    'language': 'en',
+                    'recommendations': [],
+                    'status': 'error',
+                }, status=status.HTTP_404_NOT_FOUND)
+
+            # Parse dates (ISO 8601 expected: YYYY-MM-DD or full datetime)
+            try:
+                from datetime import datetime
+                from django.utils import timezone
+
+                def _parse_date(dt_str: str) -> datetime:
+                    dt = datetime.fromisoformat(dt_str)
+                    if timezone.is_naive(dt):
+                        dt = timezone.make_aware(dt)
+                    return dt
+
+                start_dt = _parse_date(start_date_str)
+                end_dt = _parse_date(end_date_str)
+            except Exception:
+                return Response({'error': 'Invalid start_date or end_date format. Use ISO 8601.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Resolve booking type: prefer a real-estate friendly type, fall back to any active type
+            booking_type = (
+                BookingType.objects.filter(slug__in=["apartment_rental", "real_estate", "short_term"]).first()
+                or BookingType.objects.filter(is_active=True).first()
+            )
+            if not booking_type:
+                return Response({'error': 'No booking types configured.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            # Basic pricing from real_estate listing (fallback-safe)
+            base_price = getattr(listing, 'base_price', None) or getattr(listing, 'price', None) or Decimal('0.00')
+
+            contact_name = (
+                (payload.get('contact_name') or '').strip()
+                or getattr(request.user, 'get_full_name', lambda: '')().strip()
+                or request.user.username
+            )
+            contact_phone = payload.get('contact_phone') or ''
+            contact_email = payload.get('contact_email') or getattr(request.user, 'email', '') or ''
+
+            booking = Booking.objects.create(
+                booking_type=booking_type,
+                user=request.user,
+                # IMPORTANT: keep central booking schema, link v1 listing via booking_data
+                listing=None,
+                status='pending',
+                start_date=start_dt,
+                end_date=end_dt,
+                base_price=base_price,
+                service_fees=Decimal('0.00'),
+                taxes=Decimal('0.00'),
+                discount=Decimal('0.00'),
+                total_price=base_price,
+                currency=getattr(listing, 'currency', 'EUR'),
+                contact_name=contact_name,
+                contact_phone=contact_phone,
+                contact_email=contact_email,
+                guests_count=guests_count or None,
+                booking_data={
+                    'domain': 'real_estate',
+                    'real_estate_listing_id': str(listing.id),
+                    'conversation_id': conversation_id,
+                    'source': 'assistant_chat',
+                    'listing_title': getattr(listing, 'title', ''),
+                },
+            )
+
+            summary = (
+                f"Your booking request for {listing.title} from "
+                f"{start_dt.date().isoformat()} to {end_dt.date().isoformat()} has been created."
+            )
+
+            return Response({
+                'response': summary,
+                'language': 'en',
+                'recommendations': [],
+                'conversation_id': conversation_id,
+                'booking_id': str(booking.id),
+                'status': booking.status,
+            }, status=status.HTTP_201_CREATED)
+        except Exception:
+            logger.exception('book_property event failed')
+            return Response({'error': 'Failed to create booking'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     else:
         return Response({'error': f"Unknown event type: {event_type}"}, status=status.HTTP_400_BAD_REQUEST)
 

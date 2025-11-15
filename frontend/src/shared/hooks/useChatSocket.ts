@@ -150,6 +150,7 @@ export function useChatSocket(threadId: string | null, opts: Options = {}) {
       try {
         onStatusRef.current?.('connecting');
         const url = await toWebSocketUrl(threadId, correlationId);
+        console.log('[WebSocket] Connecting to:', { url, threadId, correlationId });
 
         // P1 FIX #1: Track socket ID for single writer guarantee
         const socketId = ++latestSocketIdRef.current;
@@ -163,7 +164,7 @@ export function useChatSocket(threadId: string | null, opts: Options = {}) {
             ws.close();
             return;
           }
-
+          console.log('[WebSocket] Opened:', { socketId, threadId, ts: new Date().toISOString() });
           console.log('[WebSocket] Connected successfully');
           reconnectAttemptsRef.current = 0; // Reset reconnection counter
           onStatusRef.current?.('connected');
@@ -222,8 +223,9 @@ export function useChatSocket(threadId: string | null, opts: Options = {}) {
         ws.onerror = (error) => {
           // P1 FIX #1: Ignore events from stale sockets
           if (socketId !== latestSocketIdRef.current) return;
-
-          console.error('[WebSocket] Error:', error);
+          const readyStates = ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'] as const;
+          const stateLabel = readyStates[ws.readyState] || String(ws.readyState);
+          console.error('[WebSocket] Error:', error, { readyState: ws.readyState, state: stateLabel, socketId });
           onStatusRef.current?.('error');
           onErrorRef.current?.('WebSocket connection error');
         };
@@ -246,6 +248,18 @@ export function useChatSocket(threadId: string | null, opts: Options = {}) {
 
           if (!parsed || typeof parsed !== 'object') {
             return;
+          }
+
+          // Enhanced logging: show raw message envelope
+          try {
+            console.log('[WebSocket] Raw message received:', {
+              type: parsed.type,
+              event: parsed.event,
+              thread_id: parsed.thread_id,
+              payloadKeys: parsed?.payload ? Object.keys(parsed.payload) : [],
+            });
+          } catch (_) {
+            // best-effort logging only
           }
 
           // P1 FIX #2: Message deduplication (LRU with max 200 entries)

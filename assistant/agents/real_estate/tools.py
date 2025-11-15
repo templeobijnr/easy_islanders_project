@@ -21,6 +21,7 @@ from assistant.agents.real_estate.schema import (
     Budget,
     DateRange,
 )
+from assistant.agents.real_estate.tools_v1 import search_properties_v1
 
 # Configuration
 FIXTURES_PATH = Path(__file__).parent / "fixtures" / "listings.json"
@@ -218,171 +219,38 @@ def search_listings(
     page_size: int = MAX_RESULTS,
     return_total: bool = False,
 ) -> list[PropertyCard] | tuple[list[PropertyCard], int]:
+    """Search property listings using the v1 real-estate stack.
+
+    This is a thin compatibility wrapper that delegates to
+    ``search_properties_v1`` so that both the legacy real_estate_agent
+    policy and the enterprise PROPERTY_SEARCH path share the same
+    underlying v1 search implementation.
+
+    Pagination semantics are preserved for the policy:
+    - ``page``/``page_size`` are simulated by slicing the v1 results.
+    - When ``return_total`` is True, ``total`` is set to the total
+      number of results returned by ``search_properties_v1``.
     """
-    Search property listings with intelligent filtering (S3: DB-backed with tenure).
 
-    Intelligent margins:
-    - Price: +10% on max budget (500-600 → search up to 660)
-    - Bedrooms: +1 bedroom (user wants 2 → show 2 or 3)
-    - Location: Fuzzy match ("Kyrenia" = "Girne")
-
-    Tenure support:
-    - short_term: Nightly rentals (price per night, check availability calendar)
-    - long_term: Monthly rentals (price per month, check move-in dates)
-
-    Hard bounds:
-    - Max 25 results (cap via params.max_results)
-    - No external API calls
-    - Deterministic ordering (price ascending)
-
-    Args:
-        params: SearchParams with optional filters (must include 'tenure')
-
-    Returns:
-        List of PropertyCard dicts (max 25)
-
-    Metrics:
-        - agent_re_search_total (counter, labels: tenure)
-        - agent_re_search_results_count (histogram)
-        - agent_re_search_duration_seconds (histogram)
-        - agent_re_db_query_duration_seconds (histogram, labels: tenure)
-    """
-    from real_estate.models import Listing, Availability
-    from django.db.models import Q, Count
-    from datetime import date, timedelta
-    from time import perf_counter
-
-    # Extract tenure (REQUIRED field)
-    tenure = params.get("tenure", "short_term")
-    if tenure not in ["short_term", "long_term"]:
-        tenure = "short_term"  # Safe default
-
+    # Ensure reasonable bounds
     page = max(int(page), 1)
     page_size = max(1, min(int(page_size), MAX_RESULTS))
-    max_results = max(page_size, min(params.get("max_results", MAX_RESULTS), MAX_RESULTS))
 
-    # Start DB query timer
-    db_start = perf_counter()
+    # Pass through max_results hint to v1 tool
+    params = dict(params)  # Shallow copy to avoid mutating caller state
+    if "max_results" not in params:
+        params["max_results"] = MAX_RESULTS
 
-    # Start with base queryset
-    qs = Listing.objects.filter(tenure=tenure, is_active=True)
+    # Delegate to v1 search implementation
+    all_results: list[PropertyCard] = search_properties_v1(params)
 
-    # Location filter (with fuzzy matching)
-    if "location" in params and params["location"]:
-        location_variants = normalize_location(params["location"])
-        location_q = Q()
-        for variant in location_variants:
-            location_q |= Q(city__iexact=variant) | Q(area__iexact=variant)
-        qs = qs.filter(location_q)
-
-    # Budget filter (with 10% margin)
-    if "budget" in params and params["budget"]:
-        budget = params["budget"]
-        max_price = int(budget["max"] * (1 + PRICE_MARGIN_PERCENT / 100))
-        qs = qs.filter(price_amount__gte=budget["min"], price_amount__lte=max_price)
-
-    # Bedrooms filter (with +1 flexibility) and relax-aware upper cap
-    if "bedrooms" in params and params["bedrooms"] is not None:
-        requested_bedrooms = int(params["bedrooms"])
-        relaxed = bool(params.get("bedrooms_relaxed"))
-        if relaxed:
-            qs = qs.filter(bedrooms__gte=requested_bedrooms)
-        else:
-            max_bedrooms = requested_bedrooms + BEDROOM_FLEXIBILITY
-            qs = qs.filter(bedrooms__gte=requested_bedrooms, bedrooms__lte=max_bedrooms)
-
-    # Property type filter
-    if "property_type" in params and params["property_type"]:
-        qs = qs.filter(property_type=params["property_type"])
-
-    # Amenities filter (must have ALL requested amenities)
-    if "amenities" in params and params["amenities"]:
-        for amenity in params["amenities"]:
-            qs = qs.filter(amenities__contains=[amenity])
-
-    # Date range filter (tenure-specific)
-    if "date_range" in params and params["date_range"]:
-        date_range = params["date_range"]
-        start_date = datetime.fromisoformat(date_range["start"]).date() if isinstance(date_range["start"], str) else date_range["start"]
-        end_date = datetime.fromisoformat(date_range["end"]).date() if isinstance(date_range["end"], str) else date_range["end"]
-
-        if tenure == "short_term":
-            # Check nightly availability calendar
-            nights = (end_date - start_date).days
-            qs = qs.filter(
-                availability_calendar__date__range=(start_date, end_date),
-                availability_calendar__is_available=True
-            ).annotate(avail_count=Count('availability_calendar')).filter(
-                avail_count__gte=nights
-            ).distinct()
-
-        elif tenure == "long_term":
-            # Check move-in date
-            qs = qs.filter(available_from__lte=start_date)
-
-    # Sort by price ascending (deterministic)
-    qs = qs.order_by('price_amount', 'title')
-
-    # Total before pagination (optional)
-    total_count = qs.count() if return_total else None
-
-    # Limit results with pagination
+    # Apply simple pagination on top of v1 results
     offset = (page - 1) * page_size
-    if offset >= max_results:
-        listings = []
-    else:
-        upper_bound = min(max_results, offset + page_size)
-        listings = list(qs[offset:upper_bound])
-
-    # Emit DB query latency metric
-    db_duration = perf_counter() - db_start
-    try:
-        from assistant.agents.real_estate.agent import RE_DB_QUERY_DURATION
-        RE_DB_QUERY_DURATION.labels(tenure=tenure).observe(db_duration)
-    except ImportError:
-        pass  # Metrics not available in test environment
-
-    # Convert to PropertyCard format
-    results = []
-    for lst in listings:
-        # Format price with currency symbol
-        currency_symbols = {"GBP": "£", "EUR": "€", "USD": "$", "TRY": "₺"}
-        symbol = currency_symbols.get(lst.currency, lst.currency)
-
-        # Price display depends on tenure
-        if tenure == "short_term":
-            price_str = f"{symbol}{lst.price_amount}/night"
-        else:
-            price_str = f"{symbol}{lst.price_amount}/month"
-
-        # Location display
-        location_str = f"{lst.area}, {lst.city}" if lst.area else lst.city
-
-        # Limit amenities to top 5
-        amenities = lst.amenities[:5] if lst.amenities else []
-
-        # Photos
-        photos = [lst.image_url] if lst.image_url else []
-        if lst.additional_images:
-            photos.extend(lst.additional_images[:4])  # Max 5 photos total
-
-        card = PropertyCard(
-            id=lst.external_id,
-            title=lst.title,
-            location=location_str,
-            bedrooms=lst.bedrooms,
-            bathrooms=lst.bathrooms,
-            sleeps=lst.max_guests,
-            price_per_night=price_str,
-            amenities=amenities,
-            photos=photos,
-            available=True,  # Already filtered by availability
-        )
-        results.append(card)
+    paginated_results = all_results[offset : offset + page_size]
 
     if return_total:
-        return results, int(total_count or len(results))
-    return results
+        return paginated_results, len(all_results)
+    return paginated_results
 
 
 def answer_property_qa(listing_id: str, question: str) -> QAAnswer | None:

@@ -20,6 +20,7 @@ class PortfolioListingSerializer(serializers.ModelSerializer):
 
     # Property details from related property
     bedrooms = serializers.SerializerMethodField()
+    bathrooms = serializers.SerializerMethodField()
     room_configuration_label = serializers.SerializerMethodField()
 
     # Availability label (computed)
@@ -34,6 +35,8 @@ class PortfolioListingSerializer(serializers.ModelSerializer):
     has_wifi = serializers.SerializerMethodField()
     has_kitchen = serializers.SerializerMethodField()
     has_pool = serializers.SerializerMethodField()
+    has_private_pool = serializers.SerializerMethodField()
+    has_sea_view = serializers.SerializerMethodField()
 
     class Meta:
         model = Listing
@@ -46,6 +49,7 @@ class PortfolioListingSerializer(serializers.ModelSerializer):
             'city',
             'area',
             'bedrooms',
+            'bathrooms',
             'room_configuration_label',
             'base_price',
             'currency',
@@ -56,9 +60,13 @@ class PortfolioListingSerializer(serializers.ModelSerializer):
             'views_30d',
             'enquiries_30d',
             'bookings_30d',
+            'created_at',
+            'updated_at',
             'has_wifi',
             'has_kitchen',
             'has_pool',
+            'has_private_pool',
+            'has_sea_view',
         ]
 
     def get_city(self, obj):
@@ -77,6 +85,12 @@ class PortfolioListingSerializer(serializers.ModelSerializer):
         """Get bedrooms from related property."""
         if obj.property:
             return obj.property.bedrooms
+        return None
+
+    def get_bathrooms(self, obj):
+        """Get bathrooms from related property."""
+        if obj.property:
+            return obj.property.bathrooms
         return None
 
     def get_room_configuration_label(self, obj):
@@ -154,6 +168,20 @@ class PortfolioListingSerializer(serializers.ModelSerializer):
         pool_codes = ['PRIVATE_POOL', 'SHARED_POOL', 'PUBLIC_POOL']
         return obj.property.features.filter(code__in=pool_codes).exists()
 
+    def get_has_private_pool(self, obj):
+        """Check if property has private pool feature."""
+        if not obj.property:
+            return False
+
+        return obj.property.features.filter(code='PRIVATE_POOL').exists()
+
+    def get_has_sea_view(self, obj):
+        """Check if property has sea view feature."""
+        if not obj.property:
+            return False
+
+        return obj.property.features.filter(code='SEA_VIEW').exists()
+
 
 class PortfolioSummaryItemSerializer(serializers.Serializer):
     """Serializer for portfolio summary per listing type."""
@@ -161,6 +189,9 @@ class PortfolioSummaryItemSerializer(serializers.Serializer):
     listing_type = serializers.CharField()
     total_listings = serializers.IntegerField()
     active_listings = serializers.IntegerField()
+    occupied_units = serializers.IntegerField(required=False, allow_null=True)
+    vacant_units = serializers.IntegerField(required=False, allow_null=True)
+    avg_price = serializers.CharField(required=False, allow_null=True)
     views_30d = serializers.IntegerField()
     enquiries_30d = serializers.IntegerField()
     bookings_30d = serializers.IntegerField()

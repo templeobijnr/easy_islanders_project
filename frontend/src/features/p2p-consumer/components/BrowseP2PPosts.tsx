@@ -23,7 +23,13 @@ export const BrowseP2PPosts: React.FC = () => {
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   const [showProposeDialog, setShowProposeDialog] = useState(false);
 
-  const { data: posts, isLoading, error } = useBrowseP2PPosts(filters);
+  // Convert "all" back to empty string for API filtering
+  const apiFilters = {
+    location: filters.location,
+    exchange_type: filters.exchange_type === 'all' ? '' : filters.exchange_type,
+    condition: filters.condition === 'all' ? '' : filters.condition,
+  };
+  const { data: posts, isLoading, error } = useBrowseP2PPosts(apiFilters);
 
   const handleFilterChange = (key: string, value: string) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
@@ -51,7 +57,7 @@ export const BrowseP2PPosts: React.FC = () => {
             <SelectValue placeholder="Exchange Type" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Types</SelectItem>
+            <SelectItem value="all">All Types</SelectItem>
             <SelectItem value="item_exchange">Item Exchange</SelectItem>
             <SelectItem value="service_exchange">Service Exchange</SelectItem>
             <SelectItem value="skill_exchange">Skill Exchange</SelectItem>
@@ -64,7 +70,7 @@ export const BrowseP2PPosts: React.FC = () => {
             <SelectValue placeholder="Condition" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Conditions</SelectItem>
+            <SelectItem value="all">All Conditions</SelectItem>
             <SelectItem value="new">New</SelectItem>
             <SelectItem value="like_new">Like New</SelectItem>
             <SelectItem value="good">Good</SelectItem>

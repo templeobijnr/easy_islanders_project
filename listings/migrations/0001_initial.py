@@ -134,7 +134,7 @@ class Migration(migrations.Migration):
                         null=True,
                         on_delete=django.db.models.deletion.PROTECT,
                         related_name="listings",
-                        to="listings.category",
+                        to="listings.Category",
                     ),
                 ),
                 (
@@ -234,7 +234,7 @@ class Migration(migrations.Migration):
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
                         related_name="subcategories",
-                        to="listings.category",
+                        to="listings.Category",
                     ),
                 ),
             ],

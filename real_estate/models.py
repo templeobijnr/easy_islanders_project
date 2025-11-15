@@ -71,33 +71,82 @@ class PropertyType(models.Model):
 
 
 class FeatureCategory(models.Model):
-    """Categories for property features (inside, outside, view, amenity)."""
+    """Categories/groups for property features.
+
+    This model represents high-level groupings such as "Internal",
+    "External", or "Location" that we use to organise feature checklists
+    in the UI (similar to 101evler's Internal / External / Location
+    feature panels).
+    """
 
     id = models.BigAutoField(primary_key=True)
-    code = models.CharField(max_length=50, unique=True, help_text="e.g., 'INSIDE', 'OUTSIDE', 'VIEW', 'AMENITY'")
+    code = models.CharField(max_length=50, unique=True, help_text="e.g., 'INTERNAL', 'EXTERNAL', 'LOCATION'")
     label = models.CharField(max_length=100)
+    sort_order = models.IntegerField(default=0, help_text="Display ordering for filter panels")
 
     class Meta:
         verbose_name = "Feature Category"
         verbose_name_plural = "Feature Categories"
+        ordering = ["sort_order", "id"]
 
     def __str__(self):
         return self.label
 
 
 class Feature(models.Model):
-    """Property features and amenities (balcony, pool, WiFi, etc.)."""
+    """Property features and amenities (balcony, pool, WiFi, etc.).
+
+    This model is intentionally rich so that the feature system can power
+    both the create-listing form and the advanced search filters without
+    schema changes. Each feature is addressed by a stable ``code`` that
+    the frontend uses (e.g., ``"pool_private"``) and is grouped under a
+    ``FeatureCategory`` for UI presentation.
+    """
+
+    GROUP_CHOICES = [
+        ("INTERNAL", "Internal"),
+        ("EXTERNAL", "External"),
+        ("LOCATION", "Location"),
+        ("SAFETY", "Safety"),
+        ("BUILDING", "Building"),
+        ("OTHER", "Other"),
+    ]
 
     id = models.BigAutoField(primary_key=True)
-    code = models.CharField(max_length=100, unique=True, help_text="e.g., 'BALCONY', 'WIFI', 'PRIVATE_POOL'")
+    code = models.CharField(max_length=100, unique=True, help_text="e.g., 'ac', 'pool_private', 'sea_view'")
     label = models.CharField(max_length=150)
     category = models.ForeignKey(FeatureCategory, on_delete=models.PROTECT, related_name="features")
+
+    # High-level group for filters (mirrors FeatureCategory but kept here to
+    # allow more granular control / future refactors without data migration).
+    group = models.CharField(max_length=32, choices=GROUP_CHOICES, default="OTHER")
+
+    # Whether this feature should appear in advanced search filters.
+    is_filterable = models.BooleanField(default=True)
+
+    # Optional ordering hint inside its group/category.
+    sort_order = models.IntegerField(default=0)
+
+    # Restrict feature to certain property types; empty set means "applies to
+    # all property types".
+    applicable_property_types = models.ManyToManyField(
+        "PropertyType",
+        blank=True,
+        related_name="applicable_features",
+        help_text="If empty, feature is applicable to all property types.",
+    )
+
+    # Legacy / domain-specific flags kept for backwards compatibility.
     is_required_for_daily_rental = models.BooleanField(default=False, help_text="Required for short-term rentals")
 
     class Meta:
-        indexes = [models.Index(fields=["category"])]
+        indexes = [
+            models.Index(fields=["category"]),
+            models.Index(fields=["group", "sort_order"]),
+        ]
         verbose_name = "Feature"
         verbose_name_plural = "Features"
+        ordering = ["sort_order", "id"]
 
     def __str__(self):
         return self.label
@@ -279,6 +328,14 @@ class Project(models.Model):
     description = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    # Optional: aggregate metadata derived from underlying units for analytics
+    # dashboards (stored as JSON to avoid premature schema-locking).
+    analytics_metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Derived stats such as average price per m², mix of unit types, etc.",
+    )
+
     class Meta:
         verbose_name = "Project"
         verbose_name_plural = "Projects"
@@ -334,6 +391,13 @@ class Property(models.Model):
     project = models.ForeignKey(Project, null=True, blank=True, on_delete=models.SET_NULL, related_name="units")
 
     features = models.ManyToManyField(Feature, through="PropertyFeature", related_name="properties")
+
+    # Flexible attribute bucket for fields that are not yet worth
+    # first-class columns (e.g., "swap_available", bespoke developer
+    # attributes, or integration-specific metadata). This allows the
+    # real-estate schema to evolve quickly without blocking on migrations
+    # for every new long-tail attribute.
+    attributes = models.JSONField(default=dict, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -421,6 +485,45 @@ class PropertyTax(models.Model):
 
     def __str__(self):
         return f"{self.property.reference_code} - {self.tax_type.label}"
+
+
+class ProjectUnitType(models.Model):
+    """Unit type within a project (e.g., 3BED villa with private pool).
+
+    This mirrors how portals like 101evler represent different housing types
+    inside a development: each row corresponds to a configuration with its
+    own area, room mix, price and optional feature set.
+    """
+
+    id = models.BigAutoField(primary_key=True)
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="unit_types")
+
+    name = models.CharField(max_length=255, help_text="e.g., '3BED Villa with Private Pool and Garden'")
+    property_type = models.ForeignKey(
+        PropertyType,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="project_unit_types",
+    )
+
+    bedrooms = models.IntegerField(default=0)
+    living_rooms = models.IntegerField(default=1)
+    bathrooms = models.IntegerField(default=1)
+    room_configuration_label = models.CharField(max_length=20, blank=True, help_text="e.g., '3+1'")
+
+    area_sqm = models.DecimalField(max_digits=8, decimal_places=2)
+    price = models.DecimalField(max_digits=12, decimal_places=2)
+    currency = models.CharField(max_length=10, default="EUR")
+
+    features = models.ManyToManyField(Feature, blank=True, related_name="project_unit_types")
+
+    class Meta:
+        verbose_name = "Project Unit Type"
+        verbose_name_plural = "Project Unit Types"
+
+    def __str__(self):
+        return f"{self.project.name} - {self.name}"
 
 
 # ============================================================================
@@ -719,3 +822,65 @@ class ListingEvent(models.Model):
 
     def __str__(self):
         return f"{self.listing.reference_code} - {self.get_event_type_display()} at {self.occurred_at}"
+
+
+class AreaMarketStats(models.Model):
+    """Aggregated market statistics for a city/area and property type.
+
+    Stores data used to render "Property Market Information" graphs such as
+    average rent/sale price per m² over time for a given location and
+    property type.
+    """
+
+    METRIC_CHOICES = [
+        ("RENT_PRICE_PER_SQM", "Rent price per m²"),
+        ("SALE_PRICE_PER_SQM", "Sale price per m²"),
+    ]
+
+    id = models.BigAutoField(primary_key=True)
+    location = models.ForeignKey(Location, on_delete=models.CASCADE, related_name="market_stats")
+    property_type = models.ForeignKey(
+        PropertyType,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="market_stats",
+    )
+    metric = models.CharField(max_length=50, choices=METRIC_CHOICES)
+
+    # Time-series data; implementation detail is left flexible so that we can
+    # plug in different upstream data providers. Typical shape:
+    #   {"points": [{"date": "2025-01-01", "value": 12.3}, ...]}
+    data = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        verbose_name = "Area Market Stats"
+        verbose_name_plural = "Area Market Stats"
+        indexes = [
+            models.Index(fields=["location", "property_type", "metric"]),
+        ]
+
+
+class AreaDemographics(models.Model):
+    """Demographic information for a location.
+
+    Captures socio-economic grade and distributions for age, education,
+    occupation etc., mirroring the "Demographic Information" panels
+    displayed on listing and project pages.
+    """
+
+    id = models.BigAutoField(primary_key=True)
+    location = models.OneToOneField(Location, on_delete=models.CASCADE, related_name="demographics")
+
+    socio_economic_grade = models.CharField(max_length=20, blank=True)
+
+    # Flexible bucket for percentages and chart-ready structures, e.g.:
+    #   {"age": {...}, "education": {...}, "occupation": {...}}
+    data = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        verbose_name = "Area Demographics"
+        verbose_name_plural = "Area Demographics"
+
+    def __str__(self):
+        return f"Demographics for {self.location}"

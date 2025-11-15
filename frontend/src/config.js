@@ -1,7 +1,7 @@
 // Frontend configuration for Easy Islanders
 const config = {
-  // API Configuration - Django server is running on port 8001
-  API_BASE_URL: process.env.REACT_APP_API_URL || 'http://127.0.0.1:8001',
+  // API Configuration - Django server base URL
+  API_BASE_URL: process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000',
   
   // Environment
   NODE_ENV: process.env.NODE_ENV || 'development',
@@ -62,13 +62,28 @@ const config = {
     ENABLED: process.env.REACT_APP_WEBSOCKET_ENABLED !== 'false', // Enabled by default
     // Dynamically set WebSocket URL to match API_BASE_URL port
     get URL() {
-      if (process.env.REACT_APP_WS_URL || process.env.REACT_APP_WEBSOCKET_URL) {
-        return process.env.REACT_APP_WS_URL || process.env.REACT_APP_WEBSOCKET_URL;
+      const explicit = process.env.REACT_APP_WS_URL || process.env.REACT_APP_WEBSOCKET_URL;
+      if (explicit) return explicit;
+
+      try {
+        const apiBase = config.API_BASE_URL;
+        const u = new URL(apiBase);
+        const wsProto = u.protocol === 'https:' ? 'wss:' : 'ws:';
+        // Use origin host:port only, avoid API paths
+        return `${wsProto}//${u.host}`;
+      } catch (e) {
+        // Fallback: attempt simple scheme swap while being lenient
+        try {
+          const raw = String(config.API_BASE_URL || '').replace(/\/$/, '');
+          const parsed = new URL(raw);
+          const wsProto = parsed.protocol === 'https:' ? 'wss:' : 'ws:';
+          return `${wsProto}//${parsed.host}`;
+        } catch (e2) {
+          const raw = String(config.API_BASE_URL || '').replace(/\/$/, '');
+          const scheme = raw.startsWith('https') ? 'wss:' : 'ws:';
+          return raw.replace(/^https?:/, scheme).split('/').slice(0, 3).join('/');
+        }
       }
-      // Extract port from API_BASE_URL and use for WebSocket
-      const apiUrl = config.API_BASE_URL;
-      const wsUrl = apiUrl.replace(/^http/, 'ws');
-      return wsUrl;
     },
   },
   
@@ -112,7 +127,6 @@ const config = {
 };
 
 export default config;
-
 
 
 

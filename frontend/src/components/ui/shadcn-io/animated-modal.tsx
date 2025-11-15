@@ -6,7 +6,7 @@ import React, {
   useEffect,
   useState,
 } from "react";
-import { AnimatePresence } from "framer-motion";
+import { AnimatePresence as FMAnimatePresence } from "framer-motion";
 import { MotionDiv } from "../motion-wrapper";
 import { cn } from "../../../lib/utils";
 import { X } from "lucide-react";
@@ -85,6 +85,8 @@ export function ModalBody({ children }: { children: React.ReactNode }) {
     }
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [open, setOpen]);
+
+  const AnimatePresence = FMAnimatePresence as any;
 
   return (
     <AnimatePresence>

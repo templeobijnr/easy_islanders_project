@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence as FMAnimatePresence } from 'framer-motion';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
@@ -64,6 +64,9 @@ const BookingsPage: React.FC = () => {
     setViewMode('list');
     setSelectedBookingId(null);
   };
+
+  // Type-safe wrapper for AnimatePresence to fix TypeScript issues with framer-motion v11
+  const AnimatePresence = FMAnimatePresence as React.ComponentType<React.PropsWithChildren<{ mode?: "wait" | "sync" }>>;
 
   return (
     <div className="min-h-screen bg-slate-50">

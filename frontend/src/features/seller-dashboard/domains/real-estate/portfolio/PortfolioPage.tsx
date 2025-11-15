@@ -73,9 +73,12 @@ export const PortfolioPage = () => {
           <SelectTrigger className="w-48"><SelectValue placeholder="Type" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Types</SelectItem>
-            {Array.from(new Set((portfolio?.items || []).map((i: any) => i.property_type))).map((t: any) => (
-              <SelectItem key={t || 'unknown'} value={t || 'unknown'}>{t || 'Unknown'}</SelectItem>
-            ))}
+            {Array.from(new Set((portfolio?.items || [])
+              .map((i: any) => i.property_type)
+              .filter((t: any) => t && typeof t === 'string' && t.trim() !== '')))
+              .map((t: any) => (
+                <SelectItem key={t} value={t}>{t}</SelectItem>
+              ))}
           </SelectContent>
         </Select>
       </div>

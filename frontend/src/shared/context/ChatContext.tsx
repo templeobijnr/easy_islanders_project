@@ -69,7 +69,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [typing, setTyping] = useState(false);
   const [results, setResults] = useState<any[]>([]);  // ✅ Add setter for recommendations
   const [connectionStatus, setConnectionStatusState] = useState<ConnectionStatus>('disconnected');
-  const [threadId] = useState<string | null>(() => localStorage.getItem('threadId'));
+  const [threadId, setThreadId] = useState<string | null>(() => localStorage.getItem('threadId'));
   const [wsCorrelationId] = useState<string | null>(null);
   const [lastMemoryTrace, setLastMemoryTrace] = useState<any | null>(null);
   const [lastCorrelationId, setLastCorrelationId] = useState<string | null>(null);
@@ -112,8 +112,12 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const pushAssistantMessage = useCallback((frame: AssistantFrame) => {
     if (!frame || frame.type !== 'chat_message' || frame.event !== 'assistant_message') return;
+    console.log('[ChatContext] pushAssistantMessage called:', { type: frame.type, event: frame.event, hasInReplyTo: !!frame.meta?.in_reply_to });
     const inReplyTo = frame.meta?.in_reply_to;
-    if (!inReplyTo) return;
+    if (!inReplyTo) {
+      console.warn('[ChatContext] Dropping message - missing in_reply_to:', frame);
+      return;
+    }
 
     // Capture latest memory trace + correlation for Dev HUD
     try {
@@ -167,6 +171,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       handledRepliesRef.current.add(inReplyTo);
     } else {
       if (handledRepliesRef.current.has(inReplyTo)) {
+        console.log('[ChatContext] Dropping duplicate message:', inReplyTo);
         return;
       }
       handledRepliesRef.current.add(inReplyTo);
@@ -180,7 +185,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         inReplyTo,
         pending: false,
       };
-    setMessages((prev) => [...prev, assistantMessage]);
+      console.log('[ChatContext] Added assistant message:', { id: assistantMessage.id, inReplyTo, text: text.substring(0, 50) });
+      setMessages((prev) => [...prev, assistantMessage]);
     }
 
     markPendingResolved(inReplyTo);
@@ -245,12 +251,18 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       client_msg_id: clientMsgId,
     };
 
-    const shouldUseHttpFallback = async () => {
+    const shouldUseHttpFallback = async (statusCode?: number) => {
       const wsEnabled = config.WEBSOCKET?.ENABLED !== false;
       if (!wsEnabled) return true;
       const status = connectionStatusRef.current;
-      // Only use HTTP fallback when WS is disabled or not healthy
-      return status === 'error' || status === 'disconnected';
+
+      // If enqueue-only (202) and websocket is not connected, rely on HTTP body
+      if (statusCode === 202 && status !== 'connected') {
+        return true;
+      }
+
+      // Use fallback when websocket is in a degraded state
+      return status === 'error' || status === 'disconnected' || status === 'connecting';
     };
 
     try {
@@ -273,6 +285,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       const data = await response.json();
+      console.log('[ChatContext] HTTP response:', { status: response.status, hasData: !!data });
 
       console.log('[ChatContext] HTTP response received:', {
         hasRecommendations: !!data.recommendations,
@@ -281,6 +294,16 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         message: data.message || data.response,
         threadId: data.thread_id
       });
+
+      // Update threadId from HTTP response so WebSocket can attach to the correct thread
+      try {
+        if (data.thread_id && typeof data.thread_id === 'string' && data.thread_id !== threadId) {
+          localStorage.setItem('threadId', data.thread_id);
+          setThreadId(data.thread_id);
+        }
+      } catch (e) {
+        // best-effort only
+      }
 
       // Extract recommendations from HTTP response (same as WebSocket)
       try {
@@ -301,7 +324,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // best-effort only
       }
 
-      if (await shouldUseHttpFallback()) {
+      const useFallback = await shouldUseHttpFallback(response.status);
+      console.log('[ChatContext] HTTP fallback decision:', { shouldUse: useFallback, status: connectionStatusRef.current });
+      if (useFallback) {
         const replyText = data.response || data.message || "Got it. I'll search options that match.";
         const fallbackMessageId = `a-${Date.now()}`;
         handledRepliesRef.current.add(clientMsgId);

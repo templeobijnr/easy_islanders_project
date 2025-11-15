@@ -1,5 +1,4 @@
 import React from 'react'
-import { Button as HButton, type ButtonProps as HButtonProps } from '@heroui/react'
 
 type Variant =
   | 'default'
@@ -9,67 +8,36 @@ type Variant =
   | 'ghost'
   | 'link'
   | 'premium'
+  | 'luxury'
   | 'glass'
 
-type Size = 'sm' | 'default' | 'lg' | 'icon'
+type Size = 'sm' | 'default' | 'lg' | 'xl' | 'icon'
 
-export type ButtonProps = Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'color'> & {
+export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: Variant
   size?: Size
   className?: string
 }
 
-function mapVariant(variant: Variant | undefined): Pick<HButtonProps, 'variant' | 'color'> {
-  switch (variant) {
-    case 'secondary':
-      return { variant: 'solid', color: 'secondary' }
-    case 'outline':
-      return { variant: 'bordered', color: 'primary' }
-    case 'ghost':
-      return { variant: 'ghost', color: 'primary' }
-    case 'destructive':
-      return { variant: 'solid', color: 'danger' }
-    case 'link':
-      return { variant: 'light', color: 'primary' }
-    case 'premium':
-    case 'glass':
-      return { variant: 'shadow', color: 'primary' }
-    case 'default':
-    default:
-      return { variant: 'solid', color: 'primary' }
-  }
-}
-
-function mapSize(size: Size | undefined): HButtonProps['size'] {
-  switch (size) {
-    case 'sm':
-      return 'sm'
-    case 'lg':
-      return 'lg'
-    case 'icon':
-    case 'default':
-    default:
-      return 'md'
-  }
-}
-
 // Minimal class generator used by a few places (e.g., calendar nav buttons)
 export function buttonVariants({ variant, size, className }: { variant?: Variant; size?: Size; className?: string } = {}) {
-  const base = 'inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none'
+  const base = 'inline-flex items-center justify-center rounded-xl text-sm font-semibold transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none'
   const v = {
-    default: 'bg-primary text-white hover:opacity-90',
-    destructive: 'bg-red-600 text-white hover:bg-red-700',
-    outline: 'border border-slate-300 text-slate-700 hover:bg-slate-50',
-    secondary: 'bg-slate-100 text-slate-900 hover:bg-slate-200',
-    ghost: 'bg-transparent hover:bg-slate-100 text-slate-700',
+    default: 'bg-primary text-white hover:opacity-90 shadow-md hover:shadow-lg',
+    destructive: 'bg-red-600 text-white hover:bg-red-700 shadow-md hover:shadow-lg',
+    outline: 'border-2 border-neutral-300 text-neutral-700 hover:bg-neutral-50 hover:border-neutral-400',
+    secondary: 'bg-neutral-100 text-neutral-900 hover:bg-neutral-200 shadow-sm',
+    ghost: 'bg-transparent hover:bg-neutral-100 text-neutral-700',
     link: 'text-primary underline-offset-4 hover:underline',
-    premium: 'bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg',
-    glass: 'bg-white/10 backdrop-blur-md border border-white/20 text-white',
+    premium: 'bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg hover:shadow-xl hover:scale-105',
+    luxury: 'bg-gradient-to-r from-lime-500 to-emerald-500 text-white shadow-lg hover:shadow-xl hover:scale-105 font-bold',
+    glass: 'bg-white/20 backdrop-blur-lg border-2 border-white/30 text-white hover:bg-white/30 shadow-xl',
   } as Record<Variant, string>
   const s = {
-    sm: 'h-9 px-3',
-    default: 'h-10 px-4',
-    lg: 'h-11 px-6',
+    sm: 'h-9 px-3 text-xs',
+    default: 'h-10 px-4 py-2',
+    lg: 'h-12 px-6 py-3 text-base',
+    xl: 'h-14 px-8 py-4 text-lg',
     icon: 'h-10 w-10',
   } as Record<Size, string>
   const vk = (variant ?? 'default') as Variant
@@ -81,10 +49,8 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function 
   { variant = 'default', size = 'default', className = '', ...props },
   ref
 ) {
-  const mapped = mapVariant(variant)
-  const mappedSize = mapSize(size)
-  // Keep className to allow custom styles like "premium"/"glass" embellishments
-  return <HButton ref={ref as any} {...mapped} size={mappedSize} className={className} {...(props as any)} />
+  const classes = buttonVariants({ variant, size, className })
+  return <button ref={ref} className={classes} {...props} />
 })
 
 export default Button

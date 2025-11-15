@@ -1,6 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
-import { AnimatePresence } from 'framer-motion';
+import { AnimatePresence as FMAnimatePresence } from 'framer-motion';
 import { MotionDiv } from '../../../components/ui/motion-wrapper';
+
+// Type-safe wrapper for AnimatePresence to fix TypeScript issues with framer-motion v11
+const AnimatePresence = FMAnimatePresence as React.ComponentType<React.PropsWithChildren<{ mode?: "wait" | "sync" }>>;
 import type { ChatMessage } from "../types";
 import { BubbleAgent } from "../../../shared/components";
 import TypingDots from "./TypingDots";
@@ -40,6 +43,8 @@ export function ChatThread({ messages }: { messages: ChatMessage[] }) {
 
   const convertedMessages = messages.map(convertToMessage);
   const isTyping = messages.length > 0 && messages[messages.length - 1].role === 'assistant' && !messages[messages.length - 1].content;
+
+  const AnimatePresence = FMAnimatePresence as any;
 
   return (
     <div

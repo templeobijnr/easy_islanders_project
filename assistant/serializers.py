@@ -2,8 +2,8 @@
 
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import ServiceProvider, ServiceFeature, Booking, KnowledgeBase, LinkSource, Request
-from listings.models import Listing, Image
+from .models import ServiceProvider, ServiceFeature, KnowledgeBase, LinkSource, Request
+from listings.models import Listing
 
 User = get_user_model()
 
@@ -37,17 +37,6 @@ class ServiceProviderSerializer(serializers.ModelSerializer):
         language = self.context.get('language', 'en')
         return obj.get_description(language)
 
-class BookingSerializer(serializers.ModelSerializer):
-    """Serializer for creating and viewing Bookings."""
-    service_provider_name = serializers.CharField(source='service_provider.name', read_only=True)
-
-    class Meta:
-        model = Booking
-        fields = '__all__'
-        read_only_fields = ('booking_reference', 'created_at', 'updated_at')
-
-# NOTE: UserRequestSerializer and UserRequestCreateSerializer removed - UserRequest model deprecated
-
 class KnowledgeBaseSerializer(serializers.ModelSerializer):
     """Serializer for Knowledge Base articles with multilingual support."""
     content = serializers.SerializerMethodField()
@@ -66,11 +55,6 @@ class LinkSourceSerializer(serializers.ModelSerializer):
     class Meta:
         model = LinkSource
         fields = '__all__'
-
-class ImageSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Image
-        fields = ['image'] # We only need the URL path for the frontend
 
 class ListingSerializer(serializers.ModelSerializer):
     # This field will aggregate all image URLs into a single list.

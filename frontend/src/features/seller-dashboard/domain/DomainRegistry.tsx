@@ -7,13 +7,13 @@ export type DomainKey = 'real-estate' | 'services' | 'events' | 'cars' | 'produc
 export interface DomainNavItem {
   name: string;
   path: (domain: string) => string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon: React.ComponentType<{ size?: number | string; className?: string }>;
 }
 
 export interface DomainConfig {
   key: DomainKey;
   label: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon: React.ComponentType<{ size?: number | string; className?: string }>;
   nav: DomainNavItem[];
 }
 

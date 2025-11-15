@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence as FMAnimatePresence } from 'framer-motion';
 import { spotlightSwap } from '../../../shared/motion/variants';
 import { IconButton } from '../../../shared/components';
 import { ChevronLeft, ChevronRight } from '../../../shared/icons';
@@ -29,6 +29,8 @@ const Spotlight: React.FC<SpotlightProps> = ({ items, intervalMs = 3500 }) => {
 
   if (!items?.length) return null;
   const active = items[idx];
+
+  const AnimatePresence = FMAnimatePresence as any;
 
   return (
     <div className="relative rounded-2xl border border-slate-200 bg-gradient-to-r from-lime-50 to-emerald-50 p-4 overflow-hidden">

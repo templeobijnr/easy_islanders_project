@@ -1,16 +1,23 @@
 import React from 'react';
 import { DomainProvider } from '../../../../features/seller-dashboard/context/DomainContext';
 import DashboardLayout from '../../../../features/seller-dashboard/layout/DashboardLayout';
-import { PortfolioPage } from '../../../../features/seller-dashboard/domains/real-estate/portfolio/PortfolioPage';
+import { PortfolioPageEnhanced } from '../../../../features/seller-dashboard/domains/real-estate/portfolio/PortfolioPageEnhanced';
 
 /**
- * Real Estate Portfolio Page
+ * Real Estate Portfolio Page - Enhanced Version
  * Route: /dashboard/home/real-estate/portfolio
+ *
+ * Features:
+ * - Premium KPI cards with trend indicators
+ * - Navigation tabs (Overview, Listings, Analytics, Activity)
+ * - Advanced filters and search
+ * - Data visualizations and charts
+ * - Real backend integration
  */
 const RealEstatePortfolioRoute: React.FC = () => (
   <DomainProvider domainId="real_estate">
     <DashboardLayout>
-      <PortfolioPage />
+      <PortfolioPageEnhanced />
     </DashboardLayout>
   </DomainProvider>
 );

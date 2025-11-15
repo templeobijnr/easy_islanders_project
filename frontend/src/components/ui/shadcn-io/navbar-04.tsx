@@ -1,6 +1,9 @@
 "use client";
 import React, { useState } from "react";
-import { AnimatePresence } from "framer-motion";
+import { AnimatePresence as FMAnimatePresence } from "framer-motion";
+
+// Type-safe wrapper for AnimatePresence to fix TypeScript issues with framer-motion v11
+const AnimatePresence = FMAnimatePresence as React.ComponentType<React.PropsWithChildren<{ mode?: "wait" | "sync" }>>;
 import { MotionDiv, MotionButton } from "../motion-wrapper";
 import { Menu, X, Compass, MessageCircle, LayoutDashboard, Plus, User } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
@@ -35,6 +38,8 @@ export function Navbar04() {
     if (item.businessOnly && user?.user_type !== 'business') return false;
     return true;
   });
+
+  const AnimatePresence = FMAnimatePresence as any;
 
   return (
     <nav className="relative z-50">

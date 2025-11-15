@@ -2,15 +2,18 @@
  * Portfolio Listings Table - Main table showing all listings
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Edit, ExternalLink, Home, Building2, Tag, Hammer, Wifi, Utensils, Waves, Eye } from 'lucide-react';
 import { PortfolioListing, ListingTypeCode, ListingStatus } from '../types';
 
 interface PortfolioListingsTableProps {
   listings: PortfolioListing[];
+  selectedIds?: number[];
+  onSelectionChange?: (ids: number[]) => void;
   onEdit: (listing: PortfolioListing) => void;
 }
 
@@ -30,17 +33,41 @@ const LISTING_TYPE_LABELS: Record<ListingTypeCode, string> = {
 
 const STATUS_COLORS: Record<ListingStatus, string> = {
   DRAFT: 'bg-slate-100 text-slate-800',
-  ACTIVE: 'bg-green-100 text-green-800',
+  ACTIVE: 'bg-lime-100 text-lime-800',
   INACTIVE: 'bg-gray-100 text-gray-800',
-  UNDER_OFFER: 'bg-amber-100 text-amber-800',
-  SOLD: 'bg-blue-100 text-blue-800',
-  RENTED: 'bg-purple-100 text-purple-800',
+  UNDER_OFFER: 'bg-sky-100 text-sky-800',
+  SOLD: 'bg-emerald-100 text-emerald-800',
+  RENTED: 'bg-emerald-100 text-emerald-800',
 };
 
 export const PortfolioListingsTable: React.FC<PortfolioListingsTableProps> = ({
   listings,
+  selectedIds = [],
+  onSelectionChange,
   onEdit,
 }) => {
+  const isSelectionMode = !!onSelectionChange;
+
+  const handleToggleAll = () => {
+    if (!onSelectionChange) return;
+
+    if (selectedIds.length === listings.length) {
+      onSelectionChange([]);
+    } else {
+      onSelectionChange(listings.map(l => l.id));
+    }
+  };
+
+  const handleToggleRow = (id: number) => {
+    if (!onSelectionChange) return;
+
+    if (selectedIds.includes(id)) {
+      onSelectionChange(selectedIds.filter(sid => sid !== id));
+    } else {
+      onSelectionChange([...selectedIds, id]);
+    }
+  };
+
   if (listings.length === 0) {
     return (
       <div className="text-center py-12">
@@ -75,6 +102,14 @@ export const PortfolioListingsTable: React.FC<PortfolioListingsTableProps> = ({
       <Table>
         <TableHeader>
           <TableRow>
+            {isSelectionMode && (
+              <TableHead className="w-[50px]">
+                <Checkbox
+                  checked={selectedIds.length === listings.length && listings.length > 0}
+                  onCheckedChange={handleToggleAll}
+                />
+              </TableHead>
+            )}
             <TableHead className="w-[100px]">Type</TableHead>
             <TableHead className="w-[120px]">Ref</TableHead>
             <TableHead>Title</TableHead>
@@ -92,9 +127,18 @@ export const PortfolioListingsTable: React.FC<PortfolioListingsTableProps> = ({
         <TableBody>
           {listings.map((listing) => {
             const TypeIcon = LISTING_TYPE_ICONS[listing.listing_type];
+            const isSelected = selectedIds.includes(listing.id);
 
             return (
-              <TableRow key={listing.id}>
+              <TableRow key={listing.id} className={isSelected ? 'bg-lime-50' : ''}>
+                {isSelectionMode && (
+                  <TableCell>
+                    <Checkbox
+                      checked={isSelected}
+                      onCheckedChange={() => handleToggleRow(listing.id)}
+                    />
+                  </TableCell>
+                )}
                 {/* Type */}
                 <TableCell>
                   <div className="flex items-center gap-2">
@@ -168,12 +212,12 @@ export const PortfolioListingsTable: React.FC<PortfolioListingsTableProps> = ({
                 {/* Features */}
                 <TableCell>
                   <div className="flex items-center gap-1">
-                    {listing.has_wifi && <Wifi className="h-3 w-3 text-blue-600" aria-label="WiFi" />}
-                    {listing.has_kitchen && <Utensils className="h-3 w-3 text-green-600" aria-label="Kitchen" />}
+                    {listing.has_wifi && <Wifi className="h-3 w-3 text-sky-600" aria-label="WiFi" />}
+                    {listing.has_kitchen && <Utensils className="h-3 w-3 text-emerald-600" aria-label="Kitchen" />}
                     {(listing.has_pool || listing.has_private_pool) && (
-                      <Waves className="h-3 w-3 text-cyan-600" aria-label="Pool" />
+                      <Waves className="h-3 w-3 text-sky-600" aria-label="Pool" />
                     )}
-                    {listing.has_sea_view && <Eye className="h-3 w-3 text-purple-600" aria-label="Sea View" />}
+                    {listing.has_sea_view && <Eye className="h-3 w-3 text-lime-600" aria-label="Sea View" />}
                   </div>
                 </TableCell>
 

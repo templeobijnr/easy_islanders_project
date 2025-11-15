@@ -9,6 +9,7 @@ import FeaturedPane from '../featured/FeaturedPane';
 import { useUi } from '../../shared/context/UiContext';
 import { useChat } from '../../shared/context/ChatContext';
 import { useChatSocket } from '@/shared/hooks/useChatSocket';
+import config from '@/config';
 import { AnimatedWrapper, StaggerContainer, StaggerItem } from '../../components/ui/animated-wrapper';
 import { Skeleton } from '../../components/ui/skeleton';
 import { spacing } from '../../lib/spacing';
@@ -62,17 +63,26 @@ const ChatPage: React.FC = () => {
 
   // Connect to WebSocket for real-time updates
   const handleWsStatus = useCallback((status: 'connected' | 'disconnected' | 'connecting' | 'error') => {
-    console.log('[ChatPage] WebSocket status changed:', status);
+    console.log('[ChatPage] WebSocket status change:', { from: connectionStatus, to: status, threadId });
+    if (status === 'error' || status === 'disconnected') {
+      console.warn('[ChatPage] WebSocket degraded:', { to: status, threadId });
+    }
     setConnectionStatus(status);
-  }, [setConnectionStatus]);
+  }, [setConnectionStatus, connectionStatus, threadId]);
 
   const handleWsMessage = useCallback((wsMessage: any) => {
     console.log('[ChatPage] WebSocket message received:', {
       type: wsMessage.type,
       event: wsMessage.event,
+      thread_id: wsMessage.thread_id,
+      payloadKeys: wsMessage?.payload ? Object.keys(wsMessage.payload) : [],
       hasRecommendations: !!wsMessage.payload?.rich?.recommendations,
-      recommendationsCount: wsMessage.payload?.rich?.recommendations?.length || 0
+      recommendationsCount: wsMessage.payload?.rich?.recommendations?.length || 0,
+      hasInReplyTo: !!wsMessage?.meta?.in_reply_to,
     });
+    if (wsMessage.type === 'chat_message' && wsMessage.event === 'assistant_message' && !wsMessage?.meta?.in_reply_to) {
+      console.warn('[ChatPage] Assistant message missing in_reply_to; message may be dropped by context handler.');
+    }
     // Handle server-side rehydration push on reconnect
     if (wsMessage.type === 'rehydration') {
       console.log('[Chat] Rehydration data received:', {
@@ -117,6 +127,17 @@ const ChatPage: React.FC = () => {
     onTyping: setTyping,
     correlationId: wsCorrelationId || undefined,
   });
+
+  // Log connection config when component mounts
+  useEffect(() => {
+    console.log('[ChatPage] Mounted with:', {
+      threadId,
+      connectionStatus,
+      wsEnabled: config.WEBSOCKET?.ENABLED,
+      wsUrl: config.getWebSocketUrl?.()
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Convert Message[] to ChatMessage[]
   const chatMessages: ChatMessage[] = messages.map(msg => ({

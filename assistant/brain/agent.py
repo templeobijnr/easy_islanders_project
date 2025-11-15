@@ -28,6 +28,7 @@ from pydantic import BaseModel, Field
 from .schemas import EnterpriseIntentResult, EnterpriseRequestPayload
 from .memory import save_assistant_turn, load_recent_messages
 from .tools import get_hybrid_rag_coordinator
+from assistant.brain.nodes.property_search_v1 import property_search_v1_node
 from .transactions import create_request_safe, approve_broadcast_safe
 from .guardrails import run_enterprise_guardrails, assess_enterprise_quality
 from assistant.monitoring.metrics import (
@@ -270,9 +271,15 @@ def retrieval_node(state: EnterpriseAgentState) -> EnterpriseAgentState:
     """
     logger.info(f"[{state['conversation_id']}] Enterprise hybrid retrieval processing...")
     
-    intent = state['intent_result']
-    
-    # Use enterprise hybrid RAG coordinator
+    intent = state.get('intent_result')
+    category = getattr(intent, 'category', None) if intent is not None else None
+
+    if category == 'PROPERTY':
+        # PROPERTY intents should use property_search_v1_node instead.
+        logger.warning("retrieval_node called for PROPERTY intent; this path is deprecated.")
+        return state
+
+    # Use enterprise hybrid RAG coordinator for non-property intents
     rag_coordinator = get_hybrid_rag_coordinator()
     search_results = rag_coordinator.search(
         query=state['user_input'],
@@ -314,10 +321,9 @@ def synthesis_node(state: EnterpriseAgentState) -> EnterpriseAgentState:
             'final_response': response
         }
     
-    # Handle legacy property search responses
+    # Handle property search via dedicated real-estate v1 node
     if intent.intent_type == 'property_search' and intent.needs_tool:
-        # Use legacy property search logic
-        return _handle_legacy_property_search(state)
+        return property_search_v1_node(state)
     
     # Handle legacy agent outreach responses
     if intent.intent_type == 'agent_outreach' and intent.needs_tool:

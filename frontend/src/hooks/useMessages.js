@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import config from '../config';
 import { http } from '../api';
+import { useAuth } from '../shared/context/AuthContext';
 
 /**
  * Custom hook to fetch and manage the unread message count.
@@ -23,42 +24,71 @@ export const useUnreadCount = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [pollInterval, setPollInterval] = useState(10000);
+  const { isAuthenticated } = useAuth();
 
   const fetchUnreadCount = useCallback(async () => {
+    if (!isAuthenticated) {
+      setUnreadCount(0);
+      setError(null);
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     try {
-      // Only attempt if authenticated token exists
       const token = localStorage.getItem('token');
       if (!token) {
-        setIsLoading(false);
         setUnreadCount(0);
         setError(null);
         return;
       }
 
-      // Use centralized axios client to include Authorization header
       const response = await http.get(config.ENDPOINTS.MESSAGES.UNREAD_COUNT);
       setUnreadCount(response.data.unread_count || 0);
       setError(null);
+
+      if (pollInterval !== 10000) {
+        setPollInterval(10000);
+      }
     } catch (err) {
       setError(err);
-      // Don't reset count on error, might be a temporary network issue
+      if (err?.response?.status === 429) {
+        setPollInterval((prev) => {
+          const next = prev * 2;
+          return next > 60000 ? 60000 : next;
+        });
+      }
       console.error("Failed to fetch unread count:", err);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [isAuthenticated, pollInterval]);
 
   useEffect(() => {
-    // Fetch immediately on mount
+    if (!isAuthenticated) {
+      setUnreadCount(0);
+      setError(null);
+      return;
+    }
+
     fetchUnreadCount();
 
-    // Set up polling every 5 seconds
-    const intervalId = setInterval(fetchUnreadCount, 5000);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchUnreadCount();
+      }
+    };
 
-    // Clean up interval on component unmount
-    return () => clearInterval(intervalId);
-  }, [fetchUnreadCount]);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    const intervalId = setInterval(fetchUnreadCount, pollInterval);
+
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [fetchUnreadCount, isAuthenticated, pollInterval]);
 
   return { unreadCount, isLoading, error, fetchUnreadCount };
 };

@@ -125,6 +125,9 @@ class PortfolioViewSet(viewsets.ViewSet):
                     "listing_type": "DAILY_RENTAL",
                     "total_listings": int,
                     "active_listings": int,
+                    "occupied_units": int | null,
+                    "vacant_units": int | null,
+                    "avg_price": str | null,
                     "views_30d": int,
                     "enquiries_30d": int,
                     "bookings_30d": int
@@ -165,10 +168,34 @@ class PortfolioViewSet(viewsets.ViewSet):
                 occurred_at__gte=thirty_days_ago
             ).count()
 
+            # Calculate occupancy metrics (only for rental types)
+            occupied = None
+            vacant = None
+            if lt.code in ['DAILY_RENTAL', 'LONG_TERM_RENTAL']:
+                occupied = Listing.objects.filter(
+                    listing_type=lt,
+                    status__in=['ACTIVE', 'RENTED']
+                ).count()
+                vacant = Listing.objects.filter(
+                    listing_type=lt,
+                    status='ACTIVE'
+                ).exclude(status='RENTED').count()
+
+            # Calculate average price
+            from django.db.models import Avg
+            avg_price_val = Listing.objects.filter(
+                listing_type=lt,
+                status='ACTIVE'
+            ).aggregate(avg=Avg('base_price'))['avg']
+            avg_price = str(avg_price_val) if avg_price_val else None
+
             summary.append({
                 'listing_type': lt.code,
                 'total_listings': total,
                 'active_listings': active,
+                'occupied_units': occupied,
+                'vacant_units': vacant,
+                'avg_price': avg_price,
                 'views_30d': views,
                 'enquiries_30d': enquiries,
                 'bookings_30d': bookings,

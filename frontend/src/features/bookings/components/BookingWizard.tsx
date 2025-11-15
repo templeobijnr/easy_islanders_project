@@ -4,8 +4,11 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { AnimatePresence } from 'framer-motion';
+import { AnimatePresence as FMAnimatePresence } from 'framer-motion';
 import { MotionDiv } from '../../../components/ui/motion-wrapper';
+
+// Type-safe wrapper for AnimatePresence to fix TypeScript issues with framer-motion v11
+const AnimatePresence = FMAnimatePresence as React.ComponentType<React.PropsWithChildren<{ mode?: "wait" | "sync" }>>;
 import { Button } from '../../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Progress } from '../../../components/ui/progress';
@@ -87,6 +90,8 @@ const BookingWizard: React.FC<BookingWizardProps> = ({
 
   const currentStepIndex = steps.findIndex((s) => s.id === currentStep);
   const progress = ((currentStepIndex + 1) / steps.length) * 100;
+
+  const AnimatePresence = FMAnimatePresence as any;
 
   // Handlers
   const handleTypeSelect = (type: BookingType) => {
@@ -267,11 +272,13 @@ const BookingWizard: React.FC<BookingWizardProps> = ({
 
     if (slug === 'apartment-rental') {
       return (
-        <ApartmentRentalForm
-          data={typeSpecificData}
-          onChange={handleTypeSpecificFieldChange}
-          errors={errors}
-        />
+        <AnimatePresence>
+          <ApartmentRentalForm
+            data={typeSpecificData}
+            onChange={handleTypeSpecificFieldChange}
+            errors={errors}
+          />
+        </AnimatePresence>
       );
     } else if (slug === 'apartment-viewing') {
       return (

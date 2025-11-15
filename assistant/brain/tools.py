@@ -373,9 +373,7 @@ class HybridRAGCoordinator:
                query: str, 
                intent: EnterpriseIntentResult,
                language: str = "en") -> Dict[str, List[Dict[str, Any]]]:
-        """
-        Intelligent hybrid search based on intent category
-        """
+        """Intelligent hybrid search based on intent category."""
         logger.info(f"Hybrid RAG search: {query[:50]}... (category: {intent.category})")
         
         results = {
@@ -384,15 +382,13 @@ class HybridRAGCoordinator:
             'combined_results': []
         }
         
-        # Route based on intent category
+        # PROPERTY intents should now use property_search_v1_node + search_properties_v1
         if intent.category == "PROPERTY":
-            # Property searches use internal database
-            results['internal_results'] = self.internal_tool._run(
-                query=query,
-                category="property",
-                attributes=intent.attributes,
-                language=language
+            logger.warning(
+                "HybridRAGCoordinator.search called for PROPERTY; this path is deprecated. "
+                "PROPERTY_SEARCH should use property_search_v1_node instead.",
             )
+            return results
         
         elif intent.category == "VEHICLE":
             # Vehicle searches try internal first, then external

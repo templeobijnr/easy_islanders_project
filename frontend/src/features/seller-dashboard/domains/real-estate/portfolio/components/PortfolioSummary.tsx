@@ -1,20 +1,18 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Card as HUCard, CardHeader as HUCardHeader, CardBody as HUCardBody } from '@heroui/react';
 
 type MixItem = { label: string; count: number };
 type Summary = { total_units?: number; short_term?: number; long_term?: number; both?: number };
 
-// Incremental HeroUI adoption: more distinct premium look (emerald → sky)
 const StatCard = ({ title, value }: { title: string; value: React.ReactNode }) => (
-  <HUCard className="p-0 border border-emerald-100/70 bg-gradient-to-br from-emerald-50 to-sky-50">
-    <HUCardHeader className="pb-0 pt-3 px-4 flex-col items-start">
+  <div className="p-0 border border-emerald-100/70 bg-gradient-to-br from-emerald-50 to-sky-50 rounded-xl">
+    <div className="pb-0 pt-3 px-4 flex flex-col items-start">
       <p className="text-[11px] uppercase font-semibold text-emerald-700/80 tracking-wide">{title}</p>
-    </HUCardHeader>
-    <HUCardBody className="py-3 px-4">
+    </div>
+    <div className="py-3 px-4">
       <div className="text-2xl font-bold bg-gradient-to-r from-emerald-700 to-sky-600 bg-clip-text text-transparent">{value}</div>
-    </HUCardBody>
-  </HUCard>
+    </div>
+  </div>
 );
 
 export default function PortfolioSummary({ summary, mix }: { summary?: Summary; mix?: MixItem[] }) {

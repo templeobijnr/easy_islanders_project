@@ -9,6 +9,9 @@ module.exports = {
       '@shared': path.resolve(__dirname, 'src/shared'),
     },
   },
+  eslint: {
+    enable: false,
+  },
   style: {
     postcss: {
       mode: 'extends',

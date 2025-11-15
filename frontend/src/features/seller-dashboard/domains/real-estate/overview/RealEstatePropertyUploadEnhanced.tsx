@@ -34,24 +34,34 @@ type Category = {
   subcategories?: { id: number; slug: string; name: string }[];
 };
 
+// Property types aligned with backend real_estate.PropertyType model
 const PROPERTY_TYPES = [
-  'apartment',
-  'villa',
-  'studio',
-  'house',
-  'penthouse',
-  'duplex',
-  'bungalow',
-  'room',
-  'student_accommodation',
-  'holiday_home',
-  'office',
-  'shop_retail',
-  'warehouse',
-  'industrial',
-  'coworking',
-  'land_plot',
-  'building_project',
+  // Residential
+  { value: 'apartment', label: 'Apartment', backendCode: 'APARTMENT' },
+  { value: 'penthouse', label: 'Penthouse', backendCode: 'PENTHOUSE' },
+  { value: 'villa', label: 'Detached Villa', backendCode: 'VILLA_DETACHED' },
+  { value: 'villa_semi', label: 'Semi-Detached Villa', backendCode: 'VILLA_SEMI_DETACHED' },
+  { value: 'bungalow', label: 'Bungalow', backendCode: 'BUNGALOW' },
+  { value: 'duplex', label: 'Duplex', backendCode: 'DUPLEX' },
+  { value: 'triplex', label: 'Triplex', backendCode: 'TRIPLEX' },
+  { value: 'studio', label: 'Studio', backendCode: 'STUDIO' },
+  { value: 'townhouse', label: 'Townhouse', backendCode: 'TOWNHOUSE' },
+  // Commercial
+  { value: 'office', label: 'Office', backendCode: 'OFFICE' },
+  { value: 'retail', label: 'Retail Space', backendCode: 'RETAIL' },
+  { value: 'warehouse', label: 'Warehouse', backendCode: 'WAREHOUSE' },
+  { value: 'hotel', label: 'Hotel', backendCode: 'HOTEL' },
+  // Land
+  { value: 'land_residential', label: 'Residential Land', backendCode: 'LAND_RESIDENTIAL' },
+  { value: 'land_commercial', label: 'Commercial Land', backendCode: 'LAND_COMMERCIAL' },
+  { value: 'land_agricultural', label: 'Agricultural Land', backendCode: 'LAND_AGRICULTURAL' },
+];
+
+const FURNISHED_STATUS_OPTIONS = [
+  { value: 'NOT_SPECIFIED', label: 'Not Specified' },
+  { value: 'UNFURNISHED', label: 'Unfurnished' },
+  { value: 'PARTLY_FURNISHED', label: 'Partly Furnished' },
+  { value: 'FULLY_FURNISHED', label: 'Fully Furnished' },
 ];
 
 export const RealEstatePropertyUploadEnhanced: React.FC<Props> = ({
@@ -73,12 +83,26 @@ export const RealEstatePropertyUploadEnhanced: React.FC<Props> = ({
   const [propertyType, setPropertyType] = useState('apartment');
   const [bedrooms, setBedrooms] = useState<number>(1);
   const [bathrooms, setBathrooms] = useState<number>(1);
+  const [livingRooms, setLivingRooms] = useState<number>(1);
   const [yearBuilt, setYearBuilt] = useState<string>('');
   const [parkingSpaces, setParkingSpaces] = useState<string>('');
 
-  // Features
-  const [furnished, setFurnished] = useState<boolean | null>(null);
+  // Property Details
+  const [buildingName, setBuildingName] = useState<string>('');
+  const [flatNumber, setFlatNumber] = useState<string>('');
+  const [floorNumber, setFloorNumber] = useState<string>('');
+  const [totalAreaSqm, setTotalAreaSqm] = useState<string>('');
+  const [netAreaSqm, setNetAreaSqm] = useState<string>('');
+  const [roomConfig, setRoomConfig] = useState<string>(''); // e.g., "2+1"
+  const [isGatedCommunity, setIsGatedCommunity] = useState<boolean>(false);
+
+  // Features - Changed furnished from boolean to enum
+  const [furnishedStatus, setFurnishedStatus] = useState<string>('NOT_SPECIFIED');
   const [petFriendly, setPetFriendly] = useState<boolean | null>(null);
+  const [hasPool, setHasPool] = useState<boolean>(false);
+  const [hasGym, setHasGym] = useState<boolean>(false);
+  const [hasSeaView, setHasSeaView] = useState<boolean>(false);
+  const [hasParkingAmenity, setHasParkingAmenity] = useState<boolean>(false);
 
   // Location
   const [city, setCity] = useState('');
@@ -137,10 +161,22 @@ export const RealEstatePropertyUploadEnhanced: React.FC<Props> = ({
     setPropertyType('apartment');
     setBedrooms(1);
     setBathrooms(1);
+    setLivingRooms(1);
     setYearBuilt('');
     setParkingSpaces('');
-    setFurnished(null);
+    setBuildingName('');
+    setFlatNumber('');
+    setFloorNumber('');
+    setTotalAreaSqm('');
+    setNetAreaSqm('');
+    setRoomConfig('');
+    setIsGatedCommunity(false);
+    setFurnishedStatus('NOT_SPECIFIED');
     setPetFriendly(null);
+    setHasPool(false);
+    setHasGym(false);
+    setHasSeaView(false);
+    setHasParkingAmenity(false);
     setCity('');
     setDistrict('');
     setLat('');
@@ -167,8 +203,18 @@ export const RealEstatePropertyUploadEnhanced: React.FC<Props> = ({
 
   const resolveSubcategoryId = (): number | undefined => {
     const subs = realEstateCategory?.subcategories || [];
-    const match = subs.find((s) => s.slug === propertyType || s.slug.replace('-', '_') === propertyType);
+    // Try to match by value first, then by slug
+    const match = subs.find((s) =>
+      s.slug === propertyType ||
+      s.slug.replace('-', '_') === propertyType ||
+      s.slug.toLowerCase() === propertyType.toLowerCase()
+    );
     return match?.id;
+  };
+
+  const getPropertyTypeBackendCode = (): string => {
+    const typeObj = PROPERTY_TYPES.find(pt => pt.value === propertyType);
+    return typeObj?.backendCode || 'APARTMENT';
   };
 
   const onSubmit = async () => {
@@ -185,69 +231,88 @@ export const RealEstatePropertyUploadEnhanced: React.FC<Props> = ({
       return;
     }
 
-    if (!realEstateCategory) {
-      setError('Real Estate category not found. Please refresh the page or contact support.');
-      return;
-    }
-
     setLoading(true);
     setError(null);
     try {
       const token = localStorage.getItem('token');
 
-      // Determine price and transaction type
-      let price: number | null = null;
-      let transaction_type = 'rent_long';
+      // Determine base price and transaction type for backend
+      let basePrice: number | null = null;
+      let transactionType: 'rent_long' | 'rent_short' | 'sale' = 'rent_long';
 
       if (isForSale) {
-        price = Number(salePrice || 0);
-        transaction_type = 'sale';
+        basePrice = Number(salePrice || 0);
+        transactionType = 'sale';
       } else {
         if (rentType === 'short_term') {
-          price = Number(nightlyPrice || 0);
-          transaction_type = 'rent_short';
+          basePrice = Number(nightlyPrice || 0);
+          transactionType = 'rent_short';
         } else {
-          price = Number(monthlyPrice || 0);
-          transaction_type = 'rent_long';
+          basePrice = Number(monthlyPrice || 0);
+          transactionType = 'rent_long';
         }
       }
+
+      const featureCodes: string[] = [];
+      if (hasPool) featureCodes.push('pool_shared');
+      if (hasGym) featureCodes.push('gym');
+      if (hasSeaView) featureCodes.push('sea_view');
+      if (hasParkingAmenity) featureCodes.push('open_parking');
 
       const payload: any = {
         title,
         description,
-        category: realEstateCategory.id,
-        subcategory: resolveSubcategoryId(),
-        price: isFinite(price) ? price : null,
-        currency,
-        location: city,
-        dynamic_fields: {
-          ad_number: adNumber || undefined,
-          rental_term: !isForSale ? rentType : undefined,
+        ad_number: adNumber || undefined,
+        location: {
+          city,
+          district: district || undefined,
+          latitude: lat ? Number(lat) : undefined,
+          longitude: lng ? Number(lng) : undefined,
+        },
+        structure: {
+          property_type_code: getPropertyTypeBackendCode(),
           bedrooms,
+          living_rooms: livingRooms,
           bathrooms,
+          room_configuration_label: roomConfig || undefined,
+          building_name: buildingName || undefined,
+          flat_number: flatNumber || undefined,
+          floor_number: floorNumber ? Number(floorNumber) : undefined,
+          total_area_sqm: totalAreaSqm ? Number(totalAreaSqm) : undefined,
+          net_area_sqm: netAreaSqm ? Number(netAreaSqm) : undefined,
           year_built: yearBuilt ? Number(yearBuilt) : undefined,
           parking_spaces: parkingSpaces ? Number(parkingSpaces) : undefined,
-          furnished: furnished !== null ? furnished : undefined,
+          is_gated_community: isGatedCommunity,
+          furnished_status:
+            furnishedStatus && furnishedStatus !== 'NOT_SPECIFIED' ? furnishedStatus : undefined,
+        },
+        features: {
+          feature_codes: featureCodes,
           pet_friendly: petFriendly !== null ? petFriendly : undefined,
+        },
+        listing: {
+          transaction_type: transactionType,
+          base_price: basePrice !== null && isFinite(basePrice) ? basePrice : null,
+          currency,
+          rental_kind: !isForSale
+            ? (rentType === 'short_term' ? 'DAILY' : 'LONG_TERM')
+            : undefined,
+          min_term_months:
+            !isForSale && minTermMonths ? Number(minTermMonths) : undefined,
           available_from: !isForSale && availableFrom ? availableFrom : undefined,
-          min_term_months: !isForSale && minTermMonths ? Number(minTermMonths) : undefined,
           deposit: !isForSale && deposit ? Number(deposit) : undefined,
           min_nights: !isForSale && minNights ? Number(minNights) : undefined,
-          is_for_sale: isForSale,
-          sale_price: isForSale && salePrice ? Number(salePrice) : undefined,
         },
-        domain: 'real_estate',
-        transaction_type,
       };
 
-      // Optional lat/lng
-      if (lat) payload.latitude = Number(lat);
-      if (lng) payload.longitude = Number(lng);
-
-      const createResp = await axios.post(`${config.API_BASE_URL}/api/listings/`, payload, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const listingId: string = createResp.data?.id;
+      const createResp = await axios.post(
+        `${config.API_BASE_URL}/api/v1/real_estate/properties/`,
+        payload,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      const listingId: string = createResp.data?.listing_id;
 
       // Upload images
       for (const file of images) {
@@ -323,8 +388,8 @@ export const RealEstatePropertyUploadEnhanced: React.FC<Props> = ({
 
             {/* Basic Info Tab */}
             <TabsContent value="basic" className="space-y-4 mt-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2 space-y-2">
+              <div className="space-y-4">
+                <div className="space-y-2">
                   <Label htmlFor="title">Title *</Label>
                   <Input
                     id="title"
@@ -335,100 +400,6 @@ export const RealEstatePropertyUploadEnhanced: React.FC<Props> = ({
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="ad-number">Ad Number / Reference</Label>
-                  <Input
-                    id="ad-number"
-                    value={adNumber}
-                    onChange={(e) => setAdNumber(e.target.value)}
-                    placeholder="RE-2024-001"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Property Type</Label>
-                  <Select value={propertyType} onValueChange={(v) => setPropertyType(v)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PROPERTY_TYPES.map((pt) => (
-                        <SelectItem key={pt} value={pt}>
-                          {pt.replace(/_/g, ' ')}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Bedrooms</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={bedrooms}
-                    onChange={(e) => setBedrooms(Number(e.target.value || 0))}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Bathrooms</Label>
-                  <Input
-                    type="number"
-                    step="0.5"
-                    min={0}
-                    value={bathrooms}
-                    onChange={(e) => setBathrooms(Number(e.target.value || 0))}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="year-built">Year Built</Label>
-                  <Input
-                    id="year-built"
-                    type="number"
-                    min={1800}
-                    max={new Date().getFullYear() + 5}
-                    value={yearBuilt}
-                    onChange={(e) => setYearBuilt(e.target.value)}
-                    placeholder={`e.g., ${new Date().getFullYear()}`}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="parking">Parking Spaces</Label>
-                  <Input
-                    id="parking"
-                    type="number"
-                    min={0}
-                    value={parkingSpaces}
-                    onChange={(e) => setParkingSpaces(e.target.value)}
-                    placeholder="0"
-                  />
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="furnished"
-                    checked={furnished === true}
-                    onCheckedChange={(checked: boolean) => setFurnished(checked ? true : null)}
-                  />
-                  <Label htmlFor="furnished" className="cursor-pointer">
-                    Furnished
-                  </Label>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="pet-friendly"
-                    checked={petFriendly === true}
-                    onCheckedChange={(checked: boolean) => setPetFriendly(checked ? true : null)}
-                  />
-                  <Label htmlFor="pet-friendly" className="cursor-pointer">
-                    Pet Friendly
-                  </Label>
-                </div>
-
-                <div className="md:col-span-2 space-y-2">
                   <Label htmlFor="description">Description</Label>
                   <Textarea
                     id="description"
@@ -437,6 +408,255 @@ export const RealEstatePropertyUploadEnhanced: React.FC<Props> = ({
                     onChange={(e) => setDescription(e.target.value)}
                     placeholder="Describe the property..."
                   />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                  <div className="space-y-2">
+                    <Label htmlFor="ad-number">Ad Number / Reference</Label>
+                    <Input
+                      id="ad-number"
+                      value={adNumber}
+                      onChange={(e) => setAdNumber(e.target.value)}
+                      placeholder="RE-2024-001"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Property Type</Label>
+                    <Select value={propertyType} onValueChange={(v) => setPropertyType(v)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <optgroup label="Residential">
+                          {PROPERTY_TYPES.filter((_, i) => i < 9).map((pt) => (
+                            <SelectItem key={pt.value} value={pt.value}>
+                              {pt.label}
+                            </SelectItem>
+                          ))}
+                        </optgroup>
+                        <optgroup label="Commercial">
+                          {PROPERTY_TYPES.filter((_, i) => i >= 9 && i < 13).map((pt) => (
+                            <SelectItem key={pt.value} value={pt.value}>
+                              {pt.label}
+                            </SelectItem>
+                          ))}
+                        </optgroup>
+                        <optgroup label="Land">
+                          {PROPERTY_TYPES.filter((_, i) => i >= 13).map((pt) => (
+                            <SelectItem key={pt.value} value={pt.value}>
+                              {pt.label}
+                            </SelectItem>
+                          ))}
+                        </optgroup>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Bedrooms</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={bedrooms}
+                      onChange={(e) => setBedrooms(Number(e.target.value || 0))}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Bathrooms</Label>
+                    <Input
+                      type="number"
+                      step="0.5"
+                      min={0}
+                      value={bathrooms}
+                      onChange={(e) => setBathrooms(Number(e.target.value || 0))}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Living Rooms</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={livingRooms}
+                      onChange={(e) => setLivingRooms(Number(e.target.value || 1))}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="room-config">Room Config (e.g., 2+1)</Label>
+                    <Input
+                      id="room-config"
+                      value={roomConfig}
+                      onChange={(e) => setRoomConfig(e.target.value)}
+                      placeholder="2+1"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="building-name">Building Name</Label>
+                    <Input
+                      id="building-name"
+                      value={buildingName}
+                      onChange={(e) => setBuildingName(e.target.value)}
+                      placeholder="Royal Heights"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="flat-number">Flat/Unit Number</Label>
+                    <Input
+                      id="flat-number"
+                      value={flatNumber}
+                      onChange={(e) => setFlatNumber(e.target.value)}
+                      placeholder="A-101"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="floor-number">Floor Number</Label>
+                    <Input
+                      id="floor-number"
+                      type="number"
+                      min={-1}
+                      value={floorNumber}
+                      onChange={(e) => setFloorNumber(e.target.value)}
+                      placeholder="3"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="total-area">Total Area (sqm)</Label>
+                    <Input
+                      id="total-area"
+                      type="number"
+                      min={0}
+                      value={totalAreaSqm}
+                      onChange={(e) => setTotalAreaSqm(e.target.value)}
+                      placeholder="120"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="net-area">Net Area (sqm)</Label>
+                    <Input
+                      id="net-area"
+                      type="number"
+                      min={0}
+                      value={netAreaSqm}
+                      onChange={(e) => setNetAreaSqm(e.target.value)}
+                      placeholder="100"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="year-built">Year Built</Label>
+                    <Input
+                      id="year-built"
+                      type="number"
+                      min={1800}
+                      max={new Date().getFullYear() + 5}
+                      value={yearBuilt}
+                      onChange={(e) => setYearBuilt(e.target.value)}
+                      placeholder={`e.g., ${new Date().getFullYear()}`}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="parking">Parking Spaces</Label>
+                    <Input
+                      id="parking"
+                      type="number"
+                      min={0}
+                      value={parkingSpaces}
+                      onChange={(e) => setParkingSpaces(e.target.value)}
+                      placeholder="0"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Furnished Status</Label>
+                    <Select value={furnishedStatus} onValueChange={(v) => setFurnishedStatus(v)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {FURNISHED_STATUS_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="gated-community"
+                      checked={isGatedCommunity}
+                      onCheckedChange={setIsGatedCommunity}
+                    />
+                    <Label htmlFor="gated-community" className="cursor-pointer">
+                      Gated Community
+                    </Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="pet-friendly"
+                      checked={petFriendly === true}
+                      onCheckedChange={(checked: boolean) => setPetFriendly(checked ? true : null)}
+                    />
+                    <Label htmlFor="pet-friendly" className="cursor-pointer">
+                      Pet Friendly
+                    </Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="has-pool"
+                      checked={hasPool}
+                      onCheckedChange={setHasPool}
+                    />
+                    <Label htmlFor="has-pool" className="cursor-pointer">
+                      Pool
+                    </Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="has-gym"
+                      checked={hasGym}
+                      onCheckedChange={setHasGym}
+                    />
+                    <Label htmlFor="has-gym" className="cursor-pointer">
+                      Gym
+                    </Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="has-sea-view"
+                      checked={hasSeaView}
+                      onCheckedChange={setHasSeaView}
+                    />
+                    <Label htmlFor="has-sea-view" className="cursor-pointer">
+                      Sea View
+                    </Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="has-parking-amenity"
+                      checked={hasParkingAmenity}
+                      onCheckedChange={setHasParkingAmenity}
+                    />
+                    <Label htmlFor="has-parking-amenity" className="cursor-pointer">
+                      Dedicated Parking
+                    </Label>
+                  </div>
                 </div>
               </div>
             </TabsContent>

@@ -1,6 +1,9 @@
 import React from 'react';
-import { AnimatePresence } from 'framer-motion';
+import { AnimatePresence as FMAnimatePresence } from 'framer-motion';
 import { MotionDiv } from '../../../components/ui/motion-wrapper';
+
+// Type-safe wrapper for AnimatePresence to fix TypeScript issues with framer-motion v11
+const AnimatePresence = FMAnimatePresence as React.ComponentType<React.PropsWithChildren<{ mode?: "wait" | "sync" }>>;
 
 interface ConnectionStatusProps {
   status: 'connected' | 'disconnected' | 'connecting' | 'error';
@@ -33,6 +36,8 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({ status }) => {
     text: 'Unknown',
     icon: '❓',
   };
+
+  const AnimatePresence = FMAnimatePresence as any;
 
   return (
     <AnimatePresence>

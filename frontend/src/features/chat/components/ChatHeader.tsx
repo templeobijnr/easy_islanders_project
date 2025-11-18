@@ -106,13 +106,17 @@ export const ChatHeader: React.FC = () => {
   };
 
   return (
-    <div className="px-4 pt-4 pb-2 sticky top-0 bg-white/90 backdrop-blur rounded-t-2xl border-b border-slate-200 z-10">
+    <div className="px-4 pt-4 pb-2 sticky top-0 bg-card/90 backdrop-blur rounded-t-2xl border-b border-border z-10">
       <div className="flex items-center justify-between">
-        <div className="font-semibold text-ink-700">Chat</div>
+        <div className="text-sm font-semibold text-foreground">Chat</div>
         {prefsUiEnabled && threadId ? (
           <button
             onClick={togglePause}
-            className={`text-xs px-2 py-1 rounded border ${paused ? 'bg-slate-100' : 'bg-white'}`}
+            className={`text-xs px-2 py-1 rounded border transition-colors ${
+              paused
+                ? 'bg-neutral-100 border-neutral-200 text-muted-foreground'
+                : 'bg-background border-border text-foreground hover:bg-neutral-50'
+            }`}
           >
             {paused ? 'Resume Personalization' : 'Pause Personalization'}
           </button>
@@ -120,13 +124,21 @@ export const ChatHeader: React.FC = () => {
       </div>
       {prefsUiEnabled ? (
         <div className="mt-2 flex items-center gap-2">
-          <button onClick={() => setEditOpen(true)} className="text-xs px-2 py-1 border rounded">Edit</button>
+          <button
+            onClick={() => setEditOpen(true)}
+            className="text-xs px-2 py-1 border rounded bg-background border-border text-muted-foreground hover:bg-neutral-50 transition-colors"
+          >
+            Edit
+          </button>
         </div>
       ) : null}
       {prefsUiEnabled && prettyChips.length > 0 ? (
         <div className="mt-2 flex flex-wrap gap-2">
           {prettyChips.map((c, idx) => (
-            <Chip key={`${c}-${idx}`} className="border-slate-300 bg-slate-50 text-slate-700">
+            <Chip
+              key={`${c}-${idx}`}
+              className="border-neutral-200 bg-neutral-50 text-muted-foreground"
+            >
               {c}
             </Chip>
           ))}

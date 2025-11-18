@@ -9,14 +9,20 @@ interface GalleryModalProps {
 }
 
 const GalleryModal: React.FC<GalleryModalProps> = ({ images, title, onClose }) => {
+  // Handle empty images case with placeholder
+  const displayImages = images.length === 0
+    ? ['https://via.placeholder.com/800x600/e2e8f0/64748b?text=No+Images+Available']
+    : images;
+  const hasRealImages = images.length > 0;
+
   const [currentIndex, setCurrentIndex] = useState(0);
 
   const handlePrevious = () => {
-    setCurrentIndex((prev) => (prev === 0 ? images.length - 1 : prev - 1));
+    setCurrentIndex((prev) => (prev === 0 ? displayImages.length - 1 : prev - 1));
   };
 
   const handleNext = () => {
-    setCurrentIndex((prev) => (prev === images.length - 1 ? 0 : prev + 1));
+    setCurrentIndex((prev) => (prev === displayImages.length - 1 ? 0 : prev + 1));
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -24,10 +30,6 @@ const GalleryModal: React.FC<GalleryModalProps> = ({ images, title, onClose }) =
     if (e.key === 'ArrowLeft') handlePrevious();
     if (e.key === 'ArrowRight') handleNext();
   };
-
-  if (images.length === 0) {
-    return null;
-  }
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
@@ -44,13 +46,15 @@ const GalleryModal: React.FC<GalleryModalProps> = ({ images, title, onClose }) =
         {/* Image Counter */}
         <div className="absolute top-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-white/10 backdrop-blur rounded-full z-10">
           <span className="text-white text-sm font-medium">
-            {currentIndex + 1} / {images.length}
+            {currentIndex + 1} / {displayImages.length}
           </span>
         </div>
 
         {/* Title */}
         <div className="absolute top-16 left-1/2 -translate-x-1/2 px-4 py-2 bg-white/10 backdrop-blur rounded-lg z-10">
-          <span className="text-white text-sm font-medium">{title}</span>
+          <span className="text-white text-sm font-medium">
+            {hasRealImages ? title : `${title} - No images available yet`}
+          </span>
         </div>
 
         {/* Main Image */}
@@ -59,13 +63,13 @@ const GalleryModal: React.FC<GalleryModalProps> = ({ images, title, onClose }) =
           onClick={(e) => e.stopPropagation()}
         >
           <img
-            src={images[currentIndex]}
-            alt=""
+            src={displayImages[currentIndex]}
+            alt={hasRealImages ? "" : "No images available"}
             className="max-w-full max-h-full object-contain rounded-lg"
           />
 
           {/* Navigation Buttons */}
-          {images.length > 1 && (
+          {displayImages.length > 1 && hasRealImages && (
             <>
               <button
                 onClick={handlePrevious}
@@ -86,9 +90,9 @@ const GalleryModal: React.FC<GalleryModalProps> = ({ images, title, onClose }) =
         </div>
 
         {/* Thumbnail Strip */}
-        {images.length > 1 && (
+        {displayImages.length > 1 && hasRealImages && (
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 px-4 py-3 bg-white/10 backdrop-blur rounded-lg max-w-full overflow-x-auto z-10">
-            {images.map((img, idx) => (
+            {displayImages.map((img, idx) => (
               <button
                 key={idx}
                 onClick={(e) => {

@@ -5,6 +5,8 @@ import InlineRecsCarousel from './components/InlineRecsCarousel';
 import Composer from './components/Composer';
 import TypingDots from './components/TypingDots';
 import ConnectionStatus from './components/ConnectionStatus';
+import HeroSection from './components/HeroSection';
+import CategoryCarousel from './components/CategoryCarousel';
 import { ExplorePage } from '../explore';
 import { useUi } from '../../shared/context/UiContext';
 import { useChat } from '../../shared/context/ChatContext';
@@ -148,19 +150,57 @@ const ChatPage: React.FC = () => {
   }));
 
   return (
-    <AnimatedWrapper animation="fadeInUp" className="space-y-4">
-      {/* CHAT SECTION - Top of main column */}
-      <AnimatedWrapper animation="fadeInUp" delay={0.1}>
-        <section className="bg-white/90 backdrop-blur rounded-2xl border border-border overflow-hidden flex flex-col">
-          {/* Connection Status Badge */}
+    <div className="min-h-screen bg-background">
+      {/* HIMS-INSPIRED HERO SECTION - Animated gradient with Playfair Display headline */}
+      <div className="relative overflow-hidden px-4 sm:px-8 py-16 sm:py-24 text-center hero-gradient animate-gradient-flow">
+        {/* Content */}
+        <div className="relative z-10 max-w-4xl mx-auto stagger-children">
+          {/* Badge pill with emoji */}
+          <div className="mb-6 sm:mb-8 inline-flex items-center gap-2 rounded-full bg-white/90 border border-neutral-200 px-5 py-2.5 backdrop-blur-[10px] shadow-sm transition-transform duration-300 hover:scale-[1.02]">
+            <span className="text-xl">🏝️</span>
+            <span className="text-sm font-semibold text-primary font-sans">Discover North Cyprus</span>
+          </div>
+
+          {/* Playfair Display headline - 72px on desktop */}
+          <h1 className="mb-4 sm:mb-6 display-hero text-foreground">
+            <span className="block">Find everything you need</span>
+            <span className="mt-2 block bg-gradient-to-r from-ocean-500 to-ocean-600 bg-clip-text text-transparent">
+              in North Cyprus
+            </span>
+          </h1>
+
+          {/* Clean subtitle */}
+          <p className="mx-auto max-w-2xl body-large text-secondary">
+            Find apartments, rent cars, buy electronics, book events — everything here
+          </p>
+        </div>
+      </div>
+
+      {/* AI ASSISTANT CHAT - Clean HIMS-inspired glass card design */}
+      <AnimatedWrapper animation="fadeInUp" delay={0.2} className="max-w-4xl mx-auto px-4 sm:px-8 -mt-10">
+        <section className="glass-card overflow-hidden flex flex-col relative shadow-[var(--shadow-card-hover)]">
+          {/* Connection Status Badge - Clean positioning */}
           <div className="absolute top-4 right-4 z-10">
             <AnimatedWrapper animation="fadeInDown">
               <ConnectionStatus status={connectionStatus} />
             </AnimatedWrapper>
           </div>
 
-          <ChatHeader />
-          <div className={`flex-1 overflow-y-auto max-h-[58vh] ${spacing.listItemPadding}`}>
+          {/* Clean Chat Header */}
+          <div className="bg-white/70 backdrop-blur-[10px] px-6 py-4 border-b border-[hsl(var(--sand-200))]">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-[var(--radius-md)] bg-gradient-to-br from-[hsl(var(--ocean-100))] to-[hsl(var(--ocean-200))] flex items-center justify-center">
+                <span className="text-xl">🤖</span>
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-[hsl(var(--sand-900))] font-[family:var(--font-heading)]">AI Assistant</h2>
+                <p className="text-sm text-[hsl(var(--sand-600))] font-[family:var(--font-body)]">Always here to help you discover</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Chat Messages Area */}
+          <div className={`flex-1 overflow-y-auto max-h-[40vh] ${spacing.listItemPadding} bg-white/80 backdrop-blur-[10px]`}>
             <StaggerContainer>
               <StaggerItem>
                 {loading ? (
@@ -179,33 +219,46 @@ const ChatPage: React.FC = () => {
                 </AnimatedWrapper>
               </div>
             )}
-
-            {(() => {
-              console.log('[ChatPage] Carousel render condition:', {
-                activeJob,
-                hasActiveJob: !!activeJob,
-                resultsLength: messages.length, // Check if we should show carousel
-                willRenderCarousel: true // Always try to render, let carousel decide
-              });
-              // Always render carousel - it will handle empty state internally
-              return loadingRecs ? (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {Array(3).fill(0).map((_, i) => <CardSkeleton key={i} />)}
-                </div>
-              ) : (
-                <InlineRecsCarousel />
-              );
-            })()}
           </div>
-          <Composer />
+
+          {/* Recommendations Carousel - Clean horizontal cards */}
+          <div className="px-6 py-4 bg-white/70 backdrop-blur-[10px] border-t border-[hsl(var(--sand-200))]">
+            {loadingRecs ? (
+              <div className="flex gap-4 overflow-x-auto pb-2">
+                {Array(4).fill(0).map((_, i) => (
+                  <div key={i} className="flex-shrink-0 w-64">
+                    <CardSkeleton />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <h3 className="text-base font-semibold text-[hsl(var(--sand-900))] font-[family:var(--font-heading)] flex items-center gap-2">
+                  <span className="text-lg">✨</span>
+                  Personalized Recommendations
+                </h3>
+                <InlineRecsCarousel />
+              </div>
+            )}
+          </div>
+
+          {/* Clean Composer */}
+          <div className="bg-white/80 backdrop-blur-[10px] border-t border-[hsl(var(--sand-200))]">
+            <Composer />
+          </div>
         </section>
       </AnimatedWrapper>
 
-      {/* EXPLORE NORTH CYPRUS SECTION - Below chat in same column */}
-      <AnimatedWrapper animation="fadeInUp" delay={0.2}>
+      {/* CATEGORY NAVIGATION - Clean Hims-inspired */}
+      <AnimatedWrapper animation="fadeInUp" delay={0.3} className="px-8 mt-8">
+        <CategoryCarousel />
+      </AnimatedWrapper>
+
+      {/* EXPLORE NORTH CYPRUS SECTION - Clean Hims-inspired layout */}
+      <AnimatedWrapper animation="fadeInUp" delay={0.4} className="mt-12">
         <ExplorePage />
       </AnimatedWrapper>
-    </AnimatedWrapper>
+    </div>
   );
 };
 

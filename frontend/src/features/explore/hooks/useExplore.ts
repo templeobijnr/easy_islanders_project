@@ -32,6 +32,8 @@ export function useExplore() {
     category: activeCategory,
     subcategory: activeSubcategory,
     status: 'active',
+    search: searchQuery,
+    ordering: sortBy,
     autoFetch: !!activeCategory, // Only auto-fetch if category is selected
   });
 
@@ -56,13 +58,11 @@ export function useExplore() {
   // Search handler
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
-    // TODO: Implement search API call
   }, []);
 
   // Sort handler
   const handleSortChange = useCallback((sort: string) => {
     setSortBy(sort);
-    // TODO: Implement sorting
   }, []);
 
   // Reset all filters
@@ -72,6 +72,14 @@ export function useExplore() {
     setSearchQuery('');
     setSortBy('-created_at');
   }, []);
+
+  // Build filters object
+  const filters: ExploreFilters = {
+    category: activeCategory,
+    subcategory: activeSubcategory,
+    search: searchQuery,
+    sortBy: sortBy as any,
+  };
 
   return {
     // Data
@@ -85,6 +93,7 @@ export function useExplore() {
     activeSubcategory,
     searchQuery,
     sortBy,
+    filters,
 
     // Loading states
     categoriesLoading,

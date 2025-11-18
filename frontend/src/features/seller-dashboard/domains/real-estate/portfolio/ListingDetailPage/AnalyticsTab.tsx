@@ -13,7 +13,9 @@ import {
   Users,
   Star,
   BarChart3,
+  Loader2,
 } from 'lucide-react';
+import { useListingAnalytics } from '../hooks/useRealEstateData';
 
 interface AnalyticsTabProps {
   listingId: string;
@@ -22,51 +24,156 @@ interface AnalyticsTabProps {
 export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ listingId }) => {
   const [timePeriod, setTimePeriod] = useState<'7d' | '30d' | '90d' | '1y'>('30d');
 
-  // Mock data - replace with actual API data
-  const metrics = {
-    revenue: {
-      current: 8400,
-      previous: 7200,
-      change: 16.7,
-      currency: 'EUR',
-    },
-    bookings: {
-      current: 12,
-      previous: 10,
-      change: 20,
-    },
-    occupancy: {
-      current: 78,
-      previous: 65,
-      change: 13,
-    },
-    avgNightlyRate: {
-      current: 140,
-      previous: 135,
-      change: 3.7,
-      currency: 'EUR',
-    },
-    views: {
-      current: 450,
-      previous: 380,
-      change: 18.4,
-    },
-    inquiries: {
-      current: 28,
-      previous: 22,
-      change: 27.3,
-    },
-    rating: {
-      current: 4.8,
-      previous: 4.6,
-      change: 4.3,
-    },
-    reviewCount: {
-      current: 24,
-      previous: 18,
-      change: 33.3,
-    },
-  };
+  // Fetch analytics from API
+  const {
+    data: analyticsData,
+    isLoading,
+    error,
+  } = useListingAnalytics(listingId ? parseInt(listingId) : undefined);
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 animate-spin text-lime-600 mx-auto" />
+          <p className="mt-4 text-slate-700 font-medium">Loading analytics...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="max-w-md text-center p-8 bg-white rounded-2xl border border-red-200">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <span className="text-3xl">⚠️</span>
+          </div>
+          <h3 className="text-lg font-bold text-slate-900 mb-2">Failed to Load Analytics</h3>
+          <p className="text-slate-600 text-sm">
+            {error instanceof Error ? error.message : 'An error occurred while loading analytics.'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Transform API data into metrics or use mock data
+  const metrics = analyticsData
+    ? {
+        revenue: {
+          current: 0,
+          previous: 0,
+          change: 0,
+          currency: 'EUR',
+        },
+        bookings: {
+          current: analyticsData.bookings_confirmed_30d,
+          previous: Math.max(
+            analyticsData.bookings_confirmed_total - analyticsData.bookings_confirmed_30d,
+            0
+          ),
+          change:
+            analyticsData.bookings_confirmed_total -
+              analyticsData.bookings_confirmed_30d >
+            0
+              ? (analyticsData.bookings_confirmed_30d /
+                  (analyticsData.bookings_confirmed_total -
+                    analyticsData.bookings_confirmed_30d)) *
+                100
+              : 0,
+        },
+        occupancy: {
+          current: analyticsData.conversion_rate * 100,
+          previous: 0,
+          change: 0,
+        },
+        avgNightlyRate: {
+          current: 0,
+          previous: 0,
+          change: 0,
+          currency: 'EUR',
+        },
+        views: {
+          current: analyticsData.views_30d,
+          previous: Math.max(analyticsData.views_total - analyticsData.views_30d, 0),
+          change:
+            analyticsData.views_total - analyticsData.views_30d > 0
+              ? (analyticsData.views_30d /
+                  (analyticsData.views_total - analyticsData.views_30d)) *
+                100
+              : 0,
+        },
+        inquiries: {
+          current: analyticsData.enquiries_30d,
+          previous: Math.max(
+            analyticsData.enquiries_total - analyticsData.enquiries_30d,
+            0
+          ),
+          change:
+            analyticsData.enquiries_total - analyticsData.enquiries_30d > 0
+              ? (analyticsData.enquiries_30d /
+                  (analyticsData.enquiries_total - analyticsData.enquiries_30d)) *
+                100
+              : 0,
+        },
+        rating: {
+          current: 0,
+          previous: 0,
+          change: 0,
+        },
+        reviewCount: {
+          current: 0,
+          previous: 0,
+          change: 0,
+        },
+      }
+    : {
+        revenue: {
+          current: 8400,
+          previous: 7200,
+          change: 16.7,
+          currency: 'EUR',
+        },
+        bookings: {
+          current: 12,
+          previous: 10,
+          change: 20,
+        },
+        occupancy: {
+          current: 78,
+          previous: 65,
+          change: 13,
+        },
+        avgNightlyRate: {
+          current: 140,
+          previous: 135,
+          change: 3.7,
+          currency: 'EUR',
+        },
+        views: {
+          current: 450,
+          previous: 380,
+          change: 18.4,
+        },
+        inquiries: {
+          current: 28,
+          previous: 22,
+          change: 27.3,
+        },
+        rating: {
+          current: 4.8,
+          previous: 4.6,
+          change: 4.3,
+        },
+        reviewCount: {
+          current: 24,
+          previous: 18,
+          change: 33.3,
+        },
+      };
 
   // Mock chart data for bookings over time
   const chartData = [

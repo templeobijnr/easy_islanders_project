@@ -19,6 +19,7 @@ from assistant.views.listings import (
     migrate_legacy_data,
     get_current_conversation,
     create_new_conversation,
+    twilio_webhook,
 )
 
 urlpatterns = [
@@ -37,6 +38,9 @@ urlpatterns = [
     path("v1/availability/check/", check_availability, name="availability-check"),
     # Twilio WhatsApp webhook
     path("webhooks/twilio/whatsapp/", twilio_whatsapp_webhook, name="twilio-whatsapp-webhook"),
+    # Legacy Twilio webhook endpoints for backward compatibility
+    path("twilio/webhook/", twilio_webhook, name="twilio-webhook-legacy"),
+    path("webhooks/twilio/", twilio_webhook, name="twilio-webhook"),
     # F.3 Messages API - V1.0 Contract
     path("v1/messages/", get_messages, name="messages-list"),
     path("v1/messages/unread-count/", get_unread_count, name="messages-unread-count"),

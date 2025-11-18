@@ -2,7 +2,7 @@
  * ActivityTab - Activity timeline and history
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Calendar,
   MessageSquare,
@@ -17,7 +17,10 @@ import {
   TrendingUp,
   User,
   Image as ImageIcon,
+  Loader2,
 } from 'lucide-react';
+import { useListingEvents } from '../hooks/useRealEstateData';
+import type { ListingEvent } from '../types/realEstateModels';
 
 type ActivityType =
   | 'booking_created'
@@ -52,14 +55,83 @@ interface Activity {
 
 interface ActivityTabProps {
   listingId: string;
-  activities?: Activity[];
 }
 
-export const ActivityTab: React.FC<ActivityTabProps> = ({ listingId, activities = [] }) => {
+export const ActivityTab: React.FC<ActivityTabProps> = ({ listingId }) => {
   const [filter, setFilter] = useState<'all' | ActivityType>('all');
 
-  // Mock data if no activities provided
-  const displayActivities: Activity[] = activities.length > 0 ? activities : [
+  // Fetch events from API
+  const {
+    data: eventsData,
+    isLoading,
+    error,
+  } = useListingEvents(listingId ? parseInt(listingId) : undefined);
+
+  // Transform API events to Activity format
+  const displayActivities = useMemo(() => {
+    const results = eventsData?.results ?? [];
+
+    return results.map((event: ListingEvent): Activity => {
+      // Map API event_type to local ActivityType
+      let type: ActivityType;
+      let title: string;
+      let description: string;
+
+      switch (event.event_type) {
+        case 'VIEW':
+          type = 'listing_viewed';
+          title = 'Listing Viewed';
+          description = event.metadata?.user_name
+            ? `Viewed by ${event.metadata.user_name}`
+            : 'Your listing was viewed';
+          break;
+        case 'ENQUIRY':
+          type = 'message_received';
+          title = 'New Enquiry';
+          description = event.metadata?.user_name
+            ? `${event.metadata.user_name} sent an enquiry`
+            : 'New enquiry received';
+          break;
+        case 'BOOKING_REQUEST':
+          type = 'request_received';
+          title = 'Booking Request';
+          description = event.metadata?.user_name
+            ? `${event.metadata.user_name} requested to book`
+            : 'New booking request received';
+          break;
+        case 'BOOKING_CONFIRMED':
+          type = 'booking_created';
+          title = 'Booking Confirmed';
+          description = event.metadata?.user_name
+            ? `${event.metadata.user_name} booking confirmed`
+            : 'Booking confirmed';
+          break;
+        case 'WHATSAPP_CLICK':
+          type = 'message_received';
+          title = 'WhatsApp Contact';
+          description = event.metadata?.user_name
+            ? `${event.metadata.user_name} contacted via WhatsApp`
+            : 'Contact via WhatsApp';
+          break;
+        default:
+          type = 'listing_updated';
+          title = 'Activity Logged';
+          description = `Event: ${event.event_type}`;
+      }
+
+      return {
+        id: String(event.id),
+        type,
+        timestamp: event.occurred_at,
+        title,
+        description,
+        metadata: event.metadata || {},
+      };
+    });
+  }, [eventsData]);
+
+  // Fallback mock data for demonstration if no events
+  const mockActivities: Activity[] = [
     {
       id: 'act-1',
       type: 'booking_created',
@@ -154,9 +226,41 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({ listingId, activities 
     },
   ];
 
+  // Use real data if available, otherwise fallback to mock for demo
+  const finalActivities = displayActivities.length > 0 ? displayActivities : mockActivities;
+
   const filteredActivities = filter === 'all'
-    ? displayActivities
-    : displayActivities.filter(act => act.type === filter);
+    ? finalActivities
+    : finalActivities.filter(act => act.type === filter);
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 animate-spin text-lime-600 mx-auto" />
+          <p className="mt-4 text-slate-700 font-medium">Loading activity...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="max-w-md text-center p-8 bg-white rounded-2xl border border-red-200">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <span className="text-3xl">⚠️</span>
+          </div>
+          <h3 className="text-lg font-bold text-slate-900 mb-2">Failed to Load Activity</h3>
+          <p className="text-slate-600 text-sm">
+            {error instanceof Error ? error.message : 'An error occurred while loading activity.'}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);
@@ -182,10 +286,10 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({ listingId, activities 
     const configs = {
       booking_created: {
         icon: Calendar,
-        color: 'brand',
-        bgColor: 'from-brand-100 to-emerald-100',
-        borderColor: 'border-brand-300',
-        iconBg: 'bg-brand-600',
+        color: 'lime',
+        bgColor: 'from-lime-100 to-emerald-100',
+        borderColor: 'border-lime-300',
+        iconBg: 'bg-lime-600',
       },
       booking_cancelled: {
         icon: XCircle,
@@ -259,10 +363,10 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({ listingId, activities 
       },
       date_unblocked: {
         icon: Unlock,
-        color: 'brand',
-        bgColor: 'from-brand-100 to-emerald-100',
-        borderColor: 'border-brand-300',
-        iconBg: 'bg-brand-600',
+        color: 'lime',
+        bgColor: 'from-lime-100 to-emerald-100',
+        borderColor: 'border-lime-300',
+        iconBg: 'bg-lime-600',
       },
       photo_added: {
         icon: ImageIcon,
@@ -277,12 +381,12 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({ listingId, activities 
   };
 
   const activityTypeCounts = {
-    all: displayActivities.length,
-    booking_created: displayActivities.filter(a => a.type === 'booking_created').length,
-    message_received: displayActivities.filter(a => a.type === 'message_received').length,
-    request_received: displayActivities.filter(a => a.type === 'request_received').length,
-    review_received: displayActivities.filter(a => a.type === 'review_received').length,
-    price_updated: displayActivities.filter(a => a.type === 'price_updated').length,
+    all: finalActivities.length,
+    booking_created: finalActivities.filter(a => a.type === 'booking_created').length,
+    message_received: finalActivities.filter(a => a.type === 'message_received').length,
+    request_received: finalActivities.filter(a => a.type === 'request_received').length,
+    review_received: finalActivities.filter(a => a.type === 'review_received').length,
+    price_updated: finalActivities.filter(a => a.type === 'price_updated').length,
   };
 
   return (
@@ -294,7 +398,7 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({ listingId, activities 
             onClick={() => setFilter('all')}
             className={`px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
               filter === 'all'
-                ? 'bg-brand-600 text-white shadow-sm'
+                ? 'bg-lime-600 text-white shadow-sm'
                 : 'text-slate-600 hover:bg-slate-50'
             }`}
           >
@@ -309,13 +413,13 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({ listingId, activities 
             onClick={() => setFilter('booking_created')}
             className={`px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
               filter === 'booking_created'
-                ? 'bg-brand-600 text-white shadow-sm'
+                ? 'bg-lime-600 text-white shadow-sm'
                 : 'text-slate-600 hover:bg-slate-50'
             }`}
           >
             Bookings
             <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
-              filter === 'booking_created' ? 'bg-white/20' : 'bg-brand-100 text-brand-700'
+              filter === 'booking_created' ? 'bg-white/20' : 'bg-lime-100 text-lime-700'
             }`}>
               {activityTypeCounts.booking_created}
             </span>
@@ -441,7 +545,7 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({ listingId, activities 
                                 {activity.metadata.currency} {activity.metadata.old_value}
                               </span>
                               <span className="text-xs text-slate-400">→</span>
-                              <span className="text-xs font-medium text-brand-700">
+                              <span className="text-xs font-medium text-lime-700">
                                 {activity.metadata.currency} {activity.metadata.new_value}
                               </span>
                             </div>

@@ -299,34 +299,34 @@ class MediaProcessor:
             # Clean the contact number (remove whatsapp: prefix and any formatting)
             clean_number = contact_number.replace('whatsapp:', '').replace('+', '').strip()
             
-            # Search in structured_data.contact_info with multiple formats
+            # Search in dynamic_fields.contact_info with multiple formats
             listing = None
             
             # Try exact match first
             listing = Listing.objects.filter(
                 is_active=True,
-                structured_data__contact_info__whatsapp__icontains=clean_number
+                dynamic_fields__contact_info__whatsapp__icontains=clean_number
             ).first()
             
             if not listing:
                 # Try with + prefix
                 listing = Listing.objects.filter(
                     is_active=True,
-                    structured_data__contact_info__whatsapp__icontains=f"+{clean_number}"
+                    dynamic_fields__contact_info__whatsapp__icontains=f"+{clean_number}"
                 ).first()
             
             if not listing:
                 # Try phone field
                 listing = Listing.objects.filter(
                     is_active=True,
-                    structured_data__contact_info__phone__icontains=clean_number
+                    dynamic_fields__contact_info__phone__icontains=clean_number
                 ).first()
             
             if not listing:
                 # Try contact_number field
                 listing = Listing.objects.filter(
                     is_active=True,
-                    structured_data__contact_info__contact_number__icontains=clean_number
+                    dynamic_fields__contact_info__contact_number__icontains=clean_number
                 ).first()
             
             if listing:
@@ -341,24 +341,25 @@ class MediaProcessor:
             return None
     
     def _update_listing_media(self, listing_id: int, media_url: str, media_id: str):
-        """Update listing with new media."""
+        """Update listing with new media using dynamic_fields."""
         from listings.models import Listing
+        from django.utils import timezone
         
         try:
             listing = Listing.objects.get(id=listing_id)
-            sd = listing.structured_data or {}
+            dynamic_fields = listing.dynamic_fields or {}
             
             # Initialize media arrays if they don't exist
-            if 'media' not in sd:
-                sd['media'] = []
-            if 'image_urls' not in sd:
-                sd['image_urls'] = []
-            if 'processed_media_ids' not in sd:
-                sd['processed_media_ids'] = []
+            if 'media' not in dynamic_fields:
+                dynamic_fields['media'] = []
+            if 'image_urls' not in dynamic_fields:
+                dynamic_fields['image_urls'] = []
+            if 'processed_media_ids' not in dynamic_fields:
+                dynamic_fields['processed_media_ids'] = []
             
             # Idempotency: skip if this media_id already recorded
             try:
-                if any((isinstance(m, dict) and m.get('twilio_media_id') == media_id) for m in sd.get('media', [])):
+                if any((isinstance(m, dict) and m.get('twilio_media_id') == media_id) for m in dynamic_fields.get('media', [])):
                     logger.info(f"Skipping duplicate media {media_id} for listing {listing_id}")
                     return
             except Exception:
@@ -366,7 +367,7 @@ class MediaProcessor:
 
             # Additional idempotency check via processed_media_ids
             try: 
-                if media_id in sd.get('processed_media_ids', []):
+                if media_id in dynamic_fields.get('processed_media_ids', []):
                     logger.info(f"Media {media_id} already processed for listing {listing_id}")
                     return  # Comment this out or remove to not skip
             except Exception:
@@ -380,29 +381,22 @@ class MediaProcessor:
                 "type": "photo"
             }
             
-            sd['media'].append(media_entry)
-            sd['image_urls'].append(media_url)
+            dynamic_fields['media'].append(media_entry)
+            dynamic_fields['image_urls'].append(media_url)
             try:
-                sd['processed_media_ids'].append(media_id)
+                dynamic_fields['processed_media_ids'].append(media_id)
             except Exception:
                 pass
             
             # Mark as verified with photos
-            sd['verified_with_photos'] = True
-            sd['last_photo_update'] = timezone.now().isoformat()
+            dynamic_fields['verified_with_photos'] = True
+            dynamic_fields['last_photo_update'] = timezone.now().isoformat()
             
-            listing.structured_data = sd
-            # Also update the model's image_urls field to sync with structured_data
-            listing.image_urls = sd.get('image_urls', [])
-            listing.save(update_fields=['structured_data', 'image_urls'])
+            listing.dynamic_fields = dynamic_fields
+            listing.save(update_fields=['dynamic_fields'])
             
-            # NEW: On receipt
-            listing.photos_requested = False  # Reset if fulfilled
-            listing.verified_with_photos = True
-            listing.save(update_fields=['photos_requested', 'structured_data'])
-
-            logger.info(f"Updated listing {listing_id}: images={len(sd['image_urls'])}, verified={sd['verified_with_photos']}")
-            logger.info(f"Photos received for {listing_id}: {len(sd['image_urls'])} images, notifying...")
+            logger.info(f"Updated listing {listing_id}: images={len(dynamic_fields['image_urls'])}, verified={dynamic_fields['verified_with_photos']}")
+            logger.info(f"Photos received for {listing_id}: {len(dynamic_fields['image_urls'])} images, notifying...")
             
         except Exception as e:
             logger.exception(f"Failed to update listing {listing_id} with media")

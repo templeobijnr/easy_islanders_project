@@ -101,6 +101,19 @@ export interface ExploreFilters {
   priceMax?: number;
   location?: string;
   sortBy: 'created_at' | '-created_at' | 'price' | '-price' | 'views';
+
+  // Optional category-specific filters (not yet wired to backend)
+  bedrooms?: string;
+  bathrooms?: string;
+  propertyType?: string[];
+  amenities?: string[];
+
+  vehicleTypes?: string[];
+  vehicleTransmission?: string[];
+  vehicleFuelTypes?: string[];
+
+  serviceTypes?: string[];
+  serviceAvailability?: string;
 }
 
 export interface LaneConfig {

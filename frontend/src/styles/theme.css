@@ -1,0 +1,182 @@
+/**
+ * Easy Islanders Design System utilities
+ * Relies on CSS custom properties declared in styles/tokens/*.
+ */
+
+/* ============================================
+   TYPOGRAPHY UTILITIES
+   ============================================ */
+
+.display-hero {
+  font-family: var(--font-display);
+  font-size: var(--text-7xl);
+  font-weight: var(--font-bold);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tighter);
+}
+
+.display-large {
+  font-family: var(--font-display);
+  font-size: var(--text-6xl);
+  font-weight: var(--font-bold);
+  line-height: var(--leading-snug);
+  letter-spacing: var(--tracking-tight);
+}
+
+.heading-1 {
+  font-family: var(--font-heading);
+  font-size: var(--text-5xl);
+  font-weight: var(--font-bold);
+  line-height: var(--leading-snug);
+  letter-spacing: var(--tracking-tight);
+}
+
+.heading-2 {
+  font-family: var(--font-heading);
+  font-size: var(--text-4xl);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-normal);
+}
+
+.heading-3 {
+  font-family: var(--font-heading);
+  font-size: var(--text-2xl);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-normal);
+}
+
+.body-xl {
+  font-family: var(--font-body);
+  font-size: var(--text-xl);
+  font-weight: var(--font-normal);
+  line-height: var(--leading-loose);
+}
+
+.body-large {
+  font-family: var(--font-body);
+  font-size: var(--text-lg);
+  font-weight: var(--font-normal);
+  line-height: var(--leading-loose);
+}
+
+.body {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  font-weight: var(--font-normal);
+  line-height: var(--leading-relaxed);
+}
+
+.body-small {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: var(--font-normal);
+  line-height: var(--leading-relaxed);
+}
+
+.caption {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  line-height: var(--leading-normal);
+  letter-spacing: var(--tracking-wider);
+}
+
+/* ============================================
+   COMPONENT UTILITIES
+   ============================================ */
+
+.glass-card {
+  background: hsla(var(--sand-50), 0.8);
+  backdrop-filter: blur(20px);
+  border: 1px solid hsla(var(--sand-200), 0.3);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  transition: all var(--transition-base);
+}
+
+.glass-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.pill-button {
+  border-radius: var(--radius-lg);
+  padding: 0.75rem 1.5rem;
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
+  font-family: var(--font-body);
+  transition: all var(--transition-base);
+  cursor: pointer;
+  border: none;
+  outline: none;
+}
+
+.pill-button:hover {
+  transform: scale(1.02);
+}
+
+.pill-button:active {
+  transform: scale(0.98);
+}
+
+.hero-gradient {
+  background: linear-gradient(135deg,
+    hsl(var(--sunset-100)) 0%,
+    hsl(var(--sunset-200)) 25%,
+    hsl(var(--sunset-50)) 50%,
+    hsl(var(--gold-100)) 75%,
+    hsl(var(--sunset-100)) 100%
+  );
+  background-size: 400% 400%;
+  animation: gradientFlow 8s ease-in-out infinite alternate;
+}
+
+.hover-scale-102:hover {
+  transform: scale(1.02);
+  transition: transform var(--transition-base);
+}
+
+.hover-lift:hover {
+  transform: translateY(-8px);
+  transition: all var(--transition-base);
+}
+
+/* ============================================
+   RESPONSIVE TYPOGRAPHY
+   ============================================ */
+
+@media (max-width: 768px) {
+  .display-hero {
+    font-size: var(--text-5xl);
+  }
+
+  .display-large {
+    font-size: var(--text-4xl);
+  }
+
+  .heading-1 {
+    font-size: var(--text-4xl);
+  }
+
+  .heading-2 {
+    font-size: var(--text-3xl);
+  }
+}
+
+@media (max-width: 640px) {
+  .display-hero {
+    font-size: var(--text-4xl);
+  }
+
+  .display-large {
+    font-size: var(--text-3xl);
+  }
+
+  .heading-1 {
+    font-size: var(--text-3xl);
+  }
+
+  .heading-2 {
+    font-size: var(--text-2xl);
+  }
+}

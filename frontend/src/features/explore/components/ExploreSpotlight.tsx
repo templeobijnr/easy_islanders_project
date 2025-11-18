@@ -36,9 +36,9 @@ const ExploreSpotlight: React.FC<ExploreSpotlightProps> = ({
   }
 
   return (
-    <div className="relative w-full backdrop-blur-sm bg-white/50 rounded-3xl border border-white/60 shadow-2xl p-6">
+    <div className="relative w-full backdrop-blur-sm bg-card/50 rounded-3xl border border-border shadow-2xl p-6">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+        <h2 className="text-2xl font-bold text-foreground flex items-center gap-2">
           <span className="text-3xl">⭐</span>
           Featured Listings
         </h2>
@@ -47,7 +47,7 @@ const ExploreSpotlight: React.FC<ExploreSpotlightProps> = ({
         <div className="hidden md:flex gap-2">
           <button
             onClick={scrollLeft}
-            className="p-2 rounded-xl backdrop-blur-sm bg-white/70 text-slate-700 hover:bg-white hover:text-lime-600 transition-all shadow-lg border border-white/60"
+            className="p-2 rounded-xl backdrop-blur-sm bg-white/70 text-slate-700 hover:bg-white hover:text-brand-600 transition-all shadow-lg border border-white/60"
             aria-label="Scroll left"
           >
             <svg
@@ -62,7 +62,7 @@ const ExploreSpotlight: React.FC<ExploreSpotlightProps> = ({
           </button>
           <button
             onClick={scrollRight}
-            className="p-2 rounded-xl backdrop-blur-sm bg-white/70 text-slate-700 hover:bg-white hover:text-lime-600 transition-all shadow-lg border border-white/60"
+            className="p-2 rounded-xl backdrop-blur-sm bg-white/70 text-slate-700 hover:bg-white hover:text-brand-600 transition-all shadow-lg border border-white/60"
             aria-label="Scroll right"
           >
             <svg
@@ -92,7 +92,7 @@ const ExploreSpotlight: React.FC<ExploreSpotlightProps> = ({
           return (
             <div
               key={listing.id}
-              className="flex-shrink-0 w-full md:w-[500px] lg:w-[600px] backdrop-blur-sm bg-gradient-to-r from-lime-200/40 via-emerald-200/40 to-sky-200/40 rounded-2xl border border-white overflow-hidden shadow-xl hover:shadow-2xl transition-all duration-300 cursor-pointer hover:scale-[1.02]"
+              className="flex-shrink-0 w-full md:w-[500px] lg:w-[600px] backdrop-blur-sm bg-gradient-to-r from-brand-50/80 via-cyan-50/80 to-white rounded-2xl border border-white overflow-hidden shadow-xl hover:shadow-2xl transition-all duration-300 cursor-pointer hover:scale-[1.02]"
               onClick={() => onListingClick && onListingClick(listing)}
             >
               <div className="flex flex-col md:flex-row">
@@ -175,7 +175,7 @@ const ExploreSpotlight: React.FC<ExploreSpotlightProps> = ({
                   {/* Price & CTA */}
                   <div className="mt-4 flex items-center justify-between">
                     <div>
-                      <div className="text-3xl font-bold text-lime-600">
+                      <div className="text-3xl font-bold bg-gradient-to-r from-brand-500 to-cyan-500 bg-clip-text text-transparent">
                         {formatPrice(listing.price, listing.currency)}
                       </div>
                       {listing.transaction_type === 'rent_short' && (
@@ -186,8 +186,8 @@ const ExploreSpotlight: React.FC<ExploreSpotlightProps> = ({
                       )}
                     </div>
 
-                    <button className="px-6 py-3 rounded-xl bg-lime-600 text-white font-bold hover:bg-lime-700 transition-all shadow-lg hover:shadow-xl">
-                      View →
+                    <button className="px-4 py-2.5 rounded-lg bg-gradient-to-r from-brand-500 to-cyan-500 text-white text-sm font-semibold hover:from-brand-600 hover:to-cyan-500 transition-all shadow-md hover:shadow-lg">
+                      Ask your agent
                     </button>
                   </div>
                 </div>

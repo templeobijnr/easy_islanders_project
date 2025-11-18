@@ -15,7 +15,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   if (isDashboard) {
     // Dashboard gets full width, no container constraints
     return (
-      <div className="min-h-screen bg-gradient-to-b from-emerald-50 to-slate-50 text-slate-900">
+      <div className="min-h-screen bg-white text-gray-900">
         <Header />
         {children}
       </div>
@@ -23,7 +23,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-emerald-50 to-slate-50 text-slate-900">
+    <div className="min-h-screen bg-white text-gray-900">
       <Header />
       <div className={`mx-auto max-w-7xl px-4 py-4 ${showLeftRail ? 'grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)] gap-4' : ''}`}>
         {/* Left Rail - only on ChatPage */}

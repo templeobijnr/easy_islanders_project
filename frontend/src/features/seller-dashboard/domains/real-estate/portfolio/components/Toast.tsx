@@ -6,7 +6,7 @@
 
 import React, { useEffect } from 'react';
 import { X, CheckCircle, XCircle, Info, AlertTriangle } from 'lucide-react';
-import { Toast as ToastType, ToastType as ToastTypeEnum } from './use-toast';
+import type { Toast as ToastType } from './use-toast';
 
 interface ToastProps {
   toast: ToastType;

@@ -3,12 +3,15 @@ DRF views for Real Estate Search API (v1 schema).
 
 Uses vw_listings_search database view for optimal performance.
 """
+import logging
 from django.db import connection
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 from .search_serializers import ListingSearchQuerySerializer, ListingSearchResultSerializer
+
+logger = logging.getLogger(__name__)
 
 
 class ListingSearchView(APIView):
@@ -97,15 +100,15 @@ class ListingSearchView(APIView):
             sql += " AND furnished_status = %(furnished_status)s"
             sql_params["furnished_status"] = furnished_status
 
-        # Feature flag filters
+        # Feature flag filters (only apply if explicitly set to True)
         feature_flags = [
             "has_wifi", "has_kitchen", "has_private_pool", "has_shared_pool",
             "has_parking", "has_air_conditioning", "view_sea", "view_mountain"
         ]
         for flag in feature_flags:
-            if flag in params:
-                sql += f" AND {flag} = %({flag})s"
-                sql_params[flag] = params[flag]
+            flag_value = params.get(flag)
+            if flag_value is True:  # Only filter if explicitly True
+                sql += f" AND {flag} = TRUE"
 
         # Availability filters
         if af := params.get("available_from"):
@@ -145,7 +148,7 @@ class ListingSearchView(APIView):
             rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
 
         # Serialize and return
-        data = ListingSearchResultSerializer(rows, many=True).data
+        data = ListingSearchResultSerializer(rows, many=True, context={"request": request}).data
         return Response({
             "count": len(data),
             "results": data,

@@ -40,6 +40,7 @@ export const RealEstatePropertyUpload: React.FC<Props> = ({ open, onOpenChange, 
   const [images, setImages] = useState<File[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
+  const [geoLoading, setGeoLoading] = useState(false);
 
   // Basic
   const [title, setTitle] = useState('');
@@ -53,6 +54,10 @@ export const RealEstatePropertyUpload: React.FC<Props> = ({ open, onOpenChange, 
   const [district, setDistrict] = useState('');
   const [lat, setLat] = useState<string>('');
   const [lng, setLng] = useState<string>('');
+  const [locationQuery, setLocationQuery] = useState('');
+  const [locationSuggestions, setLocationSuggestions] = useState<
+    { label: string; city?: string; district?: string; latitude?: number; longitude?: number }[]
+  >([]);
 
   // Rent/pricing
   const [rentType, setRentType] = useState<'short_term' | 'long_term' | 'both'>('long_term');
@@ -116,6 +121,8 @@ export const RealEstatePropertyUpload: React.FC<Props> = ({ open, onOpenChange, 
     setDistrict('');
     setLat('');
     setLng('');
+    setLocationQuery('');
+    setLocationSuggestions([]);
     setRentType('long_term');
     setCurrency('EUR');
     setNightlyPrice('');
@@ -142,6 +149,122 @@ export const RealEstatePropertyUpload: React.FC<Props> = ({ open, onOpenChange, 
     const subs = realEstateCategory?.subcategories || [];
     const match = subs.find(s => s.slug === propertyType || s.slug.replace('-', '_') === propertyType);
     return match?.id;
+  };
+
+  // Debounced location autocomplete
+  useEffect(() => {
+    const q = locationQuery.trim();
+    if (!q || q.length < 2) {
+      setLocationSuggestions([]);
+      return;
+    }
+
+    const handle = setTimeout(async () => {
+      try {
+        const resp = await axios.get(
+          `${config.API_BASE_URL}/api/v1/real_estate/geo/autocomplete/`,
+          { params: { q, limit: 5 } }
+        );
+        const results = resp.data?.results || [];
+        setLocationSuggestions(results);
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error('Failed to fetch location suggestions:', e);
+        setLocationSuggestions([]);
+      }
+    }, 300);
+
+    return () => clearTimeout(handle);
+  }, [locationQuery]);
+
+  const handleUseMyLocation = async () => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      setError('Geolocation is not supported by this browser.');
+      return;
+    }
+
+    // Check if permissions API is available
+    if ('permissions' in navigator) {
+      try {
+        const result = await navigator.permissions.query({ name: 'geolocation' });
+        if (result.state === 'denied') {
+          setError('Location access is denied. Please enable location permissions in your browser settings.');
+          return;
+        }
+      } catch (permissionError) {
+        console.warn('Permissions API check failed:', permissionError);
+      }
+    }
+
+    setGeoLoading(true);
+    setError(null);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        const latFixed = latitude.toFixed(6);
+        const lngFixed = longitude.toFixed(6);
+        setLat(latFixed);
+        setLng(lngFixed);
+
+        // Show success feedback
+        console.log('✅ Location obtained successfully:', {
+          latitude,
+          longitude,
+          accuracy: position.coords.accuracy
+        });
+
+        try {
+          const resp = await axios.get(
+            `${config.API_BASE_URL}/api/v1/real_estate/geo/reverse/`,
+            {
+              params: {
+                lat: latitude,
+                lng: longitude,
+              },
+            }
+          );
+          const data = resp.data || {};
+          if (typeof data.city === 'string' && data.city) {
+            setCity(data.city);
+          }
+          if (typeof data.district === 'string' && data.district) {
+            setDistrict(data.district);
+          }
+        } catch (e) {
+          console.error('Failed to reverse geocode current location:', e);
+          // Don't set error here since we have coordinates, just log it
+        } finally {
+          setGeoLoading(false);
+        }
+      },
+      (err) => {
+        console.error('Geolocation error:', err);
+        let errorMessage = 'Could not get your current location.';
+        
+        switch (err.code) {
+          case err.PERMISSION_DENIED:
+            errorMessage = 'Location access was denied. Please allow location access and try again.';
+            break;
+          case err.POSITION_UNAVAILABLE:
+            errorMessage = 'Location information is unavailable. Please check your device settings.';
+            break;
+          case err.TIMEOUT:
+            errorMessage = 'Location request timed out. Please try again.';
+            break;
+          default:
+            errorMessage = 'An unknown error occurred while getting your location.';
+        }
+        
+        setError(errorMessage);
+        setGeoLoading(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000, // Increased timeout for better reliability
+        maximumAge: 300000,
+      }
+    );
   };
 
   const onSubmit = async () => {
@@ -284,23 +407,93 @@ export const RealEstatePropertyUpload: React.FC<Props> = ({ open, onOpenChange, 
           </div>
 
           {/* Location */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>City</Label>
-              <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Kyrenia" />
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">
+                Enter city/district manually or use your current location.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleUseMyLocation}
+                disabled={geoLoading}
+              >
+                {geoLoading ? 'Locating…' : 'Use my location'}
+              </Button>
             </div>
-            <div className="space-y-2">
-              <Label>District</Label>
-              <Input value={district} onChange={(e) => setDistrict(e.target.value)} placeholder="Alsancak" />
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>City</Label>
+                <Input
+                  value={city}
+                  onChange={(e) => {
+                    setCity(e.target.value);
+                    setLocationQuery(e.target.value);
+                  }}
+                  placeholder="Kyrenia or street name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>District</Label>
+                <Input
+                  value={district}
+                  onChange={(e) => setDistrict(e.target.value)}
+                  placeholder="Alsancak"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Latitude</Label>
+                <Input
+                  value={lat}
+                  onChange={(e) => setLat(e.target.value)}
+                  placeholder="35.3368"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Longitude</Label>
+                <Input
+                  value={lng}
+                  onChange={(e) => setLng(e.target.value)}
+                  placeholder="33.3173"
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>Latitude</Label>
-              <Input value={lat} onChange={(e) => setLat(e.target.value)} placeholder="35.3368" />
-            </div>
-            <div className="space-y-2">
-              <Label>Longitude</Label>
-              <Input value={lng} onChange={(e) => setLng(e.target.value)} placeholder="33.3173" />
-            </div>
+
+            {locationSuggestions.length > 0 && (
+              <div className="mt-1 space-y-1">
+                <p className="text-xs text-muted-foreground">
+                  Suggestions based on existing locations:
+                </p>
+                <div className="border rounded-md bg-background max-h-40 overflow-y-auto">
+                  {locationSuggestions.map((s, index) => (
+                    <button
+                      key={`${s.label}-${index}`}
+                      type="button"
+                      className="w-full text-left px-3 py-2 text-xs hover:bg-muted focus:outline-none"
+                      onClick={() => {
+                        if (s.city) setCity(s.city);
+                        if (s.district) setDistrict(s.district);
+                        if (typeof s.latitude === 'number' && typeof s.longitude === 'number') {
+                          setLat(s.latitude.toFixed(6));
+                          setLng(s.longitude.toFixed(6));
+                        }
+                        setLocationQuery('');
+                        setLocationSuggestions([]);
+                      }}
+                    >
+                      <div className="font-medium truncate">{s.label}</div>
+                      {(s.city || s.district) && (
+                        <div className="text-muted-foreground truncate">
+                          {[s.district, s.city].filter(Boolean).join(', ')}
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Rent & Pricing */}

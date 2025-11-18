@@ -34,9 +34,9 @@ urlpatterns = [
     path('api/', include('users.urls')),
     path('api/', include('assistant.urls')),
     path('api/', include('router_service.urls')),
-    path('api/', include('listings.urls')),  # Bookings, listings & sellers API
-    path('api/seller/', include('seller_portal.urls')),  # Seller Portal - Multi-domain orchestration
-    path('api/p2p/', include('seller_portal.p2p_urls')),  # P2P Consumer API - for regular users
+    path('api/', include(('listings.urls', 'listings'), namespace='listings')),  # Bookings, listings & sellers API
+    path('api/seller/', include(('seller_portal.urls', 'seller_portal'), namespace='seller_portal')),  # Seller Portal - Multi-domain orchestration
+    path('api/p2p/', include(('seller_portal.p2p_urls', 'seller_portal_p2p'), namespace='seller_portal_p2p')),  # P2P Consumer API - for regular users
     path('api/', include('real_estate.urls')),  # Real Estate search & dashboard APIs
 
     # JWT Authentication (Cookie-enabled - PR D: Auth Hardening)

@@ -31,7 +31,7 @@ interface ChatState {
   messages: Message[];
   input: string;
   setInput: (value: string) => void;
-  send: () => void;
+  send: (text?: string) => void;
   canSend: boolean;
   isLoading: boolean;
   typing: boolean;
@@ -221,10 +221,12 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }]);
   }, [markPendingResolved]);
 
-  async function send() {
-    const text = input.trim();
+  async function send(messageText?: string) {
+    const text = (messageText ?? input).trim();
     if (!text) return;
-    setInput('');
+    if (messageText === undefined) {
+      setInput('');
+    }
 
     const clientMsgId = crypto.randomUUID();
     const timestamp = Date.now();

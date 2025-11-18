@@ -20,7 +20,16 @@
       "Bash(chmod:*)",
       "Bash(export PGPASSWORD=easy_pass:*)",
       "Bash(npm install:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(npm test:*)",
+      "Bash(npm start)",
+      "Bash(npx tsc:*)",
+      "Bash(pkill -f \"docker compose ps\")",
+      "Bash(pkill:*)",
+      "Bash(pkill -f \"docker ps\")",
+      "Bash(timeout 10 docker ps)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill -9)"
     ],
     "deny": [],
     "ask": []

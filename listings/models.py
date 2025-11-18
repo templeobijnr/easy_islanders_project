@@ -71,6 +71,10 @@ class SubCategory(models.Model):
     def __str__(self):
         return f"{self.category.name} → {self.name}"
 
+# Backward-compatibility alias for tests and legacy imports
+# Ensures `from listings.models import Subcategory` works without creating a new Django model
+Subcategory = SubCategory
+
 
 # --------------------------------------------------------------------
 # SELLER PROFILE

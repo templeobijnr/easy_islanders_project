@@ -1,15 +1,1 @@
-# Utils package
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# Assistant utilities module

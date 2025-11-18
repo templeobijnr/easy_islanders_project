@@ -373,6 +373,66 @@ CELERY_TASK_ROUTES = {
     "assistant.tasks.update_calibration_params": {"queue": "background"},
     "assistant.tasks.dispatch_broadcast": {"queue": "background"},
 }
+
+# Dead Letter Queue configuration for failed task handling
+CELERY_TASK_ANNOTATIONS = {
+    '*': {
+        'rate_limit': '100/m',  # Global rate limit to prevent overload
+        'max_retries': 3,
+        'retry_backoff': True,
+        'retry_jitter': True,
+    }
+}
+
+# Queue configuration with DLQ routing
+CELERY_QUEUES = {
+    'default': {
+        'exchange': 'default',
+        'exchange_type': 'direct',
+        'routing_key': 'default',
+        'queue_arguments': {
+            'x-dead-letter-exchange': 'dlq',
+            'x-dead-letter-routing-key': 'dlq',
+            'x-message-ttl': 300000,  # 5 minutes TTL before DLQ
+        }
+    },
+    'chat': {
+        'exchange': 'chat',
+        'exchange_type': 'direct',
+        'routing_key': 'chat',
+        'queue_arguments': {
+            'x-dead-letter-exchange': 'dlq',
+            'x-dead-letter-routing-key': 'dlq.chat',
+            'x-message-ttl': 120000,  # 2 minutes TTL for chat messages
+        }
+    },
+    'background': {
+        'exchange': 'background',
+        'exchange_type': 'direct',
+        'routing_key': 'background',
+        'queue_arguments': {
+            'x-dead-letter-exchange': 'dlq',
+            'x-dead-letter-routing-key': 'dlq.background',
+            'x-message-ttl': 600000,  # 10 minutes TTL for background tasks
+        }
+    },
+    'notifications': {
+        'exchange': 'notifications',
+        'exchange_type': 'direct',
+        'routing_key': 'notifications',
+        'queue_arguments': {
+            'x-dead-letter-exchange': 'dlq',
+            'x-dead-letter-routing-key': 'dlq.notifications',
+            'x-message-ttl': 180000,  # 3 minutes TTL for notifications
+        }
+    },
+    'dlq': {
+        'exchange': 'dlq',
+        'exchange_type': 'direct',
+        'routing_key': 'dlq',
+        'queue_arguments': {}  # DLQ doesn't need its own DLQ
+    }
+}
 # Fair scheduling; avoid big tasks starving small ones
 CELERYD_PREFETCH_MULTIPLIER = 1
 CELERY_WORKER_ENABLE_REMOTE_CONTROL = True

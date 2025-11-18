@@ -50,7 +50,7 @@ const RealEstateListing: React.FC<RealEstateListingProps> = ({
 
             {/* Featured Badge */}
             {listing.is_featured && (
-              <div className="absolute top-4 right-4 px-3 py-1 bg-gradient-to-r from-lime-500 to-emerald-500 text-white text-xs font-semibold rounded-full shadow-lg">
+              <div className="absolute top-4 right-4 px-3 py-1 bg-primary-500 text-primary-foreground text-xs font-semibold rounded-full shadow-lg">
                 Featured
               </div>
             )}
@@ -98,7 +98,7 @@ const RealEstateListing: React.FC<RealEstateListingProps> = ({
             {nightlyPrice && (rentType === 'short_term' || rentType === 'both') && (
               <div className="flex items-center justify-between">
                 <span className="text-sm text-neutral-600">Per night:</span>
-                <span className="text-lg font-bold bg-gradient-to-r from-lime-600 to-emerald-600 bg-clip-text text-transparent">
+                <span className="text-lg font-bold bg-gradient-to-r from-primary-500 to-primary-600 bg-clip-text text-transparent">
                   {listing.currency} {nightlyPrice}
                 </span>
               </div>
@@ -106,7 +106,7 @@ const RealEstateListing: React.FC<RealEstateListingProps> = ({
             {monthlyPrice && (rentType === 'long_term' || rentType === 'both') && (
               <div className="flex items-center justify-between">
                 <span className="text-sm text-neutral-600">Per month:</span>
-                <span className="text-lg font-bold bg-gradient-to-r from-sky-600 to-lime-600 bg-clip-text text-transparent">
+                <span className="text-lg font-bold bg-gradient-to-r from-primary-500 to-primary-600 bg-clip-text text-transparent">
                   {listing.currency} {monthlyPrice}
                 </span>
               </div>
@@ -117,7 +117,7 @@ const RealEstateListing: React.FC<RealEstateListingProps> = ({
           {onBook && (
             <motion.button
               onClick={() => onBook(listing.id)}
-              className="mt-6 w-full rounded-xl px-4 py-3 text-sm font-semibold text-white bg-gradient-to-r from-lime-500 to-emerald-500 shadow-lg hover:shadow-xl transition-shadow"
+              className="mt-6 w-full rounded-xl px-4 py-3 text-sm font-semibold text-primary-foreground bg-primary-500 hover:bg-primary-600 shadow-lg hover:shadow-xl transition-shadow"
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
@@ -148,7 +148,7 @@ const RealEstateListing: React.FC<RealEstateListingProps> = ({
             transition={{ duration: 0.4 }}
           />
           {listing.is_featured && (
-            <div className="absolute top-6 right-6 px-4 py-2 bg-gradient-to-r from-lime-500 to-emerald-500 text-white text-sm font-semibold rounded-full shadow-2xl">
+            <div className="absolute top-6 right-6 px-4 py-2 bg-primary-500 text-primary-foreground text-sm font-semibold rounded-full shadow-2xl">
               Featured Property
             </div>
           )}
@@ -170,8 +170,8 @@ const RealEstateListing: React.FC<RealEstateListingProps> = ({
         <div className="mt-8 grid grid-cols-2 gap-6 border-y border-neutral-200 py-8">
           {bedrooms > 0 && (
             <div className="flex items-center gap-3">
-              <div className="p-3 rounded-xl bg-lime-50">
-                <Bed className="h-6 w-6 text-lime-600" />
+              <div className="p-3 rounded-xl bg-primary-50">
+                <Bed className="h-6 w-6 text-primary-600" />
               </div>
               <div>
                 <p className="text-sm text-neutral-600">Bedrooms</p>
@@ -181,8 +181,8 @@ const RealEstateListing: React.FC<RealEstateListingProps> = ({
           )}
           {bathrooms > 0 && (
             <div className="flex items-center gap-3">
-              <div className="p-3 rounded-xl bg-sky-50">
-                <Bath className="h-6 w-6 text-sky-600" />
+              <div className="p-3 rounded-xl bg-ocean-50">
+                <Bath className="h-6 w-6 text-ocean-600" />
               </div>
               <div>
                 <p className="text-sm text-neutral-600">Bathrooms</p>
@@ -203,34 +203,34 @@ const RealEstateListing: React.FC<RealEstateListingProps> = ({
           <h3 className="text-xl font-bold font-display text-neutral-900">Pricing Options</h3>
           {nightlyPrice && (rentType === 'short_term' || rentType === 'both') && (
             <motion.div
-              className="flex items-center justify-between rounded-2xl bg-gradient-to-r from-lime-50 to-emerald-50 p-6 border border-lime-200"
+              className="flex items-center justify-between rounded-2xl bg-gradient-to-r from-primary-50 to-primary-100 p-6 border border-primary-200"
               whileHover={{ scale: 1.01 }}
               transition={{ duration: 0.2 }}
             >
               <div>
                 <p className="text-sm font-medium text-neutral-600">Short-term Rental</p>
-                <p className="mt-1 text-2xl font-bold bg-gradient-to-r from-lime-600 to-emerald-600 bg-clip-text text-transparent">
+                <p className="mt-1 text-2xl font-bold bg-gradient-to-r from-primary-500 to-primary-600 bg-clip-text text-transparent">
                   {listing.currency} {nightlyPrice}
                 </p>
                 <p className="text-sm text-neutral-500">per night</p>
               </div>
-              <Calendar className="h-8 w-8 text-lime-600" />
+              <Calendar className="h-8 w-8 text-primary-600" />
             </motion.div>
           )}
           {monthlyPrice && (rentType === 'long_term' || rentType === 'both') && (
             <motion.div
-              className="flex items-center justify-between rounded-2xl bg-gradient-to-r from-sky-50 to-emerald-50 p-6 border border-sky-200"
+              className="flex items-center justify-between rounded-2xl bg-gradient-to-r from-primary-50 to-primary-100 p-6 border border-primary-200"
               whileHover={{ scale: 1.01 }}
               transition={{ duration: 0.2 }}
             >
               <div>
                 <p className="text-sm font-medium text-neutral-600">Long-term Rental</p>
-                <p className="mt-1 text-2xl font-bold bg-gradient-to-r from-sky-600 to-emerald-600 bg-clip-text text-transparent">
+                <p className="mt-1 text-2xl font-bold bg-gradient-to-r from-primary-500 to-primary-600 bg-clip-text text-transparent">
                   {listing.currency} {monthlyPrice}
                 </p>
                 <p className="text-sm text-neutral-500">per month</p>
               </div>
-              <DollarSign className="h-8 w-8 text-sky-600" />
+              <DollarSign className="h-8 w-8 text-primary-600" />
             </motion.div>
           )}
         </div>
@@ -256,7 +256,7 @@ const RealEstateListing: React.FC<RealEstateListingProps> = ({
         {onBook && (
           <motion.button
             onClick={() => onBook(listing.id)}
-            className="mt-10 w-full rounded-xl px-8 py-4 text-lg font-bold text-white bg-gradient-to-r from-lime-500 to-emerald-500 shadow-xl hover:shadow-2xl transition-all"
+            className="mt-10 w-full rounded-xl px-8 py-4 text-lg font-bold text-primary-foreground bg-primary-500 hover:bg-primary-600 shadow-xl hover:shadow-2xl transition-all"
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
           >

@@ -1,11 +1,10 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../shared/context/AuthContext';
-import { getDomainConfig } from '../../features/seller-dashboard/domainRegistry';
 
 /**
  * Dashboard Index Page
- * Redirects to user's primary domain home or real estate as default
+ * Redirects to the main dashboard home page that shows all business domains
  */
 const DashboardIndexPage: React.FC = () => {
   const { user, isAuthenticated } = useAuth();
@@ -15,12 +14,8 @@ const DashboardIndexPage: React.FC = () => {
     return <Navigate to="/" replace />;
   }
 
-  // TODO: Get user's primary domain from backend
-  // For now, default to real estate
-  const primaryDomain = 'real_estate';
-  const domainConfig = getDomainConfig(primaryDomain);
-
-  return <Navigate to={domainConfig.homePath} replace />;
+  // Redirect to the main dashboard home page that shows all business domains
+  return <Navigate to="/dashboard/home" replace />;
 };
 
 export default DashboardIndexPage;

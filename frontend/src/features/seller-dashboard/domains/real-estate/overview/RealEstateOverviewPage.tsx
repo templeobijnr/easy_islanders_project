@@ -17,7 +17,7 @@ import {
   Gem,
 } from 'lucide-react';
 import { SectionNavigationCard } from './components/SectionNavigationCard';
-import { useRealEstateOverview } from '../hooks/useRealEstateDashboard';
+import { useRealEstateOverview, useRealEstateCalendar } from '../hooks/useRealEstateDashboard';
 import { Button } from '@/components/ui/button';
 import React from 'react';
 import { useState } from 'react';
@@ -59,53 +59,6 @@ export const RealEstateOverviewPage = () => {
       useHeroUI: true,
     },
     {
-      icon: MapPin,
-      title: 'Location Analytics',
-      description: 'Performance insights by area and location',
-      to: '/dashboard/home/real-estate/location',
-      useHeroUI: true,
-    },
-    {
-      icon: Gauge,
-      title: 'Occupancy',
-      description: 'Track occupancy rates and vacancy trends',
-      to: '/dashboard/home/real-estate/occupancy',
-      stats: overview ? [
-        { label: 'Current Rate', value: `${(overview.occupancy_rate * 100).toFixed(0)}%` },
-      ] : undefined,
-      useHeroUI: true,
-    },
-    {
-      icon: TrendingUp,
-      title: 'Earnings',
-      description: 'Revenue, expenses, and financial performance',
-      to: '/dashboard/home/real-estate/earnings',
-      stats: overview ? [
-        { label: 'Monthly Revenue', value: `£${parseFloat(overview.monthly_revenue).toLocaleString()}` },
-      ] : undefined,
-      useHeroUI: true,
-    },
-    {
-      icon: Trophy,
-      title: 'Sales Pipeline',
-      description: 'Track leads, viewings, and deals in progress',
-      to: '/dashboard/home/real-estate/sales-pipeline',
-      stats: overview ? [
-        { label: 'Active Deals', value: overview.active_deals },
-      ] : undefined,
-      useHeroUI: true,
-    },
-    {
-      icon: MessageSquare,
-      title: 'Requests & Inquiries',
-      description: 'Manage customer requests and communications',
-      to: '/dashboard/home/real-estate/requests',
-      stats: overview ? [
-        { label: 'New Requests', value: overview.new_requests },
-      ] : undefined,
-      useHeroUI: true,
-    },
-    {
       icon: Calendar,
       title: 'Calendar',
       description: 'View bookings, viewings, and scheduled events',
@@ -113,38 +66,13 @@ export const RealEstateOverviewPage = () => {
       useHeroUI: true,
     },
     {
-      icon: Wrench,
-      title: 'Maintenance',
-      description: 'Track maintenance tickets and work orders',
-      to: '/dashboard/home/real-estate/maintenance',
-      useHeroUI: true,
-    },
-    {
-      icon: Users,
-      title: 'Owners & Tenants',
-      description: 'Manage property owners and tenant relationships',
-      to: '/dashboard/home/real-estate/owners-and-tenants',
-      useHeroUI: true,
-    },
-    {
-      icon: Tag,
-      title: 'Pricing & Promotions',
-      description: 'Smart pricing suggestions and discount campaigns',
-      to: '/dashboard/home/real-estate/pricing-and-promotions',
-      useHeroUI: true,
-    },
-    {
-      icon: Share2,
-      title: 'Channels & Distribution',
-      description: 'Performance across listing platforms',
-      to: '/dashboard/home/real-estate/channels-and-distribution',
-      useHeroUI: true,
-    },
-    {
-      icon: Building2,
-      title: 'Projects',
-      description: 'Manage off-plan developments and new builds',
-      to: '/dashboard/home/real-estate/projects',
+      icon: MessageSquare,
+      title: 'Messages',
+      description: 'Open your inbox to review conversations',
+      to: '/dashboard/messages',
+      stats: overview ? [
+        { label: 'New', value: overview.new_requests },
+      ] : undefined,
       useHeroUI: true,
     },
   ];
@@ -174,6 +102,7 @@ export const RealEstateOverviewPage = () => {
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <OverviewPanel overview={overview} />
           {sections.map((section, index) => (
             <SectionNavigationCard key={index} {...section} />
           ))}
@@ -189,6 +118,71 @@ export const RealEstateOverviewPage = () => {
           }}
         />
       </div>
+    </div>
+  );
+};
+
+function formatDate(date: Date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+const OverviewPanel: React.FC<{ overview: any }> = ({ overview }) => {
+  const today = new Date();
+  const start = formatDate(today);
+  const end = formatDate(new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000));
+  const { data: calendar } = useRealEstateCalendar(start, end);
+
+  const upcoming = Array.isArray(calendar?.events)
+    ? calendar.events.slice(0, 5)
+    : Array.isArray(calendar)
+      ? calendar.slice(0, 5)
+      : [];
+
+  const newMessages = overview?.new_requests ?? 0;
+  const occupancyRate = overview?.occupancy_rate
+    ? `${Math.round(overview.occupancy_rate * 100)}%`
+    : '-';
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-lg p-6 md:col-span-2 lg:col-span-3">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-lg font-semibold text-slate-900">Today’s Overview</h2>
+        <div className="text-xs text-slate-500">Updates and upcoming activities</div>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+          <div className="text-xs text-slate-600">New Messages</div>
+          <div className="text-2xl font-bold text-lime-600 mt-1">{newMessages}</div>
+        </div>
+        <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+          <div className="text-xs text-slate-600">Occupancy</div>
+          <div className="text-2xl font-bold text-lime-600 mt-1">{occupancyRate}</div>
+        </div>
+        <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+          <div className="text-xs text-slate-600">Upcoming (7d)</div>
+          <div className="text-2xl font-bold text-lime-600 mt-1">{upcoming.length}</div>
+        </div>
+      </div>
+      {upcoming.length > 0 && (
+        <div className="mt-4">
+          <div className="text-xs text-slate-600 mb-2">Next up</div>
+          <div className="space-y-2">
+            {upcoming.map((evt: any, i: number) => (
+              <div key={i} className="flex items-center justify-between p-2 rounded-lg border border-slate-200">
+                <div className="text-sm text-slate-700 truncate">
+                  {evt.title || evt.type || 'Event'}
+                </div>
+                <div className="text-xs text-slate-500">
+                  {evt.date || evt.start || ''}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -34,5 +34,5 @@ export function useToast() {
 
 // Named exports for type-only imports in components
 export type { Toast as ToastTypeAlias };
-export { ToastType as ToastTypeEnum };
+export type { ToastType as ToastTypeEnum };
 

@@ -64,7 +64,7 @@ const Composer: React.FC = () => {
 
   return (
     <div className="px-4 pt-2 sticky bottom-0 bg-white/80 backdrop-blur rounded-b-2xl z-10">
-      <div className="flex items-center gap-2 p-2 border-2 border-slate-200 rounded-2xl focus-within:border-lime-400 bg-white">
+      <div className="flex items-center gap-2 p-2 border-2 border-sand-200 rounded-2xl focus-within:border-ocean-500 bg-white">
         <input
           ref={fileRef}
           type="file"
@@ -74,7 +74,7 @@ const Composer: React.FC = () => {
         />
         <button
           onClick={() => fileRef.current?.click()}
-          className="px-2 py-1 text-slate-500 rounded-lg hover:bg-slate-50"
+          className="px-2 py-1 text-sand-700 rounded-lg hover:bg-sand-100"
           title="Attach file"
           aria-label="Attach file"
         >
@@ -92,7 +92,7 @@ const Composer: React.FC = () => {
         <button
           onClick={handleSend}
           disabled={!canSend || isLoading || busy}
-          className="px-3 py-1.5 rounded-xl bg-lime-600 text-white text-sm hover:bg-lime-700 disabled:opacity-50 inline-flex items-center gap-1"
+          className="px-4 py-2 rounded-full bg-ocean-500 text-white text-sm disabled:opacity-50 inline-flex items-center gap-1 hover-scale-102"
           aria-label="Send"
         >
           <Send size={16} />

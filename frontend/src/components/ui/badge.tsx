@@ -8,19 +8,45 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
+        // Legacy default maps to primary style
         default:
-          "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
+          "border-transparent bg-primary-100 text-primary-700 hover:bg-primary-200",
+
+        // Semantic primary
+        primary:
+          "border-transparent bg-primary-100 text-primary-700 hover:bg-primary-200",
+
+        // Legacy secondary maps to neutral
         secondary:
-          "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
+          "border-transparent bg-neutral-100 text-neutral-700 hover:bg-neutral-200",
+
+        // Semantic neutral
+        neutral:
+          "border-transparent bg-neutral-100 text-neutral-700 hover:bg-neutral-200",
+
+        // Legacy destructive maps to error style
         destructive:
-          "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
-        outline: "text-foreground",
+          "border-transparent bg-destructive/10 text-destructive hover:bg-destructive/20",
+
+        // Semantic error
+        error:
+          "border-transparent bg-destructive/10 text-destructive hover:bg-destructive/20",
+
+        // Semantic success
         success:
-          "border-transparent bg-green-500 text-white hover:bg-green-600",
+          "border-transparent bg-success-100 text-success-700 hover:bg-success-200",
+
+        // Semantic warning
         warning:
-          "border-transparent bg-yellow-500 text-white hover:bg-yellow-600",
+          "border-transparent bg-warning-100 text-warning-700 hover:bg-warning-200",
+
+        // Premium gradient
         premium:
-          "border-transparent bg-gradient-to-r from-amber-500 to-amber-600 text-white hover:from-amber-600 hover:to-amber-700",
+          "border-transparent bg-gradient-to-r from-gold-100 to-gold-200 text-gold-800 hover:from-gold-200 hover:to-gold-300",
+
+        // Outline / subtle
+        outline:
+          "border-neutral-300 text-neutral-700 hover:bg-neutral-50",
       },
     },
     defaultVariants: {

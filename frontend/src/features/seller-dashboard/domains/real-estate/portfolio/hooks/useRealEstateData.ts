@@ -18,6 +18,8 @@ import {
   getCurrentTenancy,
   getListingDeals,
   uploadListingImages,
+  getListingImageUrls,
+  getRealEstateListingImages,
   getListingTypes,
   getPropertyTypes,
   getLocations,
@@ -71,7 +73,6 @@ export const useListingSummaries = (params?: {
     queryKey: ['listings', 'summaries', params],
     queryFn: () => getListingSummaries(params),
     staleTime: 2 * 60 * 1000, // 2 minutes
-    keepPreviousData: true, // Keep previous data while fetching new page
   });
 };
 
@@ -140,6 +141,46 @@ export const useUploadListingImages = () => {
   });
 };
 
+export const useListingImageUrls = (listingId: number | string | undefined) => {
+  return useQuery({
+    queryKey: ['listings', listingId, 'images'],
+    queryFn: () => getListingImageUrls(listingId!),
+    enabled: !!listingId,
+    staleTime: 300000,
+  });
+};
+
+export const useRealEstateListingImages = (listingId: number | string | undefined) => {
+  return useQuery({
+    queryKey: ['real-estate', 'listings', listingId, 'images'],
+    queryFn: () => getRealEstateListingImages(listingId!),
+    enabled: !!listingId,
+    staleTime: 300000,
+  });
+};
+
+export const useListingCardFirstImage = (listingId: number | string | undefined) => {
+  return useQuery({
+    queryKey: ['listing-card', 'first-image', listingId],
+    enabled: !!listingId,
+    staleTime: 300000,
+    queryFn: async () => {
+      const id = listingId!;
+      try {
+        const re = await getRealEstateListingImages(id);
+        const first = re?.images?.[0]?.url || re?.images?.[0]?.image;
+        if (first) return first as string;
+      } catch {}
+      try {
+        const li = await getListingImageUrls(id);
+        const first = li?.image_urls?.[0];
+        if (first) return first as string;
+      } catch {}
+      return null;
+    },
+  });
+};
+
 // ============================================================================
 // ANALYTICS HOOKS
 // ============================================================================
@@ -174,7 +215,6 @@ export const useListingEvents = (
     queryFn: () => getListingEvents(listingId!, params),
     enabled: !!listingId,
     staleTime: 1 * 60 * 1000, // 1 minute
-    keepPreviousData: true,
   });
 };
 
@@ -199,7 +239,6 @@ export const useListingMessages = (
     enabled: !!listingId,
     staleTime: 30 * 1000, // 30 seconds
     refetchInterval: 60 * 1000, // Refetch every minute for new messages
-    keepPreviousData: true,
   });
 };
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Routes, Route, useLocation } from 'react-router-dom';
+import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Building2, 
@@ -33,6 +33,13 @@ import MyListings from './MyListings';
 import Sales from './Sales';
 import SellerInbox from './SellerInbox';
 import { DashboardLayout } from '../../features/seller-dashboard/layout';
+import SellerDashboardLayout from '../../features/marketplace/layout/SellerDashboardLayout';
+import ProductUploadForm from '../../features/marketplace/components/ProductUploadForm';
+import SalesAnalytics from '../../features/marketplace/components/SalesAnalytics';
+import MarketplaceOverview from '../../features/marketplace/components/MarketplaceOverview';
+import ProductManagement from '../../features/marketplace/components/ProductManagement';
+import OrderManagement from '../../features/marketplace/components/OrderManagement';
+import { getDomainConfig } from '../../features/seller-dashboard/domainRegistry';
 
 /**
  * Multi-Domain Dashboard Page
@@ -104,6 +111,14 @@ const DOMAINS = [
     color: 'red',
     description: 'Dining, catering & food services',
     stats: { listings: 9, bookings: 234, revenue: 15600 }
+  },
+  {
+    id: 'marketplace',
+    name: 'Marketplace',
+    icon: Package,
+    color: 'emerald',
+    description: 'E-commerce marketplace for products',
+    stats: { listings: 156, bookings: 892, revenue: 45600 }
   }
 ];
 
@@ -115,6 +130,7 @@ const DOMAIN_ICONS = {
   retail: Package,
   services: Wrench,
   restaurants: UtensilsCrossed,
+  marketplace: Package,
 };
 
 const DOMAIN_COLORS = {
@@ -125,6 +141,7 @@ const DOMAIN_COLORS = {
   retail: 'yellow',
   services: 'indigo',
   restaurants: 'red',
+  marketplace: 'emerald',
 };
 
 const colorClasses = {
@@ -432,6 +449,26 @@ const Dashboard = () => {
     }
   };
 
+  const handleDomainNavigation = (domain) => {
+    try {
+      // Get the domain configuration from the registry
+      const domainConfig = getDomainConfig(domain.id);
+      
+      // Navigate to the domain's home path
+      if (domainConfig.homePath) {
+        window.location.href = domainConfig.homePath;
+      } else {
+        console.error(`No homePath configured for domain: ${domain.id}`);
+      }
+    } catch (error) {
+      console.error(`Failed to navigate to domain: ${domain.id}`, error);
+      // Fallback to marketplace for unknown domains
+      if (domain.id === 'marketplace') {
+        window.location.href = '/dashboard/marketplace';
+      }
+    }
+  };
+
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -477,6 +514,44 @@ const Dashboard = () => {
     );
   }
 
+  // Marketplace Routes Component
+  const MarketplaceRoutes = () => {
+    const navigate = useNavigate();
+    
+    const handleNavigateToUpload = () => {
+      navigate('/dashboard/marketplace/products/upload');
+    };
+    
+    const handleNavigateToAnalytics = () => {
+      navigate('/dashboard/marketplace/analytics');
+    };
+
+    const handleNavigateToProducts = () => {
+      navigate('/dashboard/marketplace/products');
+    };
+
+    return (
+      <SellerDashboardLayout>
+        <Routes>
+          <Route 
+            path="/" 
+            element={
+              <MarketplaceOverview 
+                onNavigateToUpload={handleNavigateToUpload}
+                onNavigateToAnalytics={handleNavigateToAnalytics}
+                onNavigateToProducts={handleNavigateToProducts}
+              />
+            } 
+          />
+          <Route path="/products" element={<ProductManagement />} />
+          <Route path="/products/upload" element={<ProductUploadForm />} />
+          <Route path="/orders" element={<OrderManagement />} />
+          <Route path="/analytics" element={<SalesAnalytics />} />
+        </Routes>
+      </SellerDashboardLayout>
+    );
+  };
+
   return (
     <DashboardLayout>
       <Routes>
@@ -484,6 +559,7 @@ const Dashboard = () => {
         <Route path="/my-listings" element={<MyListings />} />
         <Route path="/sales" element={<Sales />} />
         <Route path="/seller-inbox" element={<SellerInbox />} />
+        <Route path="/marketplace/*" element={<MarketplaceRoutes />} />
       </Routes>
     </DashboardLayout>
   );
@@ -674,6 +750,7 @@ const Dashboard = () => {
                           variant="outline" 
                           size="sm" 
                           className="w-full mt-4"
+                          onClick={() => handleDomainNavigation({ id: domain.domain, name: domain.domain_display_name })}
                         >
                           <Eye className="w-4 h-4 mr-2" />
                           View Details
@@ -754,6 +831,29 @@ const Dashboard = () => {
                       </Card>
                     );
                   })}
+                  {/* Add Marketplace Domain Option */}
+                  <Card 
+                    className="cursor-pointer hover:shadow-md transition-shadow duration-200 hover:border-lime-300"
+                    onClick={() => handleAddDomain('marketplace')}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
+                          <Package className="w-5 h-5 text-emerald-600" />
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-slate-900">Marketplace</h4>
+                          <p className="text-sm text-slate-600">E-commerce marketplace for products with categories and analytics</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex flex-wrap gap-1">
+                        <Badge variant="secondary" className="text-xs">Product Management</Badge>
+                        <Badge variant="secondary" className="text-xs">Sales Analytics</Badge>
+                        <Badge variant="secondary" className="text-xs">Categories</Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
                 
                 {addingDomain && (

@@ -11,6 +11,7 @@ import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Edit, Trash2, MoreVertical, Eye, Share2, BarChart3, Loader2 } from 'lucide-react';
 import { useListing } from './hooks/useRealEstateData';
+import type { Listing as UiListing } from '@/types/listing';
 
 // Tab components
 import { OverviewTab } from './ListingDetailPage/OverviewTab';
@@ -22,6 +23,11 @@ import { PricingTab } from './ListingDetailPage/PricingTab';
 import { AnalyticsTab } from './ListingDetailPage/AnalyticsTab';
 import { ActivityTab } from './ListingDetailPage/ActivityTab';
 import { EditListingModal } from './components/EditListingModal';
+
+// Modal components
+import { ShareModal } from './components/ShareModal';
+import { ReportModal } from './components/ReportModal';
+import { PreviewModal } from './components/PreviewModal';
 
 // Tab definitions
 type TabValue = 'overview' | 'messages' | 'requests' | 'bookings' | 'calendar' | 'pricing' | 'analytics' | 'activity';
@@ -48,6 +54,9 @@ export const ListingDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabValue>('overview');
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
 
   // Fetch listing data with React Query
   const {
@@ -61,7 +70,25 @@ export const ListingDetailPage: React.FC = () => {
   };
 
   const handleEditClick = () => {
+    // Navigate to full edit page
+    navigate(`/dashboard/home/real-estate/portfolio/listing/${id}/edit`);
+  };
+
+  const handleQuickEdit = () => {
+    // Quick edit modal for small changes
     setShowEditModal(true);
+  };
+
+  const handlePreview = () => {
+    setShowPreviewModal(true);
+  };
+
+  const handleShare = () => {
+    setShowShareModal(true);
+  };
+
+  const handleReport = () => {
+    setShowReportModal(true);
   };
 
   // Loading state
@@ -125,7 +152,9 @@ export const ListingDetailPage: React.FC = () => {
   // Extract property data
   const property = listing.property;
   const location = property?.location;
+  const locationString = location ? [location.city, location.area].filter(Boolean).join(', ') : '';
   const firstImage = listing.image_urls && listing.image_urls.length > 0 ? listing.image_urls[0] : null;
+  const basePriceNumber = Number(listing.base_price) || 0;
 
   // Get status badge info
   const getStatusBadge = () => {
@@ -167,6 +196,58 @@ export const ListingDetailPage: React.FC = () => {
 
   const statusBadge = getStatusBadge();
 
+  // Build a UI-friendly listing model for the Overview tab
+  const overviewListing: UiListing = {
+    id: String(listing.id),
+    title: listing.title,
+    description: listing.description,
+    category: null,
+    category_name: undefined,
+    category_slug: undefined,
+    subcategory: null,
+    subcategory_name: null,
+    subcategory_slug: null,
+    price: Number(listing.base_price) || 0,
+    currency: listing.currency,
+    location: locationString || undefined,
+    latitude: location?.latitude ? Number(location.latitude) : null,
+    longitude: location?.longitude ? Number(location.longitude) : null,
+    status:
+      listing.status === 'ACTIVE'
+        ? 'active'
+        : listing.status === 'SOLD'
+        ? 'sold'
+        : listing.status === 'INACTIVE'
+        ? 'paused'
+        : 'draft',
+    is_featured: false,
+    views: 0,
+    dynamic_fields: {
+      bedrooms: property?.bedrooms,
+      bathrooms: property?.bathrooms,
+      size_sqm: property?.total_area_sqm
+        ? Number(property.total_area_sqm)
+        : undefined,
+      location: {
+        city: location?.city,
+        area: location?.area,
+        address: location?.address_line,
+      },
+      amenities: [],
+    },
+    owner: listing.owner ? listing.owner.id : undefined,
+    owner_username: listing.owner
+      ? `${listing.owner.first_name} ${listing.owner.last_name}`.trim()
+      : undefined,
+    created_at: listing.created_at,
+    updated_at: listing.updated_at,
+    images: listing.image_urls?.map((url, index) => ({
+      id: `${listing.id}-${index}`,
+      image: url,
+    })),
+    image_urls: listing.image_urls ?? [],
+  };
+
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
@@ -183,15 +264,24 @@ export const ListingDetailPage: React.FC = () => {
             </button>
 
             <div className="flex items-center gap-2">
-              <button className="px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-2">
+              <button 
+                onClick={handlePreview}
+                className="px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-2"
+              >
                 <Eye className="h-4 w-4" />
                 Preview
               </button>
-              <button className="px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-2">
+              <button 
+                onClick={handleShare}
+                className="px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-2"
+              >
                 <Share2 className="h-4 w-4" />
                 Share
               </button>
-              <button className="px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-2">
+              <button 
+                onClick={handleReport}
+                className="px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-2"
+              >
                 <BarChart3 className="h-4 w-4" />
                 Report
               </button>
@@ -293,12 +383,12 @@ export const ListingDetailPage: React.FC = () => {
 
       {/* Tab Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {activeTab === 'overview' && <OverviewTab listing={listing} />}
+        {activeTab === 'overview' && <OverviewTab listing={overviewListing} />}
         {activeTab === 'messages' && <MessagesTab listingId={id || ''} />}
         {activeTab === 'requests' && <RequestsTab listingId={id || ''} />}
         {activeTab === 'bookings' && <BookingsTab listingId={id || ''} />}
-        {activeTab === 'calendar' && <CalendarTab listingId={id || ''} basePrice={listing.base_price} currency={listing.currency} />}
-        {activeTab === 'pricing' && <PricingTab listingId={id || ''} basePrice={listing.base_price} currency={listing.currency} />}
+        {activeTab === 'calendar' && <CalendarTab listingId={id || ''} basePrice={basePriceNumber} currency={listing.currency} />}
+        {activeTab === 'pricing' && <PricingTab listingId={id || ''} basePrice={basePriceNumber} currency={listing.currency} />}
         {activeTab === 'analytics' && <AnalyticsTab listingId={id || ''} />}
         {activeTab === 'activity' && <ActivityTab listingId={id || ''} />}
       </div>
@@ -308,6 +398,42 @@ export const ListingDetailPage: React.FC = () => {
         listing={listing}
         isOpen={showEditModal}
         onClose={() => setShowEditModal(false)}
+      />
+
+      {/* Preview Modal */}
+      <PreviewModal
+        listing={{
+          title: listing.title,
+          description: listing.description || '',
+          price: Number(listing.base_price) || 0,
+          currency: listing.currency,
+          images: listing.image_urls?.map((url, index) => ({ url, alt: `${listing.title} - Image ${index + 1}` })) || [],
+          location: locationString,
+          type: listing.listing_type?.label ?? listing.listing_type?.code ?? '',
+          bedrooms: listing.property?.bedrooms,
+          bathrooms: listing.property?.bathrooms,
+          area: listing.property?.total_area_sqm
+            ? Number(listing.property.total_area_sqm)
+            : undefined,
+        }}
+        isOpen={showPreviewModal}
+        onClose={() => setShowPreviewModal(false)}
+      />
+
+      {/* Share Modal */}
+      <ShareModal
+        listingTitle={listing.title}
+        listingUrl={`${window.location.origin}/listing/${listing.id}`}
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+      />
+
+      {/* Report Modal */}
+      <ReportModal
+        listingTitle={listing.title}
+        listingId={String(listing.id)}
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
       />
     </div>
   );

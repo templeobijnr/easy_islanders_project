@@ -1,0 +1,141 @@
+:root {
+  /* ============================================
+     SEMANTIC COLOR TOKENS
+     ============================================ */
+
+  /* Brand / Primary semantic scale */
+  --color-primary-50: var(--ocean-50);
+  --color-primary-100: var(--ocean-100);
+  --color-primary-200: var(--ocean-200);
+  --color-primary-300: var(--ocean-300);
+  --color-primary-400: var(--ocean-400);
+  --color-primary-500: var(--ocean-500);
+  --color-primary-600: var(--ocean-600);
+  --color-primary-700: var(--ocean-700);
+  --color-primary-800: var(--ocean-800);
+  --color-primary-900: var(--ocean-900);
+
+  /* Neutral semantic scale */
+  --color-neutral-50: var(--sand-50);
+  --color-neutral-100: var(--sand-100);
+  --color-neutral-200: var(--sand-200);
+  --color-neutral-300: var(--sand-300);
+  --color-neutral-400: var(--sand-400);
+  --color-neutral-500: var(--sand-500);
+  --color-neutral-600: var(--sand-600);
+  --color-neutral-700: var(--sand-700);
+  --color-neutral-800: var(--sand-800);
+  --color-neutral-900: var(--sand-900);
+
+  /* Success, warning, premium semantic slots */
+  --color-success-50: var(--olive-50);
+  --color-success-500: var(--olive-500);
+  --color-success-700: var(--olive-700);
+
+  --color-warning-50: var(--sunset-50);
+  --color-warning-500: var(--sunset-500);
+  --color-warning-700: var(--sunset-700);
+
+  --color-premium-50: var(--gold-50);
+  --color-premium-500: var(--gold-500);
+  --color-premium-700: var(--gold-700);
+
+  /* Component-level background + text tokens */
+  --background: 0 0% 100%;
+  --foreground: 222.2 84% 4.9%;
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 84% 4.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 84% 4.9%;
+  --primary: var(--color-primary-500);
+  --primary-foreground: 0 0% 100%;
+  --secondary: 220 14% 95%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
+  --muted: 220 14% 96%;
+  --muted-foreground: 220 9% 46%;
+  --accent: 220 14% 95%;
+  --accent-foreground: 222.2 47.4% 11.2%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
+  --success: 142 76% 36%;
+  --success-foreground: 0 0% 100%;
+  --warning: 38 92% 50%;
+  --warning-foreground: 0 0% 100%;
+  --gold: var(--color-premium-500);
+  --gold-foreground: 0 0% 100%;
+
+  /* Border/Input/Ring */
+  --border: 220 13% 91%;
+  --input: 220 13% 91%;
+  --ring: var(--color-primary-500);
+
+  /* Component backgrounds */
+  --bg-page: hsl(var(--color-neutral-50));
+  --bg-card: hsl(var(--color-neutral-50) / 1);
+  --bg-card-hover: hsl(var(--color-neutral-100));
+  --bg-elevated: hsl(0 0% 100%);
+  --bg-overlay: hsl(var(--color-neutral-900) / 0.5);
+
+  /* Text tokens */
+  --text-primary: hsl(var(--color-neutral-900));
+  --text-secondary: hsl(var(--color-neutral-700));
+  --text-tertiary: hsl(var(--color-neutral-500));
+  --text-inverse: hsl(0 0% 100%);
+
+  /* Interactive tokens */
+  --interactive-default: hsl(var(--color-primary-500));
+  --interactive-hover: hsl(var(--color-primary-600));
+  --interactive-active: hsl(var(--color-primary-700));
+
+  /* Chart palette */
+  --chart-1: 190 85% 36%;
+  --chart-2: 173 58% 39%;
+  --chart-3: 197 37% 24%;
+  --chart-4: 43 74% 66%;
+  --chart-5: 27 87% 67%;
+
+  /* Glass / shadow helpers */
+  --glass-bg: 0 0% 100% / 0.7;
+  --glass-border: 0 0% 100% / 0.2;
+  --shadow-color: 220 13% 9%;
+  --shadow-premium: 0 6px 30px -6px hsl(var(--shadow-color) / 0.15);
+  --shadow-premium-lg: 0 20px 60px -12px hsl(var(--shadow-color) / 0.2);
+}
+
+.dark {
+  --background: 222 47% 11%;
+  --foreground: 210 40% 98%;
+  --card: 222 47% 11%;
+  --card-foreground: 210 40% 98%;
+  --popover: 222 47% 15%;
+  --popover-foreground: 210 40% 98%;
+  --primary: 103 59% 53%;
+  --primary-foreground: 222.2 47.4% 11.2%;
+  --secondary: 217.2 32.6% 17.5%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 217 33% 17%;
+  --muted-foreground: 215 20% 65%;
+  --accent: 217.2 32.6% 17.5%;
+  --accent-foreground: 210 40% 98%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 210 40% 98%;
+  --success: 142 76% 36%;
+  --success-foreground: 0 0% 100%;
+  --warning: 38 92% 50%;
+  --warning-foreground: 0 0% 100%;
+  --border: 215 14% 34%;
+  --input: 215 14% 34%;
+  --ring: var(--color-primary-500);
+  --chart-1: 190 85% 36%;
+  --chart-2: 173 58% 39%;
+  --chart-3: 197 37% 24%;
+  --chart-4: 43 74% 66%;
+  --chart-5: 27 87% 67%;
+  --gold: var(--color-premium-500);
+  --gold-foreground: 222 47% 11%;
+  --glass-bg: 222 47% 11% / 0.7;
+  --glass-border: 215 14% 34% / 0.3;
+  --shadow-color: 0 0% 0%;
+  --shadow-premium: 0 10px 40px -8px hsl(var(--shadow-color) / 0.4);
+  --shadow-premium-lg: 0 25px 70px -15px hsl(var(--shadow-color) / 0.5);
+}

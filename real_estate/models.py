@@ -715,6 +715,13 @@ class Tenancy(models.Model):
         ("ENDED", "Ended"),
         ("CANCELLED", "Cancelled"),
     ]
+    
+    PAYMENT_STATUS_CHOICES = [
+        ("PENDING", "Pending"),
+        ("PAID", "Paid"),
+        ("REFUNDED", "Refunded"),
+        ("FAILED", "Failed"),
+    ]
 
     id = models.BigAutoField(primary_key=True)
     property = models.ForeignKey(Property, on_delete=models.PROTECT, related_name="tenancies")
@@ -731,15 +738,54 @@ class Tenancy(models.Model):
     deposit_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
 
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="PENDING")
+    
+    # Guest Information (for bookings)
+    guest_name = models.CharField(max_length=255, blank=True, help_text="Guest's full name")
+    guest_email = models.EmailField(blank=True, help_text="Guest's email address")
+    guest_phone = models.CharField(max_length=50, blank=True, help_text="Guest's phone number")
+    guest_count = models.IntegerField(default=1, help_text="Number of guests")
+    
+    # Booking Reference
+    booking_reference = models.CharField(
+        max_length=20, 
+        unique=True, 
+        blank=True,
+        help_text="Unique booking reference code (e.g., BK-20251118-1234)"
+    )
+    
+    # Payment Tracking
+    payment_status = models.CharField(
+        max_length=20,
+        choices=PAYMENT_STATUS_CHOICES,
+        default="PENDING",
+        help_text="Payment status for this booking"
+    )
+    payment_method = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Payment method used (e.g., Credit Card, PayPal)"
+    )
+    
+    # Additional Information
+    special_requests = models.TextField(
+        blank=True,
+        help_text="Special requests or notes from the guest"
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         verbose_name = "Tenancy"
         verbose_name_plural = "Tenancies"
+        indexes = [
+            models.Index(fields=["listing", "status"]),
+            models.Index(fields=["booking_reference"]),
+            models.Index(fields=["start_date", "end_date"]),
+        ]
 
     def __str__(self):
         return f"{self.property.reference_code} - {self.tenant} ({self.start_date} to {self.end_date})"
+
 
 
 # ============================================================================
@@ -884,3 +930,43 @@ class AreaDemographics(models.Model):
 
     def __str__(self):
         return f"Demographics for {self.location}"
+
+
+class PropertyImage(models.Model):
+    """Images attached to properties or listings."""
+
+    id = models.BigAutoField(primary_key=True)
+    property = models.ForeignKey(
+        Property,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="images"
+    )
+    listing = models.ForeignKey(
+        Listing,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="images"
+    )
+    image = models.ImageField(upload_to="real_estate/properties/")
+    caption = models.CharField(max_length=255, blank=True)
+    display_order = models.IntegerField(default=0, help_text="Order for display")
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Property Image"
+        verbose_name_plural = "Property Images"
+        ordering = ["display_order", "uploaded_at"]
+        indexes = [
+            models.Index(fields=["property", "display_order"]),
+            models.Index(fields=["listing", "display_order"]),
+        ]
+
+    def __str__(self):
+        if self.property:
+            return f"Image for Property {self.property.id}"
+        elif self.listing:
+            return f"Image for Listing {self.listing.reference_code}"
+        return f"Image {self.id}"

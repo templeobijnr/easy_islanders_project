@@ -16,7 +16,10 @@ from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.test import APIClient
 
+from django.core.files.uploadedfile import SimpleUploadedFile
+
 from real_estate.models import Property, PropertyType, Location, Feature, FeatureCategory, Listing, ListingType
+from real_estate.models import PropertyImage
 
 User = get_user_model()
 
@@ -63,6 +66,21 @@ def feature_taxonomy(db):
 @pytest.fixture
 def listing_type_long_term(db):
     return ListingType.objects.create(code="LONG_TERM_RENTAL", label="Long-Term Rental")
+
+
+@pytest.fixture
+def listing_type_daily(db):
+    return ListingType.objects.create(code="DAILY_RENTAL", label="Daily Rental")
+
+
+@pytest.fixture
+def listing_type_sale(db):
+    return ListingType.objects.create(code="SALE", label="Sale")
+
+
+@pytest.fixture
+def listing_type_project(db):
+    return ListingType.objects.create(code="PROJECT", label="Project")
 
 
 @pytest.mark.django_db
@@ -161,6 +179,92 @@ class TestPropertyCreateAPI:
         assert listing.listing_type.code == "LONG_TERM_RENTAL"
         assert listing.status == "ACTIVE"
 
+    def _create_property_for_type(
+        self,
+        client,
+        transaction_type: str,
+        base_price: int,
+        property_type_code: str = "APARTMENT",
+    ) -> Listing:
+        """Helper to create a minimal property+listing for a given transaction_type."""
+        url = reverse(self.url_name)
+        payload = {
+            "title": f"Type {transaction_type} listing",
+            "description": "Test listing",
+            "location": {"city": "Kyrenia", "district": "Center"},
+            "structure": {
+                "property_type_code": property_type_code,
+                "bedrooms": 1,
+                "bathrooms": 1,
+            },
+            "features": {"feature_codes": []},
+            "listing": {
+                "transaction_type": transaction_type,
+                "base_price": base_price,
+                "currency": "EUR",
+            },
+        }
+        resp = client.post(url, payload, format="json")
+        assert resp.status_code == status.HTTP_201_CREATED
+        listing_id = resp.data["listing_id"]
+        return Listing.objects.get(id=listing_id)
+
+    def test_short_term_rental_creates_daily_rental_listing(
+        self,
+        api_client,
+        property_type_apartment,
+        location_kyrenia,
+        feature_taxonomy,
+        listing_type_daily,
+    ):
+        client, _ = api_client
+        listing = self._create_property_for_type(
+            client, transaction_type="rent_short", base_price=100
+        )
+        assert listing.listing_type.code == "DAILY_RENTAL"
+
+    def test_long_term_rental_creates_long_term_listing(
+        self,
+        api_client,
+        property_type_apartment,
+        location_kyrenia,
+        feature_taxonomy,
+        listing_type_long_term,
+    ):
+        client, _ = api_client
+        listing = self._create_property_for_type(
+            client, transaction_type="rent_long", base_price=750
+        )
+        assert listing.listing_type.code == "LONG_TERM_RENTAL"
+
+    def test_sale_creates_sale_listing(
+        self,
+        api_client,
+        property_type_apartment,
+        location_kyrenia,
+        feature_taxonomy,
+        listing_type_sale,
+    ):
+        client, _ = api_client
+        listing = self._create_property_for_type(
+            client, transaction_type="sale", base_price=250000
+        )
+        assert listing.listing_type.code == "SALE"
+
+    def test_project_creates_project_listing(
+        self,
+        api_client,
+        property_type_apartment,
+        location_kyrenia,
+        feature_taxonomy,
+        listing_type_project,
+    ):
+        client, _ = api_client
+        listing = self._create_property_for_type(
+            client, transaction_type="project", base_price=350000
+        )
+        assert listing.listing_type.code == "PROJECT"
+
     def test_created_listing_appears_in_portfolio_listings(
         self,
         api_client,
@@ -196,3 +300,57 @@ class TestPropertyCreateAPI:
 
         listing_ids = {str(item["id"]) for item in portfolio_resp.data["results"]}
         assert str(listing_id) in listing_ids
+
+    def test_image_upload_and_fetch_for_each_listing_type(
+        self,
+        api_client,
+        property_type_apartment,
+        location_kyrenia,
+        feature_taxonomy,
+        listing_type_long_term,
+        listing_type_daily,
+        listing_type_sale,
+        listing_type_project,
+    ):
+        """Ensure image upload + fetch works for all transaction types.
+
+        This validates that:
+        - POST /api/v1/real_estate/listings/<id>/upload-image/ accepts an image
+        - GET /api/v1/real_estate/listings/<id>/images/ returns it
+        for long-term, short-term, sale, and project listings.
+        """
+        client, _ = api_client
+        transaction_types = ["rent_long", "rent_short", "sale", "project"]
+
+        for tx in transaction_types:
+            listing = self._create_property_for_type(
+                client, transaction_type=tx, base_price=123
+            )
+
+            upload_url = reverse("listing-upload-image", args=[listing.id])
+            image_file = SimpleUploadedFile(
+                "test.png",
+                b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01"
+                b"\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89"
+                b"\x00\x00\x00\nIDATx\x9cc``\x00\x00\x00\x04\x00\x01"
+                b"\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82",
+                content_type="image/png",
+            )
+
+            upload_resp = client.post(
+                upload_url, data={"image": image_file}, format="multipart"
+            )
+            assert upload_resp.status_code == status.HTTP_201_CREATED
+
+            # Image should be persisted and linked to the real_estate Listing
+            assert PropertyImage.objects.filter(listing=listing).count() == 1
+
+            # Images endpoint should be publicly readable
+            images_url = reverse("listing-images", args=[listing.id])
+            anon_client = APIClient()
+            images_resp = anon_client.get(images_url)
+            assert images_resp.status_code == status.HTTP_200_OK
+            payload = images_resp.json()
+            assert payload["listing_id"] == listing.id
+            assert payload["image_count"] == 1
+            assert len(payload["images"]) == 1

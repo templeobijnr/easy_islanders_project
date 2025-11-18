@@ -112,6 +112,7 @@ export interface ListingSearchResult {
   has_parking: boolean;
   has_air_conditioning: boolean;
   has_central_heating: boolean;
+  cover_image: string | null;
 }
 
 /**
@@ -122,6 +123,22 @@ export interface ListingSearchResponse {
   results: ListingSearchResult[];
   limit: number;
   offset: number;
+}
+
+/**
+ * Response type for listing images (v1 Real Estate API)
+ */
+export interface RealEstateListingImagesResponse {
+  listing_id: number;
+  images: Array<{
+    id: number;
+    image: string;
+    url?: string | null;
+    caption: string;
+    display_order: number;
+    uploaded_at: string;
+  }>;
+  image_count: number;
 }
 
 /**
@@ -148,6 +165,21 @@ export async function searchRealEstateListings(
   const response = await apiClient.get<ListingSearchResponse>(
     '/api/v1/real_estate/listings/search/',
     { params }
+  );
+  return response.data;
+}
+
+/**
+ * Fetch images for a given real estate listing.
+ *
+ * This uses the v1 Real Estate images endpoint which returns
+ * PropertyImage records linked to the listing.
+ */
+export async function getRealEstateListingImages(
+  listingId: number | string
+): Promise<RealEstateListingImagesResponse> {
+  const response = await apiClient.get<RealEstateListingImagesResponse>(
+    `/api/v1/real_estate/listings/${listingId}/images/`
   );
   return response.data;
 }

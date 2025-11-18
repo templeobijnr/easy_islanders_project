@@ -6,6 +6,7 @@ import React, { useState, useMemo } from 'react';
 import { Search, Send, User, MoreVertical, Loader2 } from 'lucide-react';
 import { useListingMessages } from '../hooks/useRealEstateData';
 import type { Message as APIMessage } from '../services/realEstateApi';
+import config from '@/config';
 
 interface Message {
   id: string;
@@ -47,11 +48,11 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({ listingId }) => {
 
   // Transform API messages into threads
   const threads = useMemo(() => {
-    if (!messagesData?.results) return [];
+    const results = messagesData?.results ?? [];
 
     // Group messages by thread_id
     const threadMap = new Map<string, APIMessage[]>();
-    messagesData.results.forEach((msg) => {
+    results.forEach((msg: APIMessage) => {
       const threadId = msg.thread_id;
       if (!threadMap.has(threadId)) {
         threadMap.set(threadId, []);
@@ -127,11 +128,40 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({ listingId }) => {
     }
   };
 
-  const handleSendMessage = () => {
-    if (!replyText.trim()) return;
-    // TODO: Implement send message API call
-    console.log('Sending message:', replyText);
-    setReplyText('');
+  const handleSendMessage = async () => {
+    if (!replyText.trim() || !selectedThreadId) return;
+
+    try {
+      const token = localStorage.getItem('token') || localStorage.getItem('access_token');
+
+      // Send message via API
+      const response = await fetch(`${config.API_BASE_URL}/api/v1/messages/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          thread_id: selectedThreadId,
+          content: replyText,
+          type: 'text',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to send message');
+      }
+
+      // Clear input on success
+      setReplyText('');
+
+      // Optionally refresh messages to show the new one
+      // The React Query cache will automatically update if we refetch
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      // TODO: Show error toast to user
+      alert('Failed to send message. Please try again.');
+    }
   };
 
   const filteredThreads = threads.filter(thread =>

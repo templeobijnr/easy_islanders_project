@@ -20,8 +20,8 @@ export const AppShell: React.FC<Props> = ({ children }) => {
   const { isAuthenticated, setUnreadCount } = useAuth();
   const { dev_lastMemoryTrace, dev_lastCorrelationId } = useChat();
 
-  // Only show LeftRail on ChatPage (root path)
-  const showLeftRail = location.pathname === '/' || location.pathname.startsWith('/chat');
+  // LeftRail hidden to give more space to explore and chat sections
+  const showLeftRail = false; // Previously: location.pathname === '/' || location.pathname.startsWith('/chat')
 
   // Dashboard has its own internal layout
   const isDashboard = location.pathname.startsWith('/dashboard');
@@ -99,7 +99,7 @@ export const AppShell: React.FC<Props> = ({ children }) => {
   console.log('[AppShell] Rendering:', { showLeftRail, isDashboard, pathname: location.pathname });
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-emerald-50 to-slate-50 text-slate-900">
+    <div className="min-h-screen bg-[hsl(var(--sand-50))] text-[hsl(var(--sand-900))]">
       {/* Top Navbar */}
       <Navbar04 />
 
@@ -107,7 +107,7 @@ export const AppShell: React.FC<Props> = ({ children }) => {
       <AuthModal />
 
       {/* Main Content Area with optional LeftRail */}
-      <div className={`mx-auto max-w-7xl px-4 py-4 ${showLeftRail ? 'grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)] gap-4' : ''}`}>
+      <div className={`mx-auto w-full ${showLeftRail ? 'max-w-7xl px-4 py-4 grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)] gap-4' : ''}`}>
         {/* Left Rail - only on ChatPage */}
         {showLeftRail && (
           <aside className="hidden lg:block">
@@ -116,7 +116,7 @@ export const AppShell: React.FC<Props> = ({ children }) => {
         )}
 
         {/* Main Content */}
-        <main className={!showLeftRail && !isDashboard ? 'max-w-5xl mx-auto w-full' : ''}>
+        <main className="w-full">
           {children}
         </main>
       </div>
@@ -128,6 +128,8 @@ export const AppShell: React.FC<Props> = ({ children }) => {
           correlationId={dev_lastCorrelationId}
         />
       )}
+
+      {/* Premium Mode Debug removed */}
     </div>
   );
 };

@@ -35,7 +35,8 @@ Request body (simplified):
             "currency": str,
             "rental_kind": "LONG_TERM" | "DAILY" | null,
             ...
-        }
+        },
+        "images": [files]  // multipart/form-data images field
     }
 
 Response body:
@@ -64,6 +65,7 @@ from real_estate.models import (
     ListingType,
     TitleDeedType,
     SaleDetails,
+    PropertyImage,
 )
 
 
@@ -88,6 +90,9 @@ class PropertyCreateView(APIView):
         features_payload = data.get("features") or {}
         listing_payload = data.get("listing") or {}
 
+        # Extract images from FILES (support multiple images)
+        images = request.FILES.getlist('images')
+
         if not title:
             return Response({"error": "Title is required."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -107,10 +112,16 @@ class PropertyCreateView(APIView):
             listing_type_code = "SALE"
         elif transaction_type == "rent_short":
             listing_type_code = "DAILY_RENTAL"
+        elif transaction_type == "project":
+            listing_type_code = "PROJECT"
         else:
             listing_type_code = "LONG_TERM_RENTAL"
 
-        listing_type = get_object_or_404(ListingType, code=listing_type_code)
+        # Ensure ListingType exists; create it with a sensible label if missing.
+        listing_type, _ = ListingType.objects.get_or_create(
+            code=listing_type_code,
+            defaults={"label": listing_type_code.replace("_", " ").title()},
+        )
 
         with transaction.atomic():
             # Location
@@ -235,6 +246,16 @@ class PropertyCreateView(APIView):
                         is_swap_possible=bool(swap_possible),
                         negotiable=True,
                     )
+
+            # Create PropertyImage instances for uploaded images
+            for i, image_file in enumerate(images):
+                PropertyImage.objects.create(
+                    property=prop,
+                    listing=listing,
+                    image=image_file,
+                    caption="",  # Can be extended to accept captions in payload
+                    display_order=i
+                )
 
         return Response(
             {"property_id": prop.id, "listing_id": listing.id},

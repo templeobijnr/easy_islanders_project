@@ -23,6 +23,7 @@ from assistant.domain.real_estate_search_v1 import (
     search_listings_v1,
     format_v1_listing_for_card,
 )
+from assistant.utils.location_normalizer import normalize_city_name
 from assistant.brain.tools import RecommendationCardPayload, CardItem
 from assistant.brain.supervisor_schemas import SupervisorState
 from assistant.brain.circuit_breaker import CircuitBreakerOpen
@@ -372,9 +373,15 @@ def _handle_search_and_recommend(
         if "rental_type" in merged_slots and merged_slots["rental_type"]:
             filled_slots["rental_type"] = merged_slots["rental_type"]
 
-        # Location -> city
+        # Location -> city (with normalization for Turkish/English variants)
         if "location" in merged_slots and merged_slots["location"]:
-            filled_slots["city"] = merged_slots["location"]
+            raw_location = merged_slots["location"]
+            # Normalize city names (e.g., "Girne" -> "Kyrenia")
+            normalized_city = normalize_city_name(raw_location)
+            filled_slots["city"] = normalized_city
+            logger.info(
+                f"[{thread_id}] RE Agent: normalized location '{raw_location}' -> '{normalized_city}'"
+            )
 
         # Budget
         if "budget" in merged_slots and merged_slots["budget"]:
@@ -440,6 +447,38 @@ def _handle_search_and_recommend(
             f"[{thread_id}] RE Agent: search returned {result_count} results"
         )
 
+        # Handle zero results case with helpful fallback
+        if result_count == 0:
+            logger.warning(
+                f"[{thread_id}] RE Agent: search returned 0 results for filters={filters_used}"
+            )
+
+            # Provide helpful fallback message
+            zero_results_message = (
+                "I couldn't find any listings matching your exact criteria. "
+                "Would you like me to:\n"
+                "• Search with a wider budget range?\n"
+                "• Look in nearby areas?\n"
+                "• Show you what's currently available?"
+            )
+
+            return _with_history(
+                state,
+                {
+                    "final_response": zero_results_message,
+                    "current_node": "real_estate_agent",
+                    "is_complete": True,
+                    "agent_name": "real_estate",
+                    "agent_collected_info": merged_slots,
+                    "agent_conversation_stage": "slot_filling",  # Go back to discovery
+                    "re_agent_act": "SEARCH_AND_RECOMMEND",
+                    "re_agent_result_count": 0,
+                    "re_agent_filters_used": filters_used,
+                    "re_agent_notes": notes
+                },
+                zero_results_message
+            )
+
         # Format listings as cards (only if recommendation cards enabled)
         if ENABLE_RECOMMEND_CARD and result_count > 0:
             # Convert v1 listing dicts to RecItem-compatible card format
@@ -479,12 +518,13 @@ def _handle_search_and_recommend(
                     "recommendations": recommendations,
                     "re_agent_act": "SEARCH_AND_RECOMMEND",
                     "re_agent_card_payload": card_payload.dict(),
+                    "re_agent_result_count": result_count,
                     "re_agent_notes": notes
                 },
                 speak
             )
         else:
-            # Textual fallback (cards disabled or no results)
+            # Textual fallback (cards disabled)
             logger.info(f"[{thread_id}] RE Agent: returning textual response (cards_enabled={ENABLE_RECOMMEND_CARD}, count={result_count})")
             return _with_history(
                 state,
@@ -496,6 +536,7 @@ def _handle_search_and_recommend(
                     "agent_collected_info": merged_slots,
                     "agent_conversation_stage": "presenting",
                     "re_agent_act": "SEARCH_AND_RECOMMEND",
+                    "re_agent_result_count": result_count,
                     "re_agent_notes": notes
                 },
                 speak

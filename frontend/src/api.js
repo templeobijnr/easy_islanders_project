@@ -207,6 +207,22 @@ const api = {
     const response = await http.post(`/api/broadcasts/${id}/increment-view/`);
     return response.data;
   },
+  createSellerListing: async (domain, data) => {
+    const response = await http.post('/api/seller/listings/create/', { domain, ...data });
+    return response.data;
+  },
+  updateSellerListing: async (listingId, domain, data) => {
+    const response = await http.patch(`/api/seller/listings/${listingId}/update/`, data, { params: { domain } });
+    return response.data;
+  },
+  uploadListingImage: async (listingId, file) => {
+    const form = new FormData();
+    form.append('image', file);
+    const response = await http.post(`/api/listings/${listingId}/upload-image/`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
 };
 
 export default api;

@@ -4,8 +4,24 @@ DRF serializers for Portfolio API v1.
 These serializers match the TypeScript interfaces defined in:
 frontend/src/features/seller-dashboard/domains/real-estate/portfolio/types.ts
 """
+import logging
+
+from django.db.utils import ProgrammingError
 from rest_framework import serializers
-from real_estate.models import Listing, ListingType, Property, PropertyFeature, Feature
+
+from real_estate.models import (
+    Listing,
+    ListingType,
+    Property,
+    PropertyFeature,
+    Feature,
+    PropertyImage,
+    Location,
+    Contact,
+)
+
+
+logger = logging.getLogger(__name__)
 
 
 class PortfolioListingSerializer(serializers.ModelSerializer):
@@ -37,6 +53,7 @@ class PortfolioListingSerializer(serializers.ModelSerializer):
     has_pool = serializers.SerializerMethodField()
     has_private_pool = serializers.SerializerMethodField()
     has_sea_view = serializers.SerializerMethodField()
+    cover_image = serializers.SerializerMethodField()
 
     class Meta:
         model = Listing
@@ -67,6 +84,7 @@ class PortfolioListingSerializer(serializers.ModelSerializer):
             'has_pool',
             'has_private_pool',
             'has_sea_view',
+            'cover_image',
         ]
 
     def get_city(self, obj):
@@ -182,6 +200,29 @@ class PortfolioListingSerializer(serializers.ModelSerializer):
 
         return obj.property.features.filter(code='SEA_VIEW').exists()
 
+    def get_cover_image(self, obj):
+        """Get the URL of the cover image (first image)."""
+        request = self.context.get('request')
+        try:
+            # Prefer images explicitly linked to this listing
+            image = PropertyImage.objects.filter(listing=obj).order_by(
+                "display_order", "uploaded_at"
+            ).first()
+
+            # Fallback: images linked to the underlying property
+            if not image and obj.property_id:
+                image = PropertyImage.objects.filter(property=obj.property).order_by(
+                    "display_order", "uploaded_at"
+                ).first()
+        except ProgrammingError:
+            return None
+
+        if image and image.image:
+            if request:
+                return request.build_absolute_uri(image.image.url)
+            return image.image.url
+        return None
+
 
 class PortfolioSummaryItemSerializer(serializers.Serializer):
     """Serializer for portfolio summary per listing type."""
@@ -211,3 +252,158 @@ class ListingUpdateSerializer(serializers.ModelSerializer):
             'title',
             'description',
         ]
+
+
+class PropertyImageSerializer(serializers.ModelSerializer):
+    """Serializer for property images."""
+
+    url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PropertyImage
+        fields = ['id', 'image', 'url', 'caption', 'display_order', 'uploaded_at']
+        read_only_fields = ['id', 'uploaded_at']
+
+    def get_url(self, obj):
+        """Get the URL of the image."""
+        request = self.context.get('request')
+        if obj.image and request:
+            return request.build_absolute_uri(obj.image.url)
+        elif obj.image:
+            return obj.image.url
+        return None
+
+
+class LocationSerializer(serializers.ModelSerializer):
+    """Nested serializer for property locations."""
+
+    class Meta:
+        model = Location
+        fields = [
+            "id",
+            "country",
+            "region",
+            "city",
+            "area",
+            "address_line",
+            "latitude",
+            "longitude",
+        ]
+
+
+class PropertySerializer(serializers.ModelSerializer):
+    """Nested serializer for properties used in listing detail."""
+
+    location = LocationSerializer()
+
+    class Meta:
+        model = Property
+        fields = [
+            "id",
+            "reference_code",
+            "title",
+            "description",
+            "location",
+            "property_type",
+            "building_name",
+            "flat_number",
+            "floor_number",
+            "total_area_sqm",
+            "net_area_sqm",
+            "bedrooms",
+            "living_rooms",
+            "bathrooms",
+            "room_configuration_label",
+        ]
+
+
+class ContactSerializer(serializers.ModelSerializer):
+    """Minimal contact serializer used for listing owner."""
+
+    class Meta:
+        model = Contact
+        fields = ["id", "first_name", "last_name", "phone", "email"]
+
+
+class ListingTypeSerializer(serializers.ModelSerializer):
+    """Serializer for listing type used in detail view."""
+
+    class Meta:
+        model = ListingType
+        fields = ["id", "code", "label"]
+
+
+class ListingDetailSerializer(serializers.ModelSerializer):
+    """
+    Detailed listing serializer used by GET /api/v1/real_estate/listings/{id}/
+
+    This matches the frontend Listing interface in:
+    frontend/src/features/seller-dashboard/domains/real-estate/portfolio/types/realEstateModels.ts
+    where listing_type, property, owner, and image_urls are all populated.
+    """
+
+    listing_type = ListingTypeSerializer()
+    property = PropertySerializer()
+    owner = ContactSerializer()
+    image_urls = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Listing
+        fields = [
+            "id",
+            "reference_code",
+            "listing_type",
+            "property",
+            "project",
+            "owner",
+            "title",
+            "description",
+            "base_price",
+            "currency",
+            "price_period",
+            "available_from",
+            "available_to",
+            "status",
+            "created_by",
+            "created_at",
+            "updated_at",
+            "image_urls",
+        ]
+
+    def get_image_urls(self, obj):
+        """Return absolute URLs for images attached via PropertyImage.
+
+        In environments where the PropertyImage migration has not yet been
+        applied, gracefully degrade by returning an empty list instead of
+        raising a 500 error.
+        """
+        request = self.context.get("request")
+
+        try:
+            # Prefer images explicitly linked to this listing
+            images_qs = PropertyImage.objects.filter(listing=obj).order_by(
+                "display_order", "uploaded_at"
+            )
+
+            # Fallback: images linked to the underlying property
+            if not images_qs.exists() and obj.property_id:
+                images_qs = PropertyImage.objects.filter(property=obj.property).order_by(
+                    "display_order", "uploaded_at"
+                )
+        except ProgrammingError as exc:
+            logger.error(
+                "PropertyImage table missing when fetching images for listing %s",
+                getattr(obj, "id", None),
+                exc_info=True,
+            )
+            return []
+
+        urls = []
+        for image in images_qs:
+            if not image.image:
+                continue
+            if request:
+                urls.append(request.build_absolute_uri(image.image.url))
+            else:
+                urls.append(image.image.url)
+        return urls

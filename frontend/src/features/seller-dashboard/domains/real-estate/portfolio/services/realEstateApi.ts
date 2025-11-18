@@ -4,6 +4,7 @@
  */
 
 import axios from 'axios';
+import type { PortfolioListingsResponse, PortfolioSummaryResponse } from '../types';
 import type {
   Listing,
   ListingSummary,
@@ -40,26 +41,51 @@ api.interceptors.request.use((config) => {
 // PORTFOLIO & LISTING SUMMARY APIs
 // ============================================================================
 
+ const mapSummaryItemToPortfolioStats = (
+  item: PortfolioSummaryResponse[number]
+): PortfolioStats => ({
+  listing_type_code: item.listing_type,
+  active_count: item.active_listings,
+  total_count: item.total_listings,
+  // Map 30-day bookings/enquiries to monthly-style metrics for now
+  booked_this_month: item.bookings_30d,
+  enquiries_count: item.enquiries_30d,
+  total_units: item.total_listings,
+  available_units: item.vacant_units ?? undefined,
+});
+
 /**
  * Get portfolio statistics for a specific listing type
  */
 export const getPortfolioStats = async (
   listingTypeCode: string
 ): Promise<PortfolioStats> => {
-  const response = await api.get<PortfolioStats>(
-    `/real-estate/portfolio/stats/${listingTypeCode}/`
+  const response = await api.get<PortfolioSummaryResponse>(
+    '/v1/real_estate/portfolio/summary/'
   );
-  return response.data;
+  const summaryItem = response.data.find(
+    (item) => item.listing_type === listingTypeCode
+  );
+
+  if (!summaryItem) {
+    return {
+      listing_type_code: listingTypeCode,
+      active_count: 0,
+      total_count: 0,
+    };
+  }
+
+  return mapSummaryItemToPortfolioStats(summaryItem);
 };
 
 /**
  * Get all portfolio statistics (all listing types)
  */
 export const getAllPortfolioStats = async (): Promise<PortfolioStats[]> => {
-  const response = await api.get<PortfolioStats[]>(
-    '/real-estate/portfolio/stats/'
+  const response = await api.get<PortfolioSummaryResponse>(
+    '/v1/real_estate/portfolio/summary/'
   );
-  return response.data;
+  return response.data.map(mapSummaryItemToPortfolioStats);
 };
 
 /**
@@ -73,11 +99,63 @@ export const getListingSummaries = async (params?: {
   page?: number;
   limit?: number;
 }): Promise<PaginatedResponse<ListingSummary>> => {
-  const response = await api.get<PaginatedResponse<ListingSummary>>(
-    '/real-estate/listings/summaries/',
-    { params }
+  const apiParams: Record<string, any> = {};
+
+  if (params?.listing_type) {
+    apiParams.listing_type = params.listing_type;
+  }
+  if (params?.status) {
+    apiParams.status = params.status;
+  }
+  if (params?.search) {
+    apiParams.search = params.search;
+  }
+  if (typeof params?.page === 'number') {
+    apiParams.page = params.page;
+  }
+  if (typeof params?.limit === 'number') {
+    apiParams.page_size = params.limit;
+  }
+
+  const response = await api.get<PortfolioListingsResponse>(
+    '/v1/real_estate/portfolio/listings/',
+    { params: apiParams }
   );
-  return response.data;
+
+  const listingSummaries: ListingSummary[] = response.data.results.map(
+    (item) => ({
+      listing_id: item.id,
+      reference_code: item.reference_code,
+      title: item.title,
+      listing_type_code: item.listing_type,
+      status: item.status,
+      base_price: item.base_price,
+      currency: item.currency,
+      location_city: item.city ?? '',
+      location_area: item.area ?? '',
+      bedrooms: item.bedrooms ?? 0,
+      bathrooms: item.bathrooms ?? 0,
+      // Use room configuration as a simple label placeholder
+      property_type_label: item.room_configuration_label ?? '',
+      image_url: null,
+      // Metrics not yet provided by backend - default to zero
+      new_messages_count: 0,
+      pending_requests_count: 0,
+      bookings_30d_count: item.bookings_30d,
+      occupancy_rate_30d: 0,
+      managed_for_others: false,
+      owner_name: null,
+      current_tenant_name: null,
+      current_lease_end_date: null,
+    })
+  );
+
+  return {
+    count: response.data.total,
+    next: null,
+    previous: null,
+    results: listingSummaries,
+  };
 };
 
 // ============================================================================
@@ -88,7 +166,7 @@ export const getListingSummaries = async (params?: {
  * Get full listing details by ID
  */
 export const getListingById = async (id: number | string): Promise<Listing> => {
-  const response = await api.get<Listing>(`/real-estate/listings/${id}/`);
+  const response = await api.get<Listing>(`/v1/real_estate/listings/${id}/`);
   return response.data;
 };
 
@@ -370,27 +448,47 @@ export const markMessagesAsRead = async (
 // ============================================================================
 
 /**
- * Upload images for a listing
+ * Upload images for a listing.
+ *
+ * Uses the v1 Real Estate upload endpoint which accepts a single
+ * `image` file per request. We iterate through the provided files
+ * and return the collected image URLs for convenience.
  */
 export const uploadListingImages = async (
   listingId: number | string,
   files: File[]
 ): Promise<{ image_urls: string[] }> => {
-  const formData = new FormData();
-  files.forEach((file) => {
-    formData.append('images', file);
-  });
+  const uploadedUrls: string[] = [];
 
-  const response = await api.post<{ image_urls: string[] }>(
-    `/real-estate/listings/${listingId}/images/`,
-    formData,
-    {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
+  // Upload each file sequentially so we can aggregate URLs
+  for (const file of files) {
+    const formData = new FormData();
+    formData.append('image', file);
+
+    const response = await api.post<any>(
+      `/v1/real_estate/listings/${listingId}/upload-image/`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+    let url =
+      response?.data?.url ||
+      response?.data?.image ||
+      response?.data?.image_url ||
+      response?.data?.path;
+    if (url) {
+      const isAbsolute = /^https?:\/\//i.test(url);
+      const normalized = isAbsolute
+        ? url
+        : `${API_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
+      uploadedUrls.push(normalized);
     }
-  );
-  return response.data;
+  }
+
+  return { image_urls: uploadedUrls };
 };
 
 /**
@@ -400,9 +498,23 @@ export const deleteListingImage = async (
   listingId: number | string,
   imageUrl: string
 ): Promise<void> => {
-  await api.delete(`/real-estate/listings/${listingId}/images/`, {
+  await api.delete(`/v1/real_estate/listings/${listingId}/images/`, {
     data: { image_url: imageUrl },
   });
+};
+
+export const getListingImageUrls = async (
+  listingId: number | string
+): Promise<{ image_urls: string[]; image_count?: number }> => {
+  const response = await api.get(`/listings/${listingId}/images/`);
+  return response.data;
+};
+
+export const getRealEstateListingImages = async (
+  listingId: number | string
+): Promise<{ images: Array<{ url?: string; image?: string }>; image_count: number }> => {
+  const response = await api.get(`/v1/real_estate/listings/${listingId}/images/`);
+  return response.data;
 };
 
 // ============================================================================

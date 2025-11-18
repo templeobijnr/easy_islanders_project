@@ -580,6 +580,7 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
     API endpoints for browsing categories.
     
     GET /api/categories/              - List all active categories
+    GET /api/categories/?is_featured_category=true  - Filter by featured categories
     GET /api/categories/{id}/         - Get category details
     GET /api/categories/{id}/subcategories/  - Get subcategories for category
     """
@@ -588,6 +589,21 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [permissions.AllowAny]
     lookup_field = 'slug'
     pagination_class = None  # Disable pagination
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['is_featured_category']
+    
+    def get_queryset(self):
+        """Filter queryset based on query parameters"""
+        queryset = super().get_queryset()
+        
+        # Filter by is_featured_category if provided
+        is_featured = self.request.query_params.get('is_featured_category')
+        if is_featured is not None:
+            # Convert string to boolean
+            is_featured_bool = is_featured.lower() in ('true', '1', 'yes')
+            queryset = queryset.filter(is_featured_category=is_featured_bool)
+        
+        return queryset
     
     def list(self, request, *args, **kwargs):
         """Override list to return custom format expected by frontend"""
@@ -716,6 +732,42 @@ class ListingViewSet(viewsets.ModelViewSet):
         
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
+
+    @action(detail=True, methods=['get'], url_path='images', permission_classes=[permissions.AllowAny])
+    def images(self, request, pk=None):
+        """
+        Return image URLs for a single listing.
+
+        GET /api/listings/{id}/images/
+
+        Response shape matches what the chat UI and EasyIslanders gallery expect:
+        {
+            "listing_id": "<uuid>",
+            "image_urls": [...],
+            "image_count": <int>,
+            "verified_with_photos": <bool>
+        }
+        """
+        listing = self.get_object()
+        images_qs = listing.images.all().order_by('uploaded_at')
+
+        image_urls = []
+        for img in images_qs:
+            try:
+                url = img.image.url
+            except Exception:
+                # Skip any images with invalid files
+                continue
+            image_urls.append(url)
+
+        return Response(
+            {
+                "listing_id": str(listing.id),
+                "image_urls": image_urls,
+                "image_count": len(image_urls),
+                "verified_with_photos": bool(image_urls),
+            }
+        )
 
     @action(detail=True, methods=['post'], url_path='upload-image', permission_classes=[permissions.IsAuthenticated])
     def upload_image(self, request, pk=None):

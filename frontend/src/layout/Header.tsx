@@ -14,8 +14,8 @@ export default function Header() {
     return (
       <Link
         to={to}
-        className={`px-3 py-2 rounded-xl text-sm transition-colors ${
-          isActive ? 'bg-lime-100 text-lime-700 font-medium' : 'text-ink-600 hover:bg-slate-100'
+        className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+          isActive ? 'bg-emerald-100 text-emerald-800' : 'text-gray-700 hover:bg-gray-100'
         }`}
       >
         {label}
@@ -24,23 +24,23 @@ export default function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-white/90 backdrop-blur border-b border-slate-200">
-      <div className="max-w-7xl mx-auto px-4 md:px-6 h-20 flex items-center justify-between">
+    <header className="sticky top-0 z-40 bg-white border-b border-gray-200">
+      <div className="max-w-7xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
         {/* Logo + Mobile Menu Toggle */}
         <div className="flex items-center gap-3">
           <button
             onClick={toggleLeftRail}
-            className="lg:hidden p-2 rounded-xl hover:bg-slate-100 text-ink-600"
+            className="lg:hidden p-2 rounded-lg hover:bg-gray-100 text-gray-700"
             aria-label="Toggle menu"
           >
             <Menu size={20} />
           </button>
 
           <Link to="/" className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-2xl bg-lime-600 grid place-items-center">
-              <Compass className="text-white w-5 h-5" />
+            <div className="w-8 h-8 rounded-lg bg-emerald-600 grid place-items-center">
+              <Compass className="text-white w-4 h-4" />
             </div>
-            <span className="font-semibold text-ink-700 text-lg">Easy Islanders</span>
+            <span className="font-semibold text-gray-900 text-base">Easy Islanders</span>
           </Link>
         </div>
 
@@ -52,7 +52,7 @@ export default function Header() {
 
           <Link
             to="/messages"
-            className="relative px-3 py-2 rounded-xl text-sm text-ink-600 hover:bg-slate-100 transition-colors"
+            className="relative px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100 transition-colors"
           >
             <MessageCircle className="inline w-4 h-4 mr-1" /> Messages
             {unreadCount > 0 && (

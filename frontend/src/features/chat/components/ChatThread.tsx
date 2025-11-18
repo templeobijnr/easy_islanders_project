@@ -82,10 +82,10 @@ export function ChatThread({ messages }: { messages: ChatMessage[] }) {
                 </div>
               ) : (
                 <div className="group relative ml-auto">
-                  <div className="max-w-[80%] md:max-w-[70%] text-sm p-3 rounded-2xl bg-lime-100 text-slate-900 rounded-br-none focus-within:ring-1 focus-within:ring-lime-200/60">
+                  <div className="max-w-[80%] md:max-w-[70%] text-sm p-3 rounded-[var(--radius-lg)] bg-ocean-500 text-white rounded-br-none shadow-sm hover:shadow-md transition-shadow font-[family:var(--font-body)]">
                     {m.text}
                   </div>
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -bottom-1 right-3 text-[10px] text-slate-400">
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -bottom-1 right-3 text-[10px] text-sand-400">
                     {new Date(m.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </div>
                 </div>

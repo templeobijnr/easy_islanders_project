@@ -1,0 +1,10 @@
+/* Unified entry point for the Easy Islanders design tokens.
+   This MUST be imported before Tailwind layers so utilities
+   can consume the custom properties. */
+@import './tokens/colors-primitive.css';
+@import './tokens/colors-semantic.css';
+@import './tokens/typography.css';
+@import './tokens/spacing.css';
+@import './tokens/shadows.css';
+@import './tokens/radius.css';
+@import './tokens/transitions.css';

@@ -2,9 +2,11 @@
  * Portfolio Components - Barrel Export
  */
 
+import MessagesSlideOver from './MessagesSlideOver';
+
 export { TypeSummary } from './TypeSummary';
 export { SearchFilterBar } from './SearchFilterBar';
-export { MessagesSlideOver } from './MessagesSlideOver';
+export { MessagesSlideOver };
 export { RequestsSlideOver } from './RequestsSlideOver';
 export { BookingsSlideOver } from './BookingsSlideOver';
 export { CalendarModal } from './CalendarModal';

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Heart, Image as ImageIcon, Info, Calendar } from 'lucide-react';
+import { Heart, Image as ImageIcon, Info, Calendar, MapPin } from 'lucide-react';
 import { http } from '../../../api';
 import GalleryModal from './GalleryModal';
 import InfoModal from './InfoModal';
@@ -102,10 +102,10 @@ const RecommendationCard: React.FC<RecommendationCardProps> = ({ item }) => {
   };
 
   return (
-    <Card className="w-72 text-left shrink-0 hover:shadow-lg transition-all duration-300 hover:scale-[1.02]">
+    <Card className="w-[320px] text-left shrink-0 rounded-[32px] border border-border bg-card overflow-hidden shadow-sm hover:shadow-card-hover hover:-translate-y-1 transition-all duration-300">
       <CardContent className="p-0">
         {/* Image Section */}
-        <div className="h-28 bg-muted flex items-center justify-center text-muted-foreground relative">
+        <div className="relative aspect-[4/3] bg-gradient-to-tr from-ocean-50 via-sand-50 to-gold-50 overflow-hidden flex items-center justify-center text-muted-foreground">
           {item.imageUrl ? (
             <img src={item.imageUrl} alt={item.title} className="h-full w-full object-cover" />
           ) : (
@@ -120,8 +120,8 @@ const RecommendationCard: React.FC<RecommendationCardProps> = ({ item }) => {
         </div>
 
         {/* Content Section */}
-        <div className="p-3 space-y-2">
-          <div className="text-sm font-semibold text-foreground line-clamp-1">{item.title}</div>
+        <div className="p-4 space-y-3">
+          <div className="text-base font-semibold text-foreground line-clamp-1">{item.title}</div>
 
           {/* Subtitle or Reason */}
           {(item.subtitle || item.reason) && (
@@ -130,18 +130,29 @@ const RecommendationCard: React.FC<RecommendationCardProps> = ({ item }) => {
             </div>
           )}
 
-          {/* Area and Rating */}
-          <div className="flex items-center justify-between text-xs">
-            {item.area && <span className="text-muted-foreground">{item.area}</span>}
-            {item.rating && (
-              <span className="px-2 py-0.5 rounded-full border border-border bg-muted">
-                ⭐ {item.rating.toFixed(1)}
-              </span>
-            )}
-          </div>
+          {/* Location and rating */}
+          {(item.area || item.rating) && (
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              {item.area && (
+                <span className="inline-flex items-center gap-1">
+                  <MapPin className="w-3 h-3" />
+                  {item.area}
+                </span>
+              )}
+              {item.rating && (
+                <span className="px-2 py-0.5 rounded-full bg-white/80 border border-primary-100">
+                  ⭐ {item.rating.toFixed(1)}
+                </span>
+              )}
+            </div>
+          )}
 
           {/* Price */}
-          {item.price && <div className="font-semibold text-sm">{item.price}</div>}
+          {item.price && (
+            <div className="text-xl font-semibold bg-gradient-to-r from-primary-500 to-primary-600 bg-clip-text text-transparent">
+              {item.price}
+            </div>
+          )}
 
           {/* Optional Badges */}
           {item.badges && item.badges.length > 0 && (

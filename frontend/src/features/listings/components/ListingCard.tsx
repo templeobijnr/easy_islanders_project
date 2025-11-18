@@ -107,7 +107,7 @@ const GenericListingCard: React.FC<{
 
             {/* Featured Badge */}
             {listing.is_featured && (
-              <div className="absolute top-4 right-4 px-3 py-1 bg-gradient-to-r from-lime-500 to-emerald-500 text-white text-xs font-semibold rounded-full shadow-lg">
+              <div className="absolute top-4 right-4 px-3 py-1 bg-primary-500 text-primary-foreground text-xs font-semibold rounded-full shadow-lg">
                 Featured
               </div>
             )}
@@ -125,7 +125,7 @@ const GenericListingCard: React.FC<{
 
           {listing.price && (
             <div className="mt-4">
-              <span className="text-2xl font-bold bg-gradient-to-r from-lime-600 to-emerald-600 bg-clip-text text-transparent">
+              <span className="text-2xl font-bold bg-gradient-to-r from-primary-500 to-primary-600 bg-clip-text text-transparent">
                 {listing.currency} {listing.price}
               </span>
             </div>
@@ -138,7 +138,7 @@ const GenericListingCard: React.FC<{
           {onBook && (
             <motion.button
               onClick={() => onBook(listing.id)}
-              className="mt-6 w-full rounded-xl px-4 py-3 text-sm font-semibold text-white bg-gradient-to-r from-lime-500 to-emerald-500 shadow-lg hover:shadow-xl transition-shadow"
+              className="mt-6 w-full rounded-xl px-4 py-3 text-sm font-semibold text-primary-foreground bg-primary-500 hover:bg-primary-600 shadow-lg hover:shadow-xl transition-shadow"
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
@@ -168,7 +168,7 @@ const GenericListingCard: React.FC<{
             transition={{ duration: 0.4 }}
           />
           {listing.is_featured && (
-            <div className="absolute top-6 right-6 px-4 py-2 bg-gradient-to-r from-lime-500 to-emerald-500 text-white text-sm font-semibold rounded-full shadow-2xl">
+            <div className="absolute top-6 right-6 px-4 py-2 bg-primary-500 text-primary-foreground text-sm font-semibold rounded-full shadow-2xl">
               Featured
             </div>
           )}
@@ -185,7 +185,7 @@ const GenericListingCard: React.FC<{
         {listing.price && (
           <div className="mt-6">
             <p className="text-sm text-neutral-600">Price</p>
-            <p className="mt-1 text-3xl font-bold bg-gradient-to-r from-lime-600 to-emerald-600 bg-clip-text text-transparent">
+            <p className="mt-1 text-3xl font-bold bg-gradient-to-r from-primary-500 to-primary-600 bg-clip-text text-transparent">
               {listing.currency} {listing.price}
             </p>
           </div>
@@ -198,7 +198,7 @@ const GenericListingCard: React.FC<{
         {onBook && (
           <motion.button
             onClick={() => onBook(listing.id)}
-            className="mt-8 w-full rounded-xl px-8 py-4 text-lg font-bold text-white bg-gradient-to-r from-lime-500 to-emerald-500 shadow-xl hover:shadow-2xl transition-all"
+            className="mt-8 w-full rounded-xl px-8 py-4 text-lg font-bold text-primary-foreground bg-primary-500 hover:bg-primary-600 shadow-xl hover:shadow-2xl transition-all"
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
           >

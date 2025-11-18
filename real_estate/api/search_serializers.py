@@ -27,15 +27,15 @@ class ListingSearchQuerySerializer(serializers.Serializer):
         required=False
     )
 
-    # Feature flags
-    has_wifi = serializers.BooleanField(required=False)
-    has_kitchen = serializers.BooleanField(required=False)
-    has_private_pool = serializers.BooleanField(required=False)
-    has_shared_pool = serializers.BooleanField(required=False)
-    has_parking = serializers.BooleanField(required=False)
-    has_air_conditioning = serializers.BooleanField(required=False)
-    view_sea = serializers.BooleanField(required=False)
-    view_mountain = serializers.BooleanField(required=False)
+    # Feature flags (allow_null=True to distinguish between not provided and explicitly False)
+    has_wifi = serializers.BooleanField(required=False, allow_null=True, default=None)
+    has_kitchen = serializers.BooleanField(required=False, allow_null=True, default=None)
+    has_private_pool = serializers.BooleanField(required=False, allow_null=True, default=None)
+    has_shared_pool = serializers.BooleanField(required=False, allow_null=True, default=None)
+    has_parking = serializers.BooleanField(required=False, allow_null=True, default=None)
+    has_air_conditioning = serializers.BooleanField(required=False, allow_null=True, default=None)
+    view_sea = serializers.BooleanField(required=False, allow_null=True, default=None)
+    view_mountain = serializers.BooleanField(required=False, allow_null=True, default=None)
 
     # Availability dates
     available_from = serializers.DateField(required=False)
@@ -69,6 +69,7 @@ class ListingSearchResultSerializer(serializers.Serializer):
     available_to = serializers.DateField(allow_null=True)
     created_at = serializers.DateTimeField()
     updated_at = serializers.DateTimeField()
+    cover_image = serializers.SerializerMethodField()
 
     # Property details
     property_id = serializers.IntegerField(allow_null=True)
@@ -120,3 +121,14 @@ class ListingSearchResultSerializer(serializers.Serializer):
     has_parking = serializers.BooleanField()
     has_air_conditioning = serializers.BooleanField()
     has_central_heating = serializers.BooleanField()
+
+    def get_cover_image(self, obj):
+        """Get absolute URL for cover image."""
+        image_path = obj.get("cover_image")
+        if not image_path:
+            return None
+
+        request = self.context.get("request")
+        if request:
+            return request.build_absolute_uri(f"/media/{image_path}")
+        return f"/media/{image_path}"

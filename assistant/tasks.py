@@ -320,7 +320,6 @@ def process_incoming_media_task(self, listing_id: int, media_urls: List[str]) ->
                 media_id = f"media_{int(time.time())}_{i}"
                 stored_url = media_processor.download_and_store_media(media_url, listing_id, media_id)
                 if stored_url:
-                    media_processor._update_listing_media(listing_id, stored_url, media_id)
                     stored_urls.append(stored_url)
                     logger.info(f"Stored media {i+1}/{len(media_urls)} for listing {listing_id}")
             except Exception as e:
@@ -483,9 +482,18 @@ def process_webhook_media_task(self, webhook_data: Dict[str, Any]) -> Dict[str, 
         listing_id = None
         
         try:
+            # Fix: Use correct field name - ContactIndex doesn't have normalized_contact
+            # Use phone number fields directly for matching
             contact_index = ContactIndex.objects.filter(
-                normalized_contact__icontains=from_number
+                contact_phone__icontains=from_number
             ).order_by('-created_at').first()
+            
+            # Also try WhatsApp number if no phone match
+            if not contact_index:
+                contact_index = ContactIndex.objects.filter(
+                    whatsapp_number__icontains=from_number
+                ).order_by('-created_at').first()
+                
             if contact_index:
                 listing_id = contact_index.listing_id
         except Exception as e:
@@ -495,16 +503,44 @@ def process_webhook_media_task(self, webhook_data: Dict[str, Any]) -> Dict[str, 
             logger.warning(f"No listing found for contact {from_number}")
             return {"success": False, "message": "No listing found for this contact"}
         
-        # Process media
-        media_result = process_incoming_media_task.delay(listing_id, media_urls)
-        media_data = media_result.get(timeout=60)
-        
-        if not media_data.get("success"):
+        # Process media - avoid blocking .get() calls to prevent worker starvation
+        # Use direct function calls instead of chaining tasks with ignored results
+        try:
+            from .utils.media import MediaProcessor
+            media_processor = MediaProcessor()
+            stored_urls = []
+            
+            for i, media_url in enumerate(media_urls):
+                try:
+                    media_id = f"media_{int(time.time())}_{i}"
+                    stored_url = media_processor.download_and_store_media(media_url, listing_id, media_id)
+                    if stored_url:
+                        stored_urls.append(stored_url)
+                except Exception as e:
+                    logger.error(f"Failed to process media {i+1} for listing {listing_id}: {e}")
+                    continue
+            
+            media_success = len(stored_urls) > 0
+            media_data = {
+                "success": media_success,
+                "stored_urls": stored_urls,
+                "message": f"Processed {len(stored_urls)} media items"
+            }
+            
+            if not media_success:
+                return {"success": False, "message": "Failed to process media"}
+                
+        except Exception as e:
+            logger.error(f"Media processing failed for listing {listing_id}: {e}")
             return {"success": False, "message": "Failed to process media"}
         
-        # Prepare card display
-        card_result = trigger_get_and_prepare_card_task.delay(listing_id)
-        card_data = card_result.get(timeout=30)
+        # Prepare card display - use direct function call to avoid blocking
+        try:
+            from .utils.card import prepare_card_display_data
+            card_data = prepare_card_display_data(listing_id)
+        except Exception as e:
+            logger.error(f"Card preparation failed for listing {listing_id}: {e}")
+            card_data = {"success": False, "image_count": 0}
         
         logger.info(f"Webhook media processing completed for listing {listing_id}")
         
@@ -1276,11 +1312,25 @@ def delete_listing_from_index(self, listing_id: str) -> Dict[str, Any]:
     from langchain.vectorstores import Chroma
 
     try:
+        # ISSUE-011 FIX: Use configured path instead of hardcoded /tmp
+        from django.conf import settings
+        import os
+        
+        # Get persist directory from settings or use default in BASE_DIR
+        persist_dir = getattr(
+            settings, 
+            'CHROMA_PERSIST_DIR', 
+            os.path.join(settings.BASE_DIR, 'data', 'chroma_db')
+        )
+        
+        # Ensure directory exists
+        os.makedirs(persist_dir, exist_ok=True)
+        
         embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
         db = Chroma(
             collection_name="listings",
             embedding_function=embeddings,
-            persist_directory="/tmp/chroma_db"
+            persist_directory=persist_dir
         )
 
         # Delete all chunks for this listing

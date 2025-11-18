@@ -136,6 +136,16 @@ const TITLE_DEED_OPTIONS = [
   { value: 'BRITISH', label: 'British Title Deed' },
 ];
 
+type LocationSuggestion = {
+  label: string;
+  city?: string;
+  district?: string;
+  address?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  source?: string;
+};
+
 export const RealEstatePropertyUploadEnhanced: React.FC<Props> = ({
   open,
   onOpenChange,
@@ -147,6 +157,7 @@ export const RealEstatePropertyUploadEnhanced: React.FC<Props> = ({
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
   const [useMapPicker, setUseMapPicker] = useState(false);
+  const [geoLoading, setGeoLoading] = useState(false);
 
   // Basic Info
   const [title, setTitle] = useState('');
@@ -182,6 +193,8 @@ export const RealEstatePropertyUploadEnhanced: React.FC<Props> = ({
   const [district, setDistrict] = useState('');
   const [lat, setLat] = useState<string>('');
   const [lng, setLng] = useState<string>('');
+  const [locationQuery, setLocationQuery] = useState('');
+  const [locationSuggestions, setLocationSuggestions] = useState<LocationSuggestion[]>([]);
 
   // Listing Type / Transaction classifier (rent_long | rent_short | sale | project)
   const [listingType, setListingType] = useState<'rent_long' | 'rent_short' | 'sale' | 'project'>('rent_long');
@@ -252,6 +265,8 @@ export const RealEstatePropertyUploadEnhanced: React.FC<Props> = ({
     setDistrict('');
     setLat('');
     setLng('');
+    setLocationQuery('');
+    setLocationSuggestions([]);
     setListingType('rent_long');
     setCurrency('EUR');
     setSalePrice('');
@@ -295,6 +310,125 @@ export const RealEstatePropertyUploadEnhanced: React.FC<Props> = ({
 
   const isFeatureSelected = (code: string) => selectedFeatureCodes.includes(code);
 
+  // Debounced location autocomplete based on city input
+  useEffect(() => {
+    const q = locationQuery.trim();
+    if (!q || q.length < 2) {
+      setLocationSuggestions([]);
+      return;
+    }
+
+    const handle = setTimeout(async () => {
+      try {
+        const resp = await axios.get(
+          `${config.API_BASE_URL}/api/v1/real_estate/geo/autocomplete/`,
+          { params: { q, limit: 5 } }
+        );
+        const results: LocationSuggestion[] = resp.data?.results || [];
+        setLocationSuggestions(results);
+      } catch (e) {
+        // Best-effort only; log and continue with manual entry
+        // eslint-disable-next-line no-console
+        console.error('Failed to fetch location suggestions:', e);
+        setLocationSuggestions([]);
+      }
+    }, 300);
+
+    return () => clearTimeout(handle);
+  }, [locationQuery]);
+
+  const handleUseMyLocation = async () => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      setError('Geolocation is not supported by this browser.');
+      return;
+    }
+
+    // Check if permissions API is available
+    if ('permissions' in navigator) {
+      try {
+        const result = await navigator.permissions.query({ name: 'geolocation' });
+        if (result.state === 'denied') {
+          setError('Location access is denied. Please enable location permissions in your browser settings.');
+          return;
+        }
+      } catch (permissionError) {
+        console.warn('Permissions API check failed:', permissionError);
+      }
+    }
+
+    setGeoLoading(true);
+    setError(null);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude: currentLat, longitude: currentLng } = position.coords;
+        const latFixed = currentLat.toFixed(6);
+        const lngFixed = currentLng.toFixed(6);
+
+        setLat(latFixed);
+        setLng(lngFixed);
+        setUseMapPicker(true);
+
+        // Show success feedback
+        console.log('✅ Location obtained successfully:', {
+          latitude: currentLat,
+          longitude: currentLng,
+          accuracy: position.coords.accuracy
+        });
+
+        try {
+          const resp = await axios.get(
+            `${config.API_BASE_URL}/api/v1/real_estate/geo/reverse/`,
+            {
+              params: {
+                lat: currentLat,
+                lng: currentLng,
+              },
+            }
+          );
+          const data = resp.data || {};
+          if (typeof data.city === 'string' && data.city) {
+            setCity(data.city);
+          }
+          if (typeof data.district === 'string' && data.district) {
+            setDistrict(data.district);
+          }
+        } catch (e) {
+          console.error('Failed to reverse geocode current location:', e);
+          // Don't set error here since we have coordinates, just log it
+        } finally {
+          setGeoLoading(false);
+        }
+      },
+      (err) => {
+        console.error('Geolocation error:', err);
+        let errorMessage = 'Could not get your current location.';
+        
+        switch (err.code) {
+          case err.PERMISSION_DENIED:
+            errorMessage = 'Location access was denied. Please allow location access and try again.';
+            break;
+          case err.POSITION_UNAVAILABLE:
+            errorMessage = 'Location information is unavailable. Please check your device settings.';
+            break;
+          case err.TIMEOUT:
+            errorMessage = 'Location request timed out. Please try again.';
+            break;
+          default:
+            errorMessage = 'An unknown error occurred while getting your location.';
+        }
+        
+        setError(errorMessage);
+        setGeoLoading(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000, // Increased timeout for better reliability
+        maximumAge: 300000,
+      }
+    );
+  };
+
   const onSubmit = async () => {
     if (categoriesLoading) {
       setError('Categories are still loading. Please wait...');
@@ -316,7 +450,7 @@ export const RealEstatePropertyUploadEnhanced: React.FC<Props> = ({
 
       // Determine base price and transaction type for backend based on listingType
       let basePrice: number | null = null;
-      let transactionType: 'rent_long' | 'rent_short' | 'sale' = 'rent_long';
+      let transactionType: 'rent_long' | 'rent_short' | 'sale' | 'project' = 'rent_long';
 
       if (listingType === 'rent_short') {
         transactionType = 'rent_short';
@@ -324,9 +458,12 @@ export const RealEstatePropertyUploadEnhanced: React.FC<Props> = ({
       } else if (listingType === 'rent_long') {
         transactionType = 'rent_long';
         basePrice = Number(monthlyPrice || 0);
-      } else {
-        // sale or project
+      } else if (listingType === 'sale') {
         transactionType = 'sale';
+        basePrice = Number(salePrice || 0);
+      } else {
+        // project
+        transactionType = 'project';
         basePrice = Number(salePrice || 0);
       }
 
@@ -401,15 +538,22 @@ export const RealEstatePropertyUploadEnhanced: React.FC<Props> = ({
       const listingId: string = createResp.data?.listing_id;
 
       // Upload images
-      for (const file of images) {
-        const fd = new FormData();
-        fd.append('image', file);
-        await axios.post(`${config.API_BASE_URL}/api/listings/${listingId}/upload-image/`, fd, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'multipart/form-data',
-          },
-        });
+      if (images.length > 0) {
+        // Upload each image individually using the Real Estate v1 listing image endpoint
+        for (const file of images) {
+          const fd = new FormData();
+          fd.append('image', file); // Note: single 'image' key, not 'images'
+          await axios.post(
+            `${config.API_BASE_URL}/api/v1/real_estate/listings/${listingId}/upload-image/`,
+            fd,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'multipart/form-data',
+              },
+            }
+          );
+        }
       }
 
       if (onSuccess) onSuccess();
@@ -855,6 +999,21 @@ export const RealEstatePropertyUploadEnhanced: React.FC<Props> = ({
                 </div>
               </div>
 
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-xs text-muted-foreground">
+                  You can type an address, pick on the map, or use your current location.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleUseMyLocation}
+                  disabled={geoLoading}
+                >
+                  {geoLoading ? 'Locating…' : 'Use my location'}
+                </Button>
+              </div>
+
               {useMapPicker ? (
                 <LocationMapPicker
                   onLocationSelect={(location) => {
@@ -877,8 +1036,11 @@ export const RealEstatePropertyUploadEnhanced: React.FC<Props> = ({
                     <Input
                       id="city"
                       value={city}
-                      onChange={(e) => setCity(e.target.value)}
-                      placeholder="Kyrenia"
+                      onChange={(e) => {
+                        setCity(e.target.value);
+                        setLocationQuery(e.target.value);
+                      }}
+                      placeholder="Kyrenia or street name"
                     />
                   </div>
                   <div className="space-y-2">
@@ -907,6 +1069,47 @@ export const RealEstatePropertyUploadEnhanced: React.FC<Props> = ({
                       onChange={(e) => setLng(e.target.value)}
                       placeholder="33.3173"
                     />
+                  </div>
+                </div>
+              )}
+
+              {!useMapPicker && locationSuggestions.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  <p className="text-xs text-muted-foreground">
+                    Suggestions based on existing locations:
+                  </p>
+                  <div className="border rounded-md bg-background max-h-48 overflow-y-auto">
+                    {locationSuggestions.map((suggestion, index) => (
+                      <button
+                        key={`${suggestion.label}-${index}`}
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-xs hover:bg-muted focus:outline-none"
+                        onClick={() => {
+                          if (suggestion.city) {
+                            setCity(suggestion.city);
+                          }
+                          if (suggestion.district) {
+                            setDistrict(suggestion.district);
+                          }
+                          if (typeof suggestion.latitude === 'number' && typeof suggestion.longitude === 'number') {
+                            const latFixed = suggestion.latitude.toFixed(6);
+                            const lngFixed = suggestion.longitude.toFixed(6);
+                            setLat(latFixed);
+                            setLng(lngFixed);
+                            setUseMapPicker(true);
+                          }
+                          setLocationQuery('');
+                          setLocationSuggestions([]);
+                        }}
+                      >
+                        <div className="font-medium truncate">{suggestion.label}</div>
+                        {(suggestion.city || suggestion.district) && (
+                          <div className="text-muted-foreground truncate">
+                            {[suggestion.district, suggestion.city].filter(Boolean).join(', ')}
+                          </div>
+                        )}
+                      </button>
+                    ))}
                   </div>
                 </div>
               )}

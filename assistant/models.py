@@ -7,6 +7,13 @@ from pgvector.django import VectorField
 
 User = get_user_model()
 
+# Backward-compatibility export: tests and legacy code import Booking from assistant.models
+# Booking is defined in bookings.models; re-export here to avoid breaking imports
+try:
+    from bookings.models import Booking as Booking  # noqa: F401
+except Exception:
+    Booking = None  # type: ignore
+
 class DemandLead(models.Model):
     """Demand leads from users"""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

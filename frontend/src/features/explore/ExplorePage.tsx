@@ -3,15 +3,22 @@
  * Premium glass morphism design with gradient backgrounds
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useExplore } from './hooks/useExplore';
-import CategoryTabs from './components/CategoryTabs';
-import SubcategoryChips from './components/SubcategoryChips';
+import CategoryPillButtons from './components/CategoryPillButtons';
+import SubcategoryPillButtons from './components/SubcategoryPillButtons';
 import ExploreSpotlight from './components/ExploreSpotlight';
 import ExploreGrid from './components/ExploreGrid';
 import HorizontalLane from './components/HorizontalLane';
+import GlobalSearchBar from './components/GlobalSearchBar';
+import AdvancedFiltersSidebar from './components/AdvancedFiltersSidebar';
+import ViewToggle, { ViewMode } from './components/ViewToggle';
+import { GridSkeleton, SpotlightSkeleton } from './components/LoadingSkeletons';
+import ListingDetailModal from './components/ListingDetailModal';
 import { EXPLORE_LANES } from './constants';
 import { Listing } from './types';
+import { useChat } from '../../shared/context/ChatContext';
+import { SlidersHorizontal } from 'lucide-react';
 
 const ExplorePage: React.FC = () => {
   const {
@@ -25,7 +32,20 @@ const ExplorePage: React.FC = () => {
     listingsLoading,
     setActiveCategory,
     setActiveSubcategory,
+    filters,
+    setSearchQuery,
+    setSortBy,
+    resetFilters,
   } = useExplore();
+
+  const { send } = useChat();
+
+  // New state for enhanced features
+  const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const [showFilters, setShowFilters] = useState(true);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
 
   // Set default category on mount
   useEffect(() => {
@@ -34,10 +54,75 @@ const ExplorePage: React.FC = () => {
     }
   }, [categories, activeCategory, setActiveCategory]);
 
-  // Handle listing click
+  // Handle listing click: Open detail modal
   const handleListingClick = (listing: Listing) => {
-    console.log('Listing clicked:', listing);
-    // TODO: Open listing detail modal or navigate to detail page
+    setSelectedListing(listing);
+    setDetailModalOpen(true);
+  };
+
+  // Handle booking from detail modal
+  const handleBooking = (listingId: string, dates: { checkIn: string; checkOut: string; guests: number }) => {
+    // Close modal
+    setDetailModalOpen(false);
+
+    // Send booking request to chat agent
+    const listing = selectedListing;
+    if (!listing) return;
+
+    const summaryParts: string[] = [];
+    if (listing.category?.name) {
+      summaryParts.push(listing.category.name);
+    }
+    if (listing.subcategory?.name) {
+      summaryParts.push(listing.subcategory.name);
+    }
+    if (listing.location) {
+      summaryParts.push(listing.location);
+    }
+
+    const summary = summaryParts.join(' • ');
+
+    const messageLines = [
+      "I'd like to book this listing from Explore North Cyprus:",
+      `"${listing.title}"`,
+      summary ? `(${summary})` : '',
+      '',
+      `Check-in: ${dates.checkIn}`,
+      `Check-out: ${dates.checkOut}`,
+      `Guests: ${dates.guests}`,
+      '',
+      'Can you help me complete this booking?',
+      `(internal id: ${listing.id})`,
+    ].filter(Boolean);
+
+    send(messageLines.join('\n'));
+  };
+
+  // Handle modal close
+  const handleCloseModal = () => {
+    setDetailModalOpen(false);
+    setSelectedListing(null);
+  };
+
+  // Handle search
+  const handleSearch = (query: string) => {
+    setSearchQuery(query);
+    // Add to recent searches
+    if (query && !recentSearches.includes(query)) {
+      setRecentSearches((prev) => [query, ...prev.slice(0, 4)]);
+    }
+  };
+
+  // Handle filters change
+  const handleFiltersChange = (newFilters: typeof filters) => {
+    // This would be handled by the useExplore hook
+    // For now, just log
+    console.log('Filters changed:', newFilters);
+  };
+
+  // Clear recent searches
+  const clearRecentSearches = () => {
+    setRecentSearches([]);
   };
 
   // Get featured listings for spotlight
@@ -50,98 +135,147 @@ const ExplorePage: React.FC = () => {
   }));
 
   return (
-    <div className="w-full">
-      {/* Explore North Cyprus Header Card with Glass Effect */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-lime-200 via-emerald-200 to-sky-200 shadow-2xl mb-6">
-        {/* Decorative circles */}
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/40 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-        <div className="absolute bottom-0 left-0 w-48 h-48 bg-lime-600/20 rounded-full blur-2xl translate-y-1/2 -translate-x-1/2" />
-
-        {/* Content */}
-        <div className="relative backdrop-blur-sm bg-white/10 p-6 md:p-8">
-          <div className="flex items-center gap-4 mb-3">
-            <div className="flex items-center justify-center w-14 h-14 md:w-16 md:h-16">
-              <span className="text-3xl md:text-4xl">🌴</span>
+    <div className="min-h-screen w-full bg-background">
+      <div className="w-full px-6 md:px-8 lg:px-12 py-6">
+        {/* Hero header - aligned with tokenized card theme */}
+        <div className="mb-6 max-w-6xl mx-auto rounded-[var(--radius-xl)] bg-card border border-border shadow-[var(--shadow-card)]">
+          {/* Clean Content */}
+          <div className="px-6 md:px-10 py-8 md:py-10 flex flex-col gap-6">
+            <div className="flex items-center gap-6">
+              <div className="flex items-center justify-center w-16 h-16 md:w-20 md:h-20 rounded-[var(--radius-lg)] bg-gradient-to-br from-ocean-100 to-ocean-200 border border-ocean-300">
+                <span className="text-3xl md:text-4xl">🏝️</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <h1 className="text-3xl md:text-5xl font-bold text-foreground font-[family:var(--font-heading)]">
+                  Explore North Cyprus
+                </h1>
+                <p className="text-base md:text-xl text-muted-foreground mt-2 font-[family:var(--font-body)]">
+                  Discover properties, services, and experiences curated just for you
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl md:text-4xl font-bold text-slate-900">
-                Explore North Cyprus
-              </h1>
-              <p className="text-sm md:text-lg text-slate-700 mt-1">
-                Discover everything the island has to offer
-              </p>
+
+            {/* Clean Global Search Bar */}
+            <div className="w-full">
+              <GlobalSearchBar
+                onSearch={handleSearch}
+                categories={categories}
+                recentSearches={recentSearches}
+                onClearRecent={clearRecentSearches}
+              />
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Category Tabs */}
-      <div className="mb-6">
-        <CategoryTabs
-          categories={categories}
-          activeCategory={activeCategory}
-          onCategoryChange={setActiveCategory}
-          loading={categoriesLoading}
-        />
-      </div>
-
-      {/* Subcategory Chips */}
-      {activeCategoryObj && subcategories.length > 0 && (
+      {/* Premium Category Navigation */}
+      {!categoriesLoading && categories.length > 0 && (
         <div className="mb-6">
-          <SubcategoryChips
+          <CategoryPillButtons
+            categories={categories}
+            activeCategory={activeCategory}
+            onCategoryChange={setActiveCategory}
+          />
+        </div>
+      )}
+
+      {/* Premium Subcategory Pills */}
+      {activeCategoryObj && subcategories.length > 0 && (
+        <div className="mb-8">
+          <SubcategoryPillButtons
             subcategories={subcategories}
             activeSubcategory={activeSubcategory}
             onSubcategoryChange={setActiveSubcategory}
-            categoryName={activeCategoryObj.name}
           />
         </div>
       )}
 
-      {/* Spotlight Carousel (Featured listings) */}
-      {featuredListings.length > 0 && (
-        <div className="mb-8 animate-fade-in">
-          <ExploreSpotlight listings={featuredListings} onListingClick={handleListingClick} />
+      {/* Premium Spotlight Carousel (Featured listings) */}
+      {listingsLoading && activeCategory ? (
+        <div className="mb-12">
+          <SpotlightSkeleton />
         </div>
-      )}
-
-      {/* Main Grid */}
-      {activeCategory && (
-        <div className="backdrop-blur-sm bg-white/60 rounded-3xl shadow-lg border border-white/40 p-6 md:p-8 mb-8">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className="text-2xl md:text-3xl font-bold text-slate-900">
-                {activeCategoryObj?.name || 'All Listings'}
-                {activeSubcategory && (
-                  <span className="text-lime-600">
-                    {' '}
-                    / {subcategories.find((s) => s.slug === activeSubcategory)?.name}
-                  </span>
-                )}
-              </h2>
-              <p className="text-slate-600 mt-1">
-                {listings.length} {listings.length === 1 ? 'listing' : 'listings'} found
-              </p>
-            </div>
-
-            {/* Sort dropdown */}
-            <div className="hidden md:block">
-              <select className="px-4 py-2 rounded-xl bg-white/80 backdrop-blur-sm border border-white/60 text-slate-700 font-medium hover:border-lime-600 focus:outline-none focus:ring-2 focus:ring-lime-600 shadow-sm">
-                <option>Most Recent</option>
-                <option>Price: Low to High</option>
-                <option>Price: High to Low</option>
-                <option>Most Viewed</option>
-              </select>
-            </div>
+      ) : (
+        featuredListings.length > 0 && (
+          <div className="mb-12 animate-fade-in">
+            <ExploreSpotlight listings={featuredListings} onListingClick={handleListingClick} />
           </div>
+        )
+      )}
 
-          {/* Grid */}
-          <ExploreGrid
-            listings={listings}
-            loading={listingsLoading}
-            onListingClick={handleListingClick}
-            emptyMessage={`No ${activeCategoryObj?.name.toLowerCase()} found`}
-          />
+      {/* Clean Main Content: Filters + Listings */}
+      {activeCategory && (
+        <div className="flex gap-8 mb-12">
+          {/* Clean Advanced Filters Sidebar */}
+          {showFilters && (
+            <div className="hidden lg:block flex-shrink-0">
+              <AdvancedFiltersSidebar
+                category={activeCategoryObj}
+                filters={filters}
+                onFiltersChange={handleFiltersChange}
+                onReset={resetFilters}
+              />
+            </div>
+          )}
+
+          {/* Clean Main Listings Area */}
+          <div className="flex-1 glass-card p-6 md:p-8 shadow-[var(--shadow-card)]">
+            {/* Clean Header with Controls */}
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6 mb-6">
+              <div className="flex-1">
+                <div className="flex items-center gap-4 mb-2">
+                  <h2 className="text-2xl md:text-3xl font-bold text-[hsl(var(--sand-900))] font-[family:var(--font-heading)]">
+                    {activeCategoryObj?.name || 'All Listings'}
+                    {activeSubcategory && (
+                      <span className="text-[hsl(var(--ocean-500))] font-normal">
+                        {' '}
+                        / {subcategories.find((s) => s.slug === activeSubcategory)?.name}
+                      </span>
+                    )}
+                  </h2>
+
+                  {/* Clean Filters Toggle (Mobile) */}
+                  <button
+                    onClick={() => setShowFilters(!showFilters)}
+                    className="lg:hidden p-2 rounded-[var(--radius-md)] bg-[hsl(var(--sand-50))] border border-[hsl(var(--sand-200))] hover:border-[hsl(var(--ocean-300))] hover:bg-[hsl(var(--ocean-50))] transition-all"
+                    title="Toggle filters"
+                  >
+                    <SlidersHorizontal className="w-4 h-4 text-[hsl(var(--sand-600))]" />
+                  </button>
+                </div>
+                <p className="text-[hsl(var(--sand-600))] text-base font-[family:var(--font-body)]">
+                  {listings.length} {listings.length === 1 ? 'listing' : 'listings'} found
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                {/* Clean View Toggle */}
+                <ViewToggle mode={viewMode} onChange={setViewMode} />
+
+                {/* Clean Sort Dropdown */}
+                <select
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="px-4 py-2 rounded-[var(--radius-md)] bg-white border border-[hsl(var(--sand-200))] text-[hsl(var(--sand-700))] font-medium hover:border-[hsl(var(--ocean-300))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ocean-500))] focus:border-[hsl(var(--ocean-500))] font-[family:var(--font-body)]"
+                >
+                  <option value="-created_at">Most Recent</option>
+                  <option value="price">Price: Low to High</option>
+                  <option value="-price">Price: High to Low</option>
+                  <option value="-views">Most Viewed</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Listings Display */}
+            {listingsLoading ? (
+              <GridSkeleton count={9} />
+            ) : (
+              <ExploreGrid
+                listings={listings}
+                loading={false}
+                onListingClick={handleListingClick}
+                emptyMessage={`No ${activeCategoryObj?.name.toLowerCase()} found`}
+              />
+            )}
+          </div>
         </div>
       )}
 
@@ -164,53 +298,62 @@ const ExplorePage: React.FC = () => {
         </div>
       )}
 
-      {/* Trust Badges */}
-      <div className="backdrop-blur-sm bg-gradient-to-r from-lime-200/40 via-emerald-200/40 to-sky-200/40 rounded-3xl border border-white/60 p-6 md:p-8 shadow-lg">
+      {/* Clean Trust Badges */}
+      <div className="glass-card p-6 md:p-8 shadow-[var(--shadow-card)]">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center md:text-left">
           <div className="flex flex-col md:flex-row items-center gap-3">
-            <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-lime-600 shadow-lg">
-              <span className="text-2xl">✅</span>
+            <div className="flex items-center justify-center w-12 h-12 rounded-[var(--radius-md)] bg-gradient-to-br from-[hsl(var(--ocean-50))] to-[hsl(var(--ocean-100))] border border-[hsl(var(--ocean-200))]">
+              <span className="text-xl">✅</span>
             </div>
             <div>
-              <h4 className="font-semibold text-slate-900 mb-1">Verified Listings</h4>
-              <p className="text-sm text-slate-700">All listings are verified for authenticity</p>
+              <h4 className="font-semibold text-[hsl(var(--sand-900))] mb-1 text-base font-[family:var(--font-heading)]">Verified Listings</h4>
+              <p className="text-[hsl(var(--sand-600))] text-sm font-[family:var(--font-body)]">Every listing is verified for authenticity and quality</p>
             </div>
           </div>
 
           <div className="flex flex-col md:flex-row items-center gap-3">
-            <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-lime-600 shadow-lg">
-              <span className="text-2xl">🔒</span>
+            <div className="flex items-center justify-center w-12 h-12 rounded-[var(--radius-md)] bg-gradient-to-br from-[hsl(var(--ocean-50))] to-[hsl(var(--ocean-100))] border border-[hsl(var(--ocean-200))]">
+              <span className="text-xl">🔒</span>
             </div>
             <div>
-              <h4 className="font-semibold text-slate-900 mb-1">Secure Bookings</h4>
-              <p className="text-sm text-slate-700">Your transactions are safe and protected</p>
+              <h4 className="font-semibold text-[hsl(var(--sand-900))] mb-1 text-base font-[family:var(--font-heading)]">Secure Bookings</h4>
+              <p className="text-[hsl(var(--sand-600))] text-sm font-[family:var(--font-body)]">Your transactions are protected with bank-level security</p>
             </div>
           </div>
 
           <div className="flex flex-col md:flex-row items-center gap-3">
-            <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-lime-600 shadow-lg">
-              <span className="text-2xl">🤝</span>
+            <div className="flex items-center justify-center w-12 h-12 rounded-[var(--radius-md)] bg-gradient-to-br from-[hsl(var(--ocean-50))] to-[hsl(var(--ocean-100))] border border-[hsl(var(--ocean-200))]">
+              <span className="text-xl">🤝</span>
             </div>
             <div>
-              <h4 className="font-semibold text-slate-900 mb-1">Local Support</h4>
-              <p className="text-sm text-slate-700">24/7 customer support in multiple languages</p>
+              <h4 className="font-semibold text-[hsl(var(--sand-900))] mb-1 text-base font-[family:var(--font-heading)]">Premium Support</h4>
+              <p className="text-[hsl(var(--sand-600))] text-sm font-[family:var(--font-body)]">24/7 concierge service in multiple languages</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Empty state when no category selected */}
+      {/* Clean Empty State */}
       {!activeCategory && !categoriesLoading && (
-        <div className="flex flex-col items-center justify-center py-16 md:py-24 backdrop-blur-sm bg-white/40 rounded-3xl border border-white/60">
-          <div className="text-6xl md:text-8xl mb-4">🌴</div>
-          <h3 className="text-xl md:text-2xl font-semibold text-slate-900 mb-2">
-            Select a category to start exploring
+        <div className="flex flex-col items-center justify-center py-16 md:py-20 glass-card shadow-[var(--shadow-card)]">
+          <div className="text-6xl md:text-8xl mb-4">🏝️</div>
+          <h3 className="text-xl md:text-2xl font-semibold text-[hsl(var(--sand-900))] mb-2 font-[family:var(--font-heading)]">
+            Begin Your Journey
           </h3>
-          <p className="text-slate-700 text-center max-w-md">
-            Choose from properties, cars, marketplace, events, activities, and more!
+          <p className="text-[hsl(var(--sand-600))] text-center max-w-md text-base font-[family:var(--font-body)]">
+            Select from our curated collection of properties, services, and experiences
           </p>
         </div>
       )}
+
+        {/* Listing Detail Modal */}
+        <ListingDetailModal
+          listing={selectedListing}
+          isOpen={detailModalOpen}
+          onClose={handleCloseModal}
+          onBook={handleBooking}
+        />
+      </div>
     </div>
   );
 };

@@ -280,6 +280,17 @@ class BookingCreateView(APIView):
 
             # Calculate nights/months
             nights = (check_out - check_in).days
+            
+            # Generate unique booking reference
+            import random
+            booking_reference = f"BK-{timezone.now().strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
+            
+            # Get guest information from request
+            guest_name = request.data.get('guest_name', '')
+            guest_email = request.data.get('guest_email', '')
+            guest_phone = request.data.get('guest_phone', '')
+            guest_count = request.data.get('guest_count', 1)
+            special_requests = request.data.get('special_requests', '')
 
             # Create tenancy
             tenancy = Tenancy.objects.create(
@@ -291,25 +302,101 @@ class BookingCreateView(APIView):
                 end_date=check_out,
                 rent_amount=listing.base_price,
                 rent_currency=listing.currency,
-                status='PENDING'
+                status='PENDING',
+                booking_reference=booking_reference,
+                guest_name=guest_name,
+                guest_email=guest_email,
+                guest_phone=guest_phone,
+                guest_count=guest_count,
+                special_requests=special_requests,
+                payment_status='PENDING'
             )
+            
+            # TODO: Send notification to owner
+            # send_booking_notification(listing.created_by, tenancy)
+            
+            # TODO: Send confirmation email to guest
+            # send_booking_confirmation_email(tenancy)
 
             # Record success metrics
             record_booking_request(result='success', rent_type=tenancy_kind)
             logger.info(
                 f"[BookingCreate] Booking created successfully: tenancy_id={tenancy.id}, "
-                f"listing_id={listing_id}, rent_type={tenancy_kind}, nights={nights}, "
-                f"user={request.user}"
+                f"booking_ref={booking_reference}, listing_id={listing_id}, "
+                f"rent_type={tenancy_kind}, nights={nights}, guest={guest_name}, user={request.user}"
             )
 
         return Response({
             'id': tenancy.id,
+            'booking_reference': booking_reference,
             'status': tenancy.status,
+            'payment_status': tenancy.payment_status,
             'listing_id': str(listing.id),
             'check_in': check_in.isoformat(),
             'check_out': check_out.isoformat(),
             'nights': nights,
             'rent_amount': str(tenancy.rent_amount),
             'currency': tenancy.rent_currency,
-            'message': 'Booking created successfully. Awaiting confirmation.'
+            'guest_name': guest_name,
+            'guest_count': guest_count,
+            'message': f'Booking created successfully! Your reference is {booking_reference}. Awaiting confirmation.'
         }, status=status.HTTP_201_CREATED)
+
+
+class BlockedDatesView(APIView):
+    """
+    Get blocked dates for a listing (dates with existing bookings).
+    
+    GET /api/v1/real_estate/listings/{listing_id}/blocked-dates/
+    
+    Response:
+        {
+            "listing_id": "123",
+            "blocked_dates": ["2025-08-01", "2025-08-02", "2025-08-03", ...]
+        }
+    """
+    
+    permission_classes = []  # Public endpoint - anyone can check availability
+    
+    def get(self, request, listing_id):
+        from datetime import timedelta
+        
+        logger.info(f"[BlockedDates] Request for listing_id={listing_id}")
+        
+        # Verify listing exists
+        try:
+            listing = Listing.objects.get(id=listing_id)
+        except Listing.DoesNotExist:
+            logger.error(f"[BlockedDates] Listing not found: listing_id={listing_id}")
+            return Response(
+                {'error': 'Listing not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Get all active/pending bookings for this listing
+        bookings = Tenancy.objects.filter(
+            listing_id=listing_id,
+            status__in=['PENDING', 'ACTIVE']
+        ).values('start_date', 'end_date')
+        
+        # Generate list of all blocked dates
+        blocked_dates = []
+        for booking in bookings:
+            current = booking['start_date']
+            # Include all dates from start to end (inclusive)
+            while current <= booking['end_date']:
+                blocked_dates.append(current.isoformat())
+                current += timedelta(days=1)
+        
+        # Remove duplicates and sort
+        blocked_dates = sorted(list(set(blocked_dates)))
+        
+        logger.info(
+            f"[BlockedDates] Found {len(blocked_dates)} blocked dates for listing_id={listing_id}"
+        )
+        
+        return Response({
+            'listing_id': str(listing_id),
+            'blocked_dates': blocked_dates,
+            'total_blocked': len(blocked_dates)
+        })

@@ -1,0 +1,398 @@
+/**
+ * Animation Library
+ * Keyframe animations for scroll reveals, hovers, and continuous effects
+ */
+
+/* ============================================
+   KEYFRAME DEFINITIONS
+   ============================================ */
+
+/* Fade In Up - Scroll reveal animation */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Fade In Down - Header/badge reveal */
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Fade In - Simple opacity fade */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Gradient Flow - Animated gradient background */
+@keyframes gradientFlow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* Card Lift - Hover elevation */
+@keyframes cardLift {
+  from {
+    transform: translateY(0);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  }
+  to {
+    transform: translateY(-8px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+  }
+}
+
+/* Image Fade - Dual-state image swap */
+@keyframes imageFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Scale Pulse - Continuous scale animation */
+@keyframes scalePulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+/* Float - Vertical floating animation */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+/* Slide In Right - Horizontal entry */
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Slide In Left - Horizontal entry */
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Shimmer - Loading skeleton effect */
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+/* Spin - Continuous rotation */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Bounce - Elastic bounce effect */
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+/* Wave - Continuous wave motion */
+@keyframes wave {
+  0% {
+    transform: translateX(0) translateZ(0) scaleY(1);
+  }
+  50% {
+    transform: translateX(-25%) translateZ(0) scaleY(0.55);
+  }
+  100% {
+    transform: translateX(-50%) translateZ(0) scaleY(1);
+  }
+}
+
+/* ============================================
+   UTILITY CLASSES
+   ============================================ */
+
+/* Fade In Up */
+.animate-fade-in-up {
+  animation: fadeInUp 0.6s ease-out forwards;
+}
+
+.animate-fade-in-up-delay-1 {
+  animation: fadeInUp 0.6s ease-out 0.1s forwards;
+  opacity: 0;
+}
+
+.animate-fade-in-up-delay-2 {
+  animation: fadeInUp 0.6s ease-out 0.2s forwards;
+  opacity: 0;
+}
+
+.animate-fade-in-up-delay-3 {
+  animation: fadeInUp 0.6s ease-out 0.3s forwards;
+  opacity: 0;
+}
+
+/* Fade In Down */
+.animate-fade-in-down {
+  animation: fadeInDown 0.5s ease-out forwards;
+}
+
+/* Fade In */
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-out forwards;
+}
+
+/* Gradient Flow */
+.animate-gradient-flow {
+  animation: gradientFlow 8s ease-in-out infinite alternate;
+}
+
+/* Card Lift */
+.animate-card-lift:hover {
+  animation: cardLift 0.3s ease-out forwards;
+}
+
+/* Scale Pulse */
+.animate-pulse-scale {
+  animation: scalePulse 2s ease-in-out infinite;
+}
+
+/* Float */
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Slide In Right */
+.animate-slide-in-right {
+  animation: slideInRight 0.5s ease-out forwards;
+}
+
+/* Slide In Left */
+.animate-slide-in-left {
+  animation: slideInLeft 0.5s ease-out forwards;
+}
+
+/* Shimmer */
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    #f0f0f0 25%,
+    #e0e0e0 50%,
+    #f0f0f0 75%
+  );
+  background-size: 2000px 100%;
+  animation: shimmer 2s infinite;
+}
+
+/* Spin */
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Bounce */
+.animate-bounce {
+  animation: bounce 1s infinite;
+}
+
+/* ============================================
+   STAGGER ANIMATIONS (for lists)
+   ============================================ */
+
+.stagger-children > * {
+  opacity: 0;
+  animation: fadeInUp 0.5s ease-out forwards;
+}
+
+.stagger-children > *:nth-child(1) { animation-delay: 0.05s; }
+.stagger-children > *:nth-child(2) { animation-delay: 0.1s; }
+.stagger-children > *:nth-child(3) { animation-delay: 0.15s; }
+.stagger-children > *:nth-child(4) { animation-delay: 0.2s; }
+.stagger-children > *:nth-child(5) { animation-delay: 0.25s; }
+.stagger-children > *:nth-child(6) { animation-delay: 0.3s; }
+.stagger-children > *:nth-child(7) { animation-delay: 0.35s; }
+.stagger-children > *:nth-child(8) { animation-delay: 0.4s; }
+.stagger-children > *:nth-child(9) { animation-delay: 0.45s; }
+.stagger-children > *:nth-child(10) { animation-delay: 0.5s; }
+
+/* ============================================
+   HOVER TRANSITIONS
+   ============================================ */
+
+.hover-scale {
+  transition: transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.hover-scale:hover {
+  transform: scale(1.02);
+}
+
+.hover-scale-lg {
+  transition: transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.hover-scale-lg:hover {
+  transform: scale(1.05);
+}
+
+.hover-lift {
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.hover-lift:hover {
+  transform: translateY(-4px);
+}
+
+.hover-lift-lg {
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.hover-lift-lg:hover {
+  transform: translateY(-8px);
+}
+
+/* ============================================
+   SCROLL-TRIGGERED ANIMATIONS
+   ============================================ */
+
+/* Elements start hidden and animate in when scrolled into view */
+.scroll-reveal {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+}
+
+.scroll-reveal.revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Parallax effect on scroll */
+.parallax {
+  transition: transform 0.1s ease-out;
+}
+
+/* ============================================
+   IMAGE SWAP HOVER EFFECT
+   ============================================ */
+
+.image-swap-container {
+  position: relative;
+  overflow: hidden;
+}
+
+.image-swap-default,
+.image-swap-hover {
+  transition: opacity 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.image-swap-default {
+  opacity: 1;
+}
+
+.image-swap-hover {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+}
+
+.image-swap-container:hover .image-swap-default {
+  opacity: 0;
+}
+
+.image-swap-container:hover .image-swap-hover {
+  opacity: 1;
+}
+
+/* ============================================
+   LOADING STATES
+   ============================================ */
+
+.loading-skeleton {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--sand-100)) 25%,
+    hsl(var(--sand-50)) 50%,
+    hsl(var(--sand-100)) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* ============================================
+   PERFORMANCE OPTIMIZATIONS
+   ============================================ */
+
+/* Enable GPU acceleration for animated elements */
+.gpu-accelerated {
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

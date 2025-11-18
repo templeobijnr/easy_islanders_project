@@ -8,6 +8,7 @@ from datetime import timedelta
 from typing import Optional
 
 from django.conf import settings
+from django.urls import reverse
 from rest_framework.authentication import BaseAuthentication
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.authentication import JWTAuthentication
@@ -40,6 +41,7 @@ def set_jwt_cookies(response, access_token: str, refresh_token: str) -> None:
 
     # Refresh token (long-lived)
     refresh_lifetime = settings.SIMPLE_JWT.get('REFRESH_TOKEN_LIFETIME', timedelta(days=1))
+    refresh_path = reverse('token_refresh')  # Use named URL instead of hardcoded path
     response.set_cookie(
         key='refresh',
         value=refresh_token,
@@ -47,7 +49,7 @@ def set_jwt_cookies(response, access_token: str, refresh_token: str) -> None:
         httponly=True,
         secure=cookie_secure,
         samesite=cookie_samesite,
-        path='/api/token/refresh/',  # Restrict to refresh endpoint
+        path=refresh_path,  # Restrict to refresh endpoint
     )
 
 
@@ -58,8 +60,9 @@ def clear_jwt_cookies(response) -> None:
     Args:
         response: Django/DRF Response object
     """
+    refresh_path = reverse('token_refresh')  # Use named URL instead of hardcoded path
     response.delete_cookie('access', path='/')
-    response.delete_cookie('refresh', path='/api/token/refresh/')
+    response.delete_cookie('refresh', path=refresh_path)
 
 
 class CookieJWTAuthentication(BaseAuthentication):
@@ -100,6 +103,13 @@ class CookieJWTAuthentication(BaseAuthentication):
             return jwt_auth.authenticate(request)
         except:
             return None
+
+    def authenticate_header(self, request):
+        """
+        Return a string to be used as the value of the WWW-Authenticate
+        header in a 401 Unauthorized response.
+        """
+        return 'Bearer realm="api"'
 
     def _get_user_from_token(self, validated_token):
         """Extract user from validated JWT token."""

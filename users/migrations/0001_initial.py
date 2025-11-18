@@ -162,24 +162,7 @@ class Migration(migrations.Migration):
                 ("verified_at", models.DateTimeField(blank=True, null=True)),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
                 ("updated_at", models.DateTimeField(auto_now=True)),
-                (
-                    "category",
-                    models.ForeignKey(
-                        blank=True,
-                        null=True,
-                        on_delete=django.db.models.deletion.SET_NULL,
-                        to="listings.Category",
-                    ),
-                ),
-                (
-                    "subcategory",
-                    models.ForeignKey(
-                        blank=True,
-                        null=True,
-                        on_delete=django.db.models.deletion.SET_NULL,
-                        to="listings.subcategory",
-                    ),
-                ),
+
                 (
                     "user",
                     models.OneToOneField(
